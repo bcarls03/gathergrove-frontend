@@ -1,29 +1,38 @@
-import { useState } from "react";
-import { pingBackend } from "../lib/api";
+import { useEffect, useState } from "react";
+import { fetchEvents } from "../lib/api";
 
 export default function Home() {
-  const [result, setResult] = useState<string>("");
+  const [events, setEvents] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  async function handlePing() {
-    setResult("Pinging...");
+  const load = async () => {
     try {
-      const res = await pingBackend();
-      setResult(`✅ Backend reachable at ${res.endpoint} (status ${res.status})`);
+      setLoading(true);
+      setError(null);
+      const data = await fetchEvents(); // you can pass params if needed
+      setEvents(data);
     } catch (e: any) {
-      setResult(`❌ Failed: ${e?.message ?? "unknown error"}`);
+      setError(e?.message ?? "Failed to load events");
+    } finally {
+      setLoading(false);
     }
-  }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
 
   return (
-    <div className="p-4 text-xl">
-      <div>Home</div>
-      <button
-        onClick={handlePing}
-        style={{ marginTop: 16, padding: "8px 12px", border: "1px solid #ddd", borderRadius: 8 }}
-      >
-        Ping backend
+    <div style={{ padding: 16 }}>
+      <h2>Home</h2>
+      <button onClick={load} disabled={loading}>
+        {loading ? "Loading…" : "Refresh /events"}
       </button>
-      {result && <div style={{ marginTop: 12, fontSize: 14 }}>{result}</div>}
+      {error && <p style={{ color: "crimson" }}>Error: {error}</p>}
+      <pre style={{ whiteSpace: "pre-wrap" }}>
+        {events ? JSON.stringify(events, null, 2) : "— no data yet —"}
+      </pre>
     </div>
   );
 }
