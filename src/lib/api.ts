@@ -55,3 +55,11 @@ export async function fetchEvents(params?: Record<string, string | number | bool
   const { data } = await api.get("/events", { params });
   return data;
 }
+
+export async function createEvent(body: {
+  title: string; details?: string; startsAt: string; endsAt: string; category?: string;
+}) {
+  const { data } = await api.post("/events", body);
+  return data;
+}
+
