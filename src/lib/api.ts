@@ -17,7 +17,26 @@ export const api = axios.create({
   headers: defaultHeaders,
 });
 
-// --- health check ---
+/* -------------------------------- Types ---------------------------------- */
+
+export type GGEvent = {
+  id: string;
+  title: string;
+  details: string;
+  type: "now" | "future" | string | null;
+  category: string | null;
+  startAt: string | null; // ISO 8601 with timezone
+  endAt: string | null;   // ISO 8601 with timezone or null
+};
+
+export type GGUser = {
+  id: string;
+  email?: string;
+  last_name?: string;
+};
+
+/* ---------------------------- Health / Utilities -------------------------- */
+
 export async function pingBackend(): Promise<{
   ok: boolean;
   endpoint: string;
@@ -45,21 +64,60 @@ export async function pingBackend(): Promise<{
   }
 }
 
-// --- API helpers ---
-export async function fetchUsers() {
-  const { data } = await api.get("/users");
-  return data;
+/* ------------------------------- Normalizers ------------------------------ */
+
+function normalizeEvent(e: any): GGEvent {
+  return {
+    id: e.id ?? e.event_id ?? crypto.randomUUID(),
+    title: e.title ?? e.name ?? "(untitled)",
+    details: e.details ?? e.description ?? "",
+    type: e.type ?? null,
+    category: e.category ?? null,
+    startAt:
+      e.startAt ??
+      e.start_at ??
+      e.start_time ??
+      e.start ??
+      e.startsAt ??
+      e.startTime ??
+      null,
+    endAt:
+      e.endAt ??
+      e.end_at ??
+      e.end_time ??
+      e.end ??
+      e.endsAt ??
+      e.endTime ??
+      null,
+  };
 }
 
-export async function fetchEvents(params?: Record<string, string | number | boolean>) {
+/* --------------------------------- Events -------------------------------- */
+
+export async function fetchEvents(
+  params?: Record<string, string | number | boolean>
+): Promise<GGEvent[]> {
   const { data } = await api.get("/events", { params });
-  return data;
+  const items = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : [];
+  return items.map(normalizeEvent);
 }
 
 export async function createEvent(body: {
-  title: string; details?: string; startsAt: string; endsAt: string; category?: string;
-}) {
+  type: "future" | "now";
+  title: string;
+  details?: string;
+  startAt?: string; // required when type === "future"
+  endAt?: string;
+  category?: string;
+}): Promise<GGEvent> {
   const { data } = await api.post("/events", body);
-  return data;
+  return normalizeEvent(data);
 }
 
+/* --------------------------------- Users --------------------------------- */
+
+export async function fetchUsers(): Promise<GGUser[]> {
+  const { data } = await api.get("/users");
+  const items = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : [];
+  return items as GGUser[];
+}
