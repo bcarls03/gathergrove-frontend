@@ -17,6 +17,9 @@ export const api = axios.create({
   headers: defaultHeaders,
 });
 
+// Expose the current UID for local profile overrides (used in Settings)
+export const CURRENT_UID = (import.meta.env.VITE_DEV_UID || "demo-uid-123") as string;
+
 /* -------------------------------- Types ---------------------------------- */
 
 export type GGEvent = {
