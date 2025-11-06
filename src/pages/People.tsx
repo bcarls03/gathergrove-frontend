@@ -38,17 +38,14 @@ export default function People() {
   const load = async () => {
     setLoading(true);
     try {
-      // backend users
       const data = await fetchUsers();
       const base = Array.isArray(data) ? data : [];
 
-      // merge profile overrides
       const overrides = loadOverrides();
       const mergedBackend = base.map((u) =>
         overrides[u.id] ? ({ ...u, ...overrides[u.id] } as AnyUser) : (u as AnyUser)
       );
 
-      // add local demo neighbors
       const locals = loadNeighbors().map((n) => ({
         id: n.id,
         last_name: n.last_name,
@@ -57,8 +54,6 @@ export default function People() {
       })) as AnyUser[];
 
       const merged = [...mergedBackend, ...locals];
-
-      // sort by last name
       merged.sort((a, b) => (a.last_name || "").localeCompare(b.last_name || ""));
       setItems(merged);
     } finally {
@@ -75,11 +70,7 @@ export default function People() {
     let list = items;
     if (needle) {
       list = list.filter((u) =>
-        [u.last_name, u.email, u.householdType]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase()
-          .includes(needle)
+        [u.last_name, u.email, u.householdType].filter(Boolean).join(" ").toLowerCase().includes(needle)
       );
     }
     if (onlyFavs) list = list.filter((u) => favs.has(u.id));
@@ -183,18 +174,37 @@ export default function People() {
                 )}
               </div>
 
+              {/* Star button: perfectly centered circle + hover scale + keyboard focus ring */}
               <button
                 aria-label={isFav ? "Remove favorite" : "Add favorite"}
+                aria-pressed={isFav}
                 onClick={() => toggle(u.id)}
                 style={{
                   position: "absolute",
                   right: 12,
                   top: 12,
-                  border: "none",
+
+                  width: 32,
+                  height: 32,
+                  borderRadius: 9999,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: 0,
+                  lineHeight: 1,
+                  transformOrigin: "50% 50%",
+
                   background: "transparent",
-                  fontSize: 20,
+                  border: "none",
                   cursor: "pointer",
+                  fontSize: 22,
+                  transition: "transform 0.15s ease",
+                  outline: "none",
                 }}
+                onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.15)")}
+                onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+                onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 3px rgba(59,130,246,.45)")}
+                onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
                 title={isFav ? "Unstar" : "Star"}
               >
                 {isFav ? "⭐" : "☆"}
