@@ -1,11 +1,10 @@
 // src/pages/People.tsx
 import { useEffect, useMemo, useState } from "react";
 import { fetchUsers, type GGUser } from "../lib/api";
-import { loadOverrides } from "../lib/profile";
+import { loadOverrides, loadNeighbors } from "../lib/profile";
 
 const FAV_KEY = "gg:favorites";
 
-// --- local favorites persisted in localStorage ---
 function useFavorites() {
   const [favs, setFavs] = useState<Set<string>>(() => {
     try {
@@ -27,8 +26,10 @@ function useFavorites() {
   return { favs, toggle };
 }
 
+type AnyUser = GGUser & { householdType?: string };
+
 export default function People() {
-  const [items, setItems] = useState<GGUser[]>([]);
+  const [items, setItems] = useState<AnyUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [q, setQ] = useState("");
   const [onlyFavs, setOnlyFavs] = useState(false);
@@ -37,10 +38,28 @@ export default function People() {
   const load = async () => {
     setLoading(true);
     try {
-      const data = await fetchUsers();               // GGUser[]
-      const list = Array.isArray(data) ? data : [];
-      const overrides = loadOverrides();             // { [id]: { last_name?, householdType? } }
-      const merged = list.map((u) => (overrides[u.id] ? { ...u, ...overrides[u.id] } : u));
+      // backend users
+      const data = await fetchUsers();
+      const base = Array.isArray(data) ? data : [];
+
+      // merge profile overrides
+      const overrides = loadOverrides();
+      const mergedBackend = base.map((u) =>
+        overrides[u.id] ? ({ ...u, ...overrides[u.id] } as AnyUser) : (u as AnyUser)
+      );
+
+      // add local demo neighbors
+      const locals = loadNeighbors().map((n) => ({
+        id: n.id,
+        last_name: n.last_name,
+        email: n.email,
+        householdType: n.householdType,
+      })) as AnyUser[];
+
+      const merged = [...mergedBackend, ...locals];
+
+      // sort by last name
+      merged.sort((a, b) => (a.last_name || "").localeCompare(b.last_name || ""));
       setItems(merged);
     } finally {
       setLoading(false);
@@ -56,7 +75,7 @@ export default function People() {
     let list = items;
     if (needle) {
       list = list.filter((u) =>
-        [u.last_name, u.email, (u as any).householdType]
+        [u.last_name, u.email, u.householdType]
           .filter(Boolean)
           .join(" ")
           .toLowerCase()
@@ -106,7 +125,8 @@ export default function People() {
         {filtered.map((u) => {
           const isFav = favs.has(u.id);
           const name = u.last_name ? `${u.last_name} Household` : "Household";
-          const type = (u as any).householdType as string | undefined;
+          const type = u.householdType;
+          const initial = (u.last_name?.[0] || "H").toUpperCase();
 
           return (
             <div
@@ -118,8 +138,51 @@ export default function People() {
                 boxShadow: "0 2px 6px rgba(0,0,0,0.05)",
                 position: "relative",
                 background: "#fff",
+                display: "flex",
+                gap: 12,
+                alignItems: "flex-start",
               }}
             >
+              <div
+                aria-hidden
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: "9999px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontWeight: 700,
+                  background: "#eef2ff",
+                  color: "#3730a3",
+                  flex: "0 0 36px",
+                  marginTop: 2,
+                }}
+              >
+                {initial}
+              </div>
+
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <h3 style={{ margin: "0 0 4px" }}>{name}</h3>
+                <p style={{ margin: "0 0 6px", color: "#555" }}>{u.email ?? "no email"}</p>
+
+                {type && (
+                  <span
+                    style={{
+                      display: "inline-block",
+                      fontSize: 12,
+                      padding: "2px 8px",
+                      borderRadius: 999,
+                      background: "#eef2ff",
+                      color: "#3730a3",
+                      marginTop: 4,
+                    }}
+                  >
+                    {type}
+                  </span>
+                )}
+              </div>
+
               <button
                 aria-label={isFav ? "Remove favorite" : "Add favorite"}
                 onClick={() => toggle(u.id)}
@@ -136,25 +199,6 @@ export default function People() {
               >
                 {isFav ? "⭐" : "☆"}
               </button>
-
-              <h3 style={{ margin: "0 0 4px" }}>{name}</h3>
-              <p style={{ margin: "0 0 6px", color: "#555" }}>{u.email ?? "no email"}</p>
-
-              {type && (
-                <span
-                  style={{
-                    display: "inline-block",
-                    fontSize: 12,
-                    padding: "2px 8px",
-                    borderRadius: 999,
-                    background: "#eef2ff",
-                    color: "#3730a3",
-                    marginTop: 4,
-                  }}
-                >
-                  {type}
-                </span>
-              )}
             </div>
           );
         })}
