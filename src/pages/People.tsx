@@ -18,7 +18,7 @@ function useFavorites() {
     localStorage.setItem(FAV_KEY, JSON.stringify(Array.from(favs)));
   }, [favs]);
   const toggle = (id: string) =>
-    setFavs((prev) => {
+    setFavs(prev => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
@@ -42,11 +42,11 @@ export default function People() {
       const base = Array.isArray(data) ? data : [];
 
       const overrides = loadOverrides();
-      const mergedBackend = base.map((u) =>
+      const mergedBackend = base.map(u =>
         overrides[u.id] ? ({ ...u, ...overrides[u.id] } as AnyUser) : (u as AnyUser)
       );
 
-      const locals = loadNeighbors().map((n) => ({
+      const locals = loadNeighbors().map(n => ({
         id: n.id,
         last_name: n.last_name,
         email: n.email,
@@ -69,11 +69,11 @@ export default function People() {
     const needle = q.trim().toLowerCase();
     let list = items;
     if (needle) {
-      list = list.filter((u) =>
+      list = list.filter(u =>
         [u.last_name, u.email, u.householdType].filter(Boolean).join(" ").toLowerCase().includes(needle)
       );
     }
-    if (onlyFavs) list = list.filter((u) => favs.has(u.id));
+    if (onlyFavs) list = list.filter(u => favs.has(u.id));
     return list;
   }, [items, q, onlyFavs, favs]);
 
@@ -103,12 +103,15 @@ export default function People() {
         </label>
       </div>
 
+      {/* ---- single-column vertical list ---- */}
       <div
         style={{
           marginTop: 16,
           display: "grid",
           gap: 16,
-          gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+          gridTemplateColumns: "1fr",   // <— vertical
+          maxWidth: 760,                // nice reading width
+          marginInline: "auto",         // centered
         }}
       >
         {filtered.length === 0 && !loading && <p>No matching households.</p>}
@@ -174,7 +177,6 @@ export default function People() {
                 )}
               </div>
 
-              {/* Star button: perfectly centered circle + hover scale + keyboard focus ring */}
               <button
                 aria-label={isFav ? "Remove favorite" : "Add favorite"}
                 aria-pressed={isFav}
@@ -183,7 +185,6 @@ export default function People() {
                   position: "absolute",
                   right: 12,
                   top: 12,
-
                   width: 32,
                   height: 32,
                   borderRadius: 9999,
@@ -193,7 +194,6 @@ export default function People() {
                   padding: 0,
                   lineHeight: 1,
                   transformOrigin: "50% 50%",
-
                   background: "transparent",
                   border: "none",
                   cursor: "pointer",
