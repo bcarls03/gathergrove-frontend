@@ -1,7 +1,9 @@
 // src/lib/api.ts
 import axios, { AxiosError } from "axios";
 
-const baseURL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+// TEMP hard-override so we stop hitting :8000 during local dev
+export const API_BASE_URL = "http://localhost:8002" as const;
+console.log("API baseURL in api.ts =", API_BASE_URL);
 
 // Always send dev headers locally (use sane fallbacks if .env missing)
 const defaultHeaders: Record<string, string> = {
@@ -12,7 +14,7 @@ const defaultHeaders: Record<string, string> = {
 };
 
 export const api = axios.create({
-  baseURL,
+  baseURL: API_BASE_URL,
   timeout: 10000,
   headers: defaultHeaders,
 });
@@ -38,6 +40,25 @@ export type GGUser = {
   last_name?: string;
 };
 
+export type GGProfile = {
+  uid: string;
+  email: string;
+  display_last_name?: string | null;
+  visibility: "neighbors" | "private" | "public";
+  bio?: string | null;
+  favorites: string[];
+  neighbors_include: string[];
+  neighbors_exclude: string[];
+  notifications_enabled: boolean;
+  created_at: string; // ISO
+  updated_at: string; // ISO
+};
+
+export type GGOverrides = {
+  neighbors_include: string[];
+  neighbors_exclude: string[];
+};
+
 /* ---------------------------- Health / Utilities -------------------------- */
 
 export async function pingBackend(): Promise<{
@@ -49,18 +70,18 @@ export async function pingBackend(): Promise<{
 }> {
   try {
     const r = await api.get("/openapi.json");
-    return { ok: true, endpoint: "/openapi.json", status: r.status, baseURL };
+    return { ok: true, endpoint: "/openapi.json", status: r.status, baseURL: API_BASE_URL };
   } catch {
     try {
       const r = await api.get("/");
-      return { ok: true, endpoint: "/", status: r.status, baseURL };
+      return { ok: true, endpoint: "/", status: r.status, baseURL: API_BASE_URL };
     } catch (err) {
       const ae = err as AxiosError;
       return {
         ok: false,
         endpoint: "/openapi.json|/",
         status: ae.response?.status ?? 0,
-        baseURL,
+        baseURL: API_BASE_URL,
         error: ae.message,
       };
     }
@@ -123,4 +144,48 @@ export async function fetchUsers(): Promise<GGUser[]> {
   const { data } = await api.get("/users");
   const items = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : [];
   return items as GGUser[];
+}
+
+/* -------------------------------- Profile -------------------------------- */
+
+export async function getProfile(): Promise<GGProfile> {
+  const { data } = await api.get("/profile");
+  return data as GGProfile;
+}
+
+export async function patchProfile(payload: Partial<Pick<
+  GGProfile,
+  "display_last_name" | "visibility" | "bio" | "favorites" | "neighbors_include" | "neighbors_exclude" | "notifications_enabled"
+>>): Promise<GGProfile> {
+  const { data } = await api.patch("/profile", payload);
+  return data as GGProfile;
+}
+
+/* ------------------------------ Favorites -------------------------------- */
+
+export async function addFavorite(householdId: string): Promise<string[]> {
+  const { data } = await api.put(`/profile/favorites/${encodeURIComponent(householdId)}`);
+  return data as string[];
+}
+
+export async function removeFavorite(householdId: string): Promise<string[]> {
+  const { data } = await api.delete(`/profile/favorites/${encodeURIComponent(householdId)}`);
+  return data as string[];
+}
+
+export async function listFavorites(): Promise<string[]> {
+  const { data } = await api.get("/profile/favorites");
+  return data as string[];
+}
+
+/* ------------------------------ Overrides -------------------------------- */
+
+export async function getOverrides(): Promise<GGOverrides> {
+  const { data } = await api.get("/profile/overrides");
+  return data as GGOverrides;
+}
+
+export async function putOverrides(body: GGOverrides): Promise<GGOverrides> {
+  const { data } = await api.put("/profile/overrides", body);
+  return data as GGOverrides;
 }
