@@ -1,452 +1,334 @@
 // src/lib/api.ts
 import axios, { AxiosError } from "axios";
 
-/* ------------------------------- Base client ------------------------------ */
+/* ------------------------------- Dev UID helper ------------------------------ */
+/**
+ * In dev, give each browser its own stable UID using localStorage.
+ * - Chrome and Safari will behave like two separate users.
+ */
+function getDevUid(): string {
+  if (typeof window === "undefined") {
+    return (import.meta.env.VITE_DEV_UID as string | undefined) || "demo-uid-123";
+  }
 
-// TEMP hard-override so we stop hitting :8000 during local dev
-export const API_BASE_URL = "http://localhost:8002" as const;
-console.log("API baseURL in api.ts =", API_BASE_URL);
+  const KEY = "gg_dev_uid_v1";
+  let uid = window.localStorage.getItem(KEY);
 
-// Always send dev headers locally (use sane fallbacks if .env missing)
-const defaultHeaders: Record<string, string> = {
-  Authorization: `Bearer ${import.meta.env.VITE_DEV_BEARER || "dev"}`,
-  "X-Uid": import.meta.env.VITE_DEV_UID || "demo-uid-123",
-  "X-Email": import.meta.env.VITE_DEV_EMAIL || "brian@example.com",
-  "X-Admin": (import.meta.env.VITE_DEV_ADMIN || "true") as string,
-};
+  if (!uid) {
+    if ("crypto" in window && "randomUUID" in window.crypto) {
+      uid = window.crypto.randomUUID();
+    } else {
+      uid = "dev-" + Math.random().toString(16).slice(2);
+    }
+    window.localStorage.setItem(KEY, uid);
+  }
 
-export const api = axios.create({
+  return uid;
+}
+
+export const CURRENT_UID = getDevUid();
+
+/* -------------------------------- Base URL --------------------------------- */
+
+export const API_BASE_URL =
+  (import.meta.env.VITE_API_BASE_URL as string | undefined) || "http://localhost:8000";
+
+/* --------------------------------- Axios ----------------------------------- */
+
+const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
-  headers: defaultHeaders,
+  timeout: 30000,
 });
 
-// Expose the current UID for local profile overrides (used in Settings)
-export const CURRENT_UID = (import.meta.env.VITE_DEV_UID ||
-  "demo-uid-123") as string;
-
-/* -------------------------------- Types ---------------------------------- */
-
-/** Event categories must match backend Literal exactly:
- *  Literal["neighborhood", "playdate", "help", "pet", "other"]
+/**
+ * Headers your FastAPI dev auth expects.
+ * IMPORTANT: attach these to *every* request.
  */
-export const EVENT_CATEGORY_VALUES = [
-  "neighborhood",
-  "playdate",
-  "help",
-  "pet",
-  "other",
-] as const;
+function devHeaders(extra?: Record<string, string>) {
+  return {
+    Authorization: "Bearer dev",
+    "X-Uid": CURRENT_UID,
+    "X-Email": `${CURRENT_UID}@dev.local`,
+    "X-Admin": "true",
+    ...(extra || {}),
+  };
+}
 
-export type EventCategory = (typeof EVENT_CATEGORY_VALUES)[number];
+api.interceptors.request.use(
+  (config) => {
+    const existing = (config.headers ?? {}) as Record<string, any>;
+    config.headers = { ...devHeaders(), ...existing };
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
-export const EVENT_CATEGORIES: { value: EventCategory; label: string }[] = [
-  { value: "neighborhood", label: "Neighborhood" },
-  { value: "playdate", label: "Playdate" },
-  { value: "help", label: "Help needed" },
-  { value: "pet", label: "Pets" },
-  { value: "other", label: "Other" },
-];
+function unwrapAxiosError(err: unknown) {
+  const ax = err as AxiosError<any>;
+  const msg =
+    ax?.response?.data?.detail?.[0]?.msg ||
+    ax?.response?.data?.detail ||
+    ax?.response?.data?.message ||
+    ax?.message ||
+    "Request failed";
+  return new Error(msg);
+}
+
+/* --------------------------------- Types ----------------------------------- */
+
+export type GGUser = {
+  id?: string;
+  uid: string;
+  email?: string;
+  name?: string;
+  isAdmin?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type Kid = {
+  birthMonth?: number | null;
+  birthYear?: number | null;
+  sex?: string | null;
+  awayAtCollege?: boolean | null;
+  canBabysit?: boolean | null;
+};
+
+export type GGHousehold = {
+  id?: string;
+  uid?: string;
+  email?: string;
+  lastName?: string;
+  adultNames?: string[];
+  neighborhood?: string;
+  householdType?: string;
+  kids?: Kid[];
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+/** MUST match ComposePost CATEGORY_OPTIONS */
+export type EventCategory = "neighborhood" | "playdate" | "help" | "pet" | "other";
+
+export type RSVPStatus = "going" | "maybe" | "cant";
 
 /**
- * Normalized event shape used throughout the frontend.
- * Maps backend "now" → "happening" for UI, and includes RSVP info.
+ * Events coming back from backend may be "now/future"
+ * but UI historically used "happening/event". Tolerate both.
  */
 export type GGEvent = {
   id: string;
-
-  // Content
-  title: string;
-  details: string;
-
-  // Type (UI uses "happening" for backend "now")
-  type: "happening" | "future" | null;
-
-  // Categorical label aligned with backend Category Literal
-  category: EventCategory | null;
-
-  // Timestamps (ISO 8601)
-  startAt: string | null;
-  endAt: string | null;
-  expiresAt: string | null;
-
-  // Capacity & visibility
-  capacity: number | null;
-  neighborhoods: string[];
-
-  // RSVP info from backend
-  attendeeCount: number; // going
-  attendeeCounts: {
-    going: number;
-    cant: number;
-  };
-  isAttending: boolean;
-
-  // Optional host UID (used by Home "Your Activity")
-  hostUid?: string | null;
-};
-
-export type GGUser = {
-  id: string;
-  email?: string;
-  last_name?: string;
-};
-
-/**
- * Summary of a household/person card in the People tab.
- * Matches what /people and /households return after normalization.
- */
-export type GGHousehold = {
-  id: string;
-  lastName?: string | null;
-  type?: string | null;
-  neighborhood?: string | null;
-  childAges?: number[];
-  adultNames?: string[]; // 👈 supports 2-adult households
-};
-
-export type GGProfile = {
-  uid: string;
-  email: string;
-  display_last_name?: string | null;
-  visibility: "neighbors" | "private" | "public";
-  bio?: string | null;
-  favorites: string[];
-  neighbors_include: string[];
-  neighbors_exclude: string[];
-  notifications_enabled: boolean;
-  created_at: string; // ISO
-  updated_at: string; // ISO
-};
-
-export type GGOverrides = {
-  neighbors_include: string[];
-  neighbors_exclude: string[];
-};
-
-/* ---------------------------- Health / Utilities -------------------------- */
-
-export async function pingBackend(): Promise<{
-  ok: boolean;
-  endpoint: string;
-  status: number;
-  baseURL: string;
-  error?: string;
-}> {
-  try {
-    const r = await api.get("/openapi.json");
-    return {
-      ok: true,
-      endpoint: "/openapi.json",
-      status: r.status,
-      baseURL: API_BASE_URL,
-    };
-  } catch {
-    try {
-      const r = await api.get("/");
-      return {
-        ok: true,
-        endpoint: "/",
-        status: r.status,
-        baseURL: API_BASE_URL,
-      };
-    } catch (err) {
-      const ae = err as AxiosError;
-      return {
-        ok: false,
-        endpoint: "/openapi.json|/",
-        status: ae.response?.status ?? 0,
-        baseURL: API_BASE_URL,
-        error: ae.message,
-      };
-    }
-  }
-}
-
-/* ------------------------------- Normalizers ------------------------------ */
-
-function toIsoOrNull(v: any): string | null {
-  const s =
-    v?.startAt ??
-    v?.start_at ??
-    v?.start_time ??
-    v?.start ??
-    v?.startsAt ??
-    v?.startTime ??
-    null;
-  return s ? String(s) : null;
-}
-
-function toIsoEndOrNull(v: any): string | null {
-  const e =
-    v?.endAt ??
-    v?.end_at ??
-    v?.end_time ??
-    v?.end ??
-    v?.endsAt ??
-    v?.endTime ??
-    null;
-  return e ? String(e) : null;
-}
-
-function toIsoExpiresOrNull(v: any): string | null {
-  const e =
-    v?.expiresAt ?? v?.expireAt ?? v?.expires_at ?? v?.expire_at ?? null;
-  return e ? String(e) : null;
-}
-
-function normalizeType(t: any): GGEvent["type"] {
-  const s = String(t ?? "").toLowerCase();
-  if (s === "future") return "future";
-  if (s === "now" || s === "happening" || s === "now_post") return "happening";
-  return null;
-}
-
-function toStringArray(x: any): string[] {
-  if (!x) return [];
-  if (Array.isArray(x)) return x.map(String);
-  return [String(x)];
-}
-
-function normalizeCategory(cat: any): EventCategory | null {
-  if (!cat) return null;
-  const s = String(cat).toLowerCase();
-  return EVENT_CATEGORY_VALUES.includes(s as EventCategory)
-    ? (s as EventCategory)
-    : null;
-}
-
-function normalizeEvent(e: any): GGEvent {
-  // Try many common shapes for creator and recipients (legacy support)
-  const creatorId =
-    e.creatorId ??
-    e.creator_id ??
-    e.userId ??
-    e.user_id ??
-    e.uid ??
-    CURRENT_UID;
-
-  const recipientIds =
-    e.recipientIds ??
-    e.recipient_ids ??
-    e.recipients ??
-    e.targets ??
-    e.households ??
-    [];
-
-  const startAt = toIsoOrNull(e);
-  const endAt = toIsoEndOrNull(e);
-  const expiresAt = toIsoExpiresOrNull(e);
-
-  const capacity =
-    typeof e.capacity === "number"
-      ? e.capacity
-      : e.capacity
-      ? Number(e.capacity)
-      : null;
-
-  const neighborhoods = Array.isArray(e.neighborhoods)
-    ? e.neighborhoods.map(String)
-    : [];
-
-  // RSVP stats: backend now returns attendeeCount, isAttending, attendeeCounts
-  const rawCounts = e.attendeeCounts ?? {};
-  const goingFromCounts =
-    typeof rawCounts.going === "number"
-      ? rawCounts.going
-      : Number(rawCounts.going ?? 0);
-  const cantFromCounts =
-    typeof rawCounts.cant === "number"
-      ? rawCounts.cant
-      : Number(rawCounts.cant ?? 0);
-
-  const attendeeCount =
-    typeof e.attendeeCount === "number" ? e.attendeeCount : goingFromCounts || 0;
-
-  const attendeeCounts = {
-    going: goingFromCounts || attendeeCount || 0,
-    cant: cantFromCounts || 0,
-  };
-
-  const isAttending = Boolean(e.isAttending);
-
-  return {
-    id: e.id ?? e.event_id ?? crypto.randomUUID(),
-    title: e.title ?? e.name ?? "(untitled)",
-    details: e.details ?? e.description ?? "",
-    type: normalizeType(e.type),
-    category: normalizeCategory(e.category),
-    startAt,
-    endAt,
-    expiresAt,
-    capacity,
-    neighborhoods,
-    attendeeCount,
-    attendeeCounts,
-    isAttending,
-    hostUid: e.hostUid ?? e.host_uid ?? undefined,
-  };
-}
-
-/* --------------------------------- Events -------------------------------- */
-
-/**
- * Fetch events from backend.
- * Supports both: { items: GGEvent[] } and plain GGEvent[].
- */
-export async function fetchEvents(
-  params?: Record<string, string | number | boolean>
-): Promise<GGEvent[]> {
-  const { data } = await api.get("/events", { params });
-  const items = Array.isArray(data?.items)
-    ? data.items
-    : Array.isArray(data)
-    ? data
-    : [];
-  return items.map(normalizeEvent);
-}
-
-/**
- * Input used by the UI when composing an event.
- * Note: creatorId and recipientIds are *not* sent to the backend anymore;
- * backend infers hostUid from auth and we’ll later use neighborhoods
- * explicitly for targeting.
- */
-export type CreateEventInput = {
-  // UI-level type: "happening" maps to backend "now"
-  type: "happening" | "future";
-
-  title: string;
+  type?: "now" | "future" | "happening" | "event";
+  kind?: "happening" | "event";
+  title?: string;
   details?: string;
-
-  // Time (ISO strings)
-  startAt?: string; // required when type === "future"
-  endAt?: string;
-
-  // Category aligned with backend Category Literal
   category?: EventCategory;
 
-  // UI-only for now (not sent to backend, but kept to avoid breaking callers)
-  creatorId: string;
-  recipientIds: string[]; // include creatorId if you want them to see it too
+  startAt?: string | null;
+  endAt?: string | null;
+  expiresAt?: string | null;
+
+  when?: string;
+
+  neighborhoods?: string[];
+
+  createdBy?: { id: string; label: string };
+
+  attendeeCount?: number;
+  attendeeCounts?: { going?: number; cant?: number };
+  isAttending?: boolean;
+
+  goingCount?: number;
+  maybeCount?: number;
+  cantCount?: number;
 };
 
-// Helper to strip empty strings so we don't send "" to Pydantic datetime fields
-function normalizeOptionalIso(v?: string): string | undefined {
-  if (v == null) return undefined;
-  const s = v.trim();
-  return s.length ? s : undefined;
-}
+export type EventRsvpHousehold = {
+  uid: string;
 
-export async function createEvent(body: CreateEventInput): Promise<GGEvent> {
-  // Map UI "happening" → backend "now"
-  const {
-    creatorId: _creatorId,
-    recipientIds: _recipientIds,
-    type,
-    title,
-    details,
-    startAt,
-    endAt,
-    category,
-  } = body;
+  household_id?: string;
+  householdId?: string;
 
-  const payload: any = {
-    type: type === "happening" ? "now" : type,
-    title: title.trim() || "Event",
-    details: (details ?? "").trim(),
-    // neighborhoods will be wired up later; for now the backend will treat
-    // empty list as "visible to the neighborhood by default" or global.
-  };
+  last_name?: string | null;
+  lastName?: string | null;
+  householdLastName?: string | null;
 
-  const startIso = normalizeOptionalIso(startAt);
-  const endIso = normalizeOptionalIso(endAt);
+  neighborhood?: string | null;
 
-  if (startIso) payload.startAt = startIso;
-  if (endIso) payload.endAt = endIso;
+  household_type?: string | null;
+  householdType?: string | null;
 
-  if (category && EVENT_CATEGORY_VALUES.includes(category)) {
-    payload.category = category;
-  }
+  child_ages?: number[];
+  childAges?: number[];
 
+  child_sexes?: (string | null)[];
+  childSexes?: (string | null)[];
+};
+
+export type EventRsvpBuckets = {
+  going: EventRsvpHousehold[];
+  maybe: EventRsvpHousehold[];
+  cant: EventRsvpHousehold[];
+};
+
+/* ------------------------------ Users endpoints ----------------------------- */
+
+export async function upsertUser(payload?: Partial<GGUser>): Promise<GGUser> {
   try {
-    const { data } = await api.post("/events", payload);
-    return normalizeEvent(data);
-  } catch (err) {
-    const ae = err as AxiosError<any>;
-    if (ae.response?.status === 422) {
-      console.error("Validation error from /events:", ae.response.data);
+    const isSafari =
+      typeof navigator !== "undefined" &&
+      /safari/i.test(navigator.userAgent) &&
+      !/chrome|crios|android/i.test(navigator.userAgent);
+
+    const body: Partial<GGUser> = {
+      uid: CURRENT_UID,
+      email: `${CURRENT_UID}@dev.local`,
+      name: isSafari ? "Safari User" : "Chrome User",
+      isAdmin: true,
+      ...(payload || {}),
+    };
+
+    if (!body.name || String(body.name).trim().length === 0) {
+      body.name = isSafari ? "Safari User" : "Chrome User";
     }
-    throw err;
+
+    const res = await api.post("/users", body, { headers: { "Content-Type": "application/json" } });
+    return res.data as GGUser;
+  } catch (e) {
+    throw unwrapAxiosError(e);
   }
 }
 
-/* --------------------------------- Users --------------------------------- */
+/* ---------------------------- Households endpoints --------------------------- */
 
-export async function fetchUsers(): Promise<GGUser[]> {
-  const { data } = await api.get("/users");
-  const items = Array.isArray(data?.items)
-    ? data.items
-    : Array.isArray(data)
-    ? data
-    : [];
-  return items as GGUser[];
+export async function fetchHouseholds(params?: {
+  neighborhood?: string;
+  household_type?: string;
+}): Promise<GGHousehold[]> {
+  try {
+    const res = await api.get("/households", { params: params || {} });
+    const data = res.data;
+    return (Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []) as GGHousehold[];
+  } catch (e) {
+    throw unwrapAxiosError(e);
+  }
 }
 
-/* -------------------------------- Profile -------------------------------- */
-
-export async function getProfile(): Promise<GGProfile> {
-  const { data } = await api.get("/profile");
-  return data as GGProfile;
+export async function upsertMyHousehold(payload: Partial<GGHousehold>): Promise<GGHousehold> {
+  try {
+    const res = await api.post("/households", payload, { headers: { "Content-Type": "application/json" } });
+    return res.data as GGHousehold;
+  } catch (e) {
+    throw unwrapAxiosError(e);
+  }
 }
 
-export async function patchProfile(
-  payload: Partial<
-    Pick<
-      GGProfile,
-      | "display_last_name"
-      | "visibility"
-      | "bio"
-      | "favorites"
-      | "neighbors_include"
-      | "neighbors_exclude"
-      | "notifications_enabled"
-    >
-  >
-): Promise<GGProfile> {
-  const { data } = await api.patch("/profile", payload);
-  return data as GGProfile;
+/* ------------------------------- Events endpoints ---------------------------- */
+
+export async function fetchEvents(): Promise<GGEvent[]> {
+  try {
+    const res = await api.get("/events");
+    const data = res.data;
+    return (Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []) as GGEvent[];
+  } catch (e) {
+    throw unwrapAxiosError(e);
+  }
 }
 
-/* ------------------------------ Favorites -------------------------------- */
-
-export async function addFavorite(householdId: string): Promise<string[]> {
-  const { data } = await api.put(
-    `/profile/favorites/${encodeURIComponent(householdId)}`
+/**
+ * KEEP BACKWARD COMPATIBILITY:
+ * return AxiosResponse like the original version (so other pages don't crash).
+ */
+export async function createEvent(input: {
+  type: "now" | "future";
+  title: string;
+  details: string;
+  category?: string;
+  startAt?: string | null;
+  endAt?: string | null;
+  expiresAt?: string | null;
+  neighborhoods?: string[];
+}) {
+  return api.post(
+    "/events",
+    {
+      type: input.type,
+      title: input.title,
+      details: input.details,
+      category: input.category ?? "neighborhood",
+      startAt: input.startAt ?? null,
+      endAt: input.endAt ?? null,
+      expiresAt: input.expiresAt ?? null,
+      neighborhoods: input.neighborhoods ?? [],
+    },
+    { headers: { "Content-Type": "application/json" } }
   );
-  return data as string[];
 }
 
-export async function removeFavorite(householdId: string): Promise<string[]> {
-  const { data } = await api.delete(
-    `/profile/favorites/${encodeURIComponent(householdId)}`
-  );
-  return data as string[];
+/* ------------------------------- RSVP endpoints ------------------------------ */
+
+function toBackendStatus(s: RSVPStatus): "going" | "maybe" | "declined" {
+  return s === "cant" ? "declined" : s;
 }
 
-export async function listFavorites(): Promise<string[]> {
-  const { data } = await api.get("/profile/favorites");
-  return data as string[];
+/** Legacy names some pages may import */
+export async function setEventRsvp(eventId: string, status: RSVPStatus): Promise<any> {
+  try {
+    const res = await api.post(`/events/${eventId}/rsvp`, { status: toBackendStatus(status) });
+    return res.data;
+  } catch (e) {
+    throw unwrapAxiosError(e);
+  }
+}
+export async function sendEventRsvp(eventId: string, status: RSVPStatus): Promise<any> {
+  return setEventRsvp(eventId, status);
 }
 
-/* ------------------------------ Overrides -------------------------------- */
-
-export async function getOverrides(): Promise<GGOverrides> {
-  const { data } = await api.get("/profile/overrides");
-  return data as GGOverrides;
+/** Newer names used by PreviewEvent */
+export async function rsvpToEvent(eventId: string, status: RSVPStatus): Promise<any> {
+  return setEventRsvp(eventId, status);
 }
 
-export async function putOverrides(body: GGOverrides): Promise<GGOverrides> {
-  const { data } = await api.put("/profile/overrides", body);
-  return data as GGOverrides;
+export async function leaveEventRsvp(eventId: string): Promise<any> {
+  try {
+    const res = await api.delete(`/events/${eventId}/rsvp`);
+    return res.data;
+  } catch (e) {
+    throw unwrapAxiosError(e);
+  }
+}
+
+export async function fetchMyRsvp(
+  eventId: string
+): Promise<{ userStatus: "going" | "maybe" | "declined" | null; counts?: any }> {
+  try {
+    const res = await api.get(`/events/${eventId}/rsvp`);
+    return res.data as any;
+  } catch (e) {
+    throw unwrapAxiosError(e);
+  }
+}
+
+export async function fetchEventRsvps(eventId: string): Promise<EventRsvpBuckets> {
+  try {
+    const res = await api.get(`/events/${eventId}/rsvps`);
+    const d = res.data || {};
+    return {
+      going: Array.isArray(d.going) ? d.going : [],
+      maybe: Array.isArray(d.maybe) ? d.maybe : [],
+      cant: Array.isArray(d.cant) ? d.cant : [],
+    };
+  } catch (e) {
+    throw unwrapAxiosError(e);
+  }
+}
+
+/** Another legacy helper some pages may import */
+export async function getEventRsvps(eventId: string): Promise<any> {
+  // Prefer buckets, fallback to summary
+  try {
+    return await fetchEventRsvps(eventId);
+  } catch {
+    return await fetchMyRsvp(eventId);
+  }
 }

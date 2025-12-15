@@ -5,6 +5,8 @@ import { getViewer } from "../lib/viewer";
 import { loadNeighbors } from "../lib/profile";
 import { createEvent, type EventCategory } from "../lib/api";
 
+/* ---------- Types ---------- */
+
 type Post = {
   id: string;
   kind: "happening" | "event";
@@ -12,13 +14,20 @@ type Post = {
   when?: string; // ISO for event time (built from date + start time)
   end?: string; // ISO for optional end time
   details: string;
+
+  // local-only targeting (labels)
   recipients?: string[];
+  // local-only targeting (uids)
   recipientIds?: string[];
+
   createdBy: { id: string; label: string };
   ts: number;
   category?: EventCategory;
-  // Optional host uid so "Your Activity" can detect hosted events
+
   _hostUid?: string | null;
+
+  // ✅ IMPORTANT: keep the backend id explicitly too (future-proof)
+  backendId?: string;
 };
 
 type Neighbor = {
@@ -29,9 +38,22 @@ type Neighbor = {
 
 const KEY = "gg:posts";
 
+/* ---------- LocalStorage helpers (safe) ---------- */
+
+const safeGetLocalStorage = (): Storage | null => {
+  try {
+    if (typeof window === "undefined") return null;
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+};
+
 const loadPosts = (): Post[] => {
   try {
-    return JSON.parse(localStorage.getItem(KEY) || "[]");
+    const ls = safeGetLocalStorage();
+    if (!ls) return [];
+    return JSON.parse(ls.getItem(KEY) || "[]");
   } catch {
     return [];
   }
@@ -39,7 +61,9 @@ const loadPosts = (): Post[] => {
 
 const savePosts = (p: Post[]) => {
   try {
-    localStorage.setItem(KEY, JSON.stringify(p));
+    const ls = safeGetLocalStorage();
+    if (!ls) return;
+    ls.setItem(KEY, JSON.stringify(p));
   } catch {}
 };
 
@@ -90,9 +114,11 @@ const CATEGORY_OPTIONS: CategoryMeta[] = [
 /* ---------- Small helpers ---------- */
 
 function makeId() {
-  if (typeof crypto !== "undefined" && (crypto as any).randomUUID) {
-    return (crypto as any).randomUUID();
-  }
+  try {
+    if (typeof crypto !== "undefined" && (crypto as any).randomUUID) {
+      return (crypto as any).randomUUID();
+    }
+  } catch {}
   return Math.random().toString(36).slice(2);
 }
 
@@ -109,6 +135,30 @@ function combineDateAndTime(dateStr: string, timeStr: string): string | undefine
   }
 }
 
+function isoToDateInput(iso?: string): string {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toISOString().slice(0, 10);
+  } catch {
+    return "";
+  }
+}
+
+function isoToTimeInputLocal(iso?: string): string {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    return `${hh}:${mm}`;
+  } catch {
+    return "";
+  }
+}
+
 /* ---------- Page ---------- */
 
 export default function ComposePost() {
@@ -116,13 +166,11 @@ export default function ComposePost() {
   const location = useLocation();
   const params = useParams<{ kind?: string; id?: string }>();
 
-  const kind: "happening" | "event" =
-    params.kind === "event" ? "event" : "happening";
+  const kind: "happening" | "event" = params.kind === "event" ? "event" : "happening";
   const editId = params.id;
 
   const recipientsFromState: string[] =
-    (location.state as any)?.recipients &&
-    Array.isArray((location.state as any).recipients)
+    (location.state as any)?.recipients && Array.isArray((location.state as any).recipients)
       ? (location.state as any).recipients
       : [];
 
@@ -139,7 +187,6 @@ export default function ComposePost() {
 
   const isEditingExisting = !!existingPost;
 
-  // All neighbors we could target (for the inline editor)
   const allNeighbors: Neighbor[] = useMemo(() => {
     try {
       const list = loadNeighbors() as Neighbor[] | undefined;
@@ -151,16 +198,7 @@ export default function ComposePost() {
 
   const lockedRecipients: string[] = existingPost?.recipients ?? [];
 
-  // NEW: mutable recipients
-  // - For brand new posts: fully editable list (add/remove).
-  // - For edits: only *additional* households you add in this edit.
   const [mutableRecipients, setMutableRecipients] = useState<string[]>(() => {
-    if (isEditingExisting) {
-      // Editing an existing post: start with no "new" households,
-      // but respect any recipients passed via navigation state.
-      return recipientsFromState;
-    }
-    // Brand new post: this is the full editable list.
     return recipientsFromState;
   });
 
@@ -168,57 +206,31 @@ export default function ComposePost() {
     ? Array.from(new Set([...lockedRecipients, ...mutableRecipients]))
     : mutableRecipients;
 
-  // Shared fields
   const [details, setDetails] = useState(existingPost?.details ?? "");
 
-  // Event-specific
   const [title, setTitle] = useState(existingPost?.title ?? "");
-  const [date, setDate] = useState<string>(() => {
-    if (existingPost?.when) {
-      const d = new Date(existingPost.when);
-      return d.toISOString().slice(0, 10);
-    }
-    return "";
-  });
-  const [startTime, setStartTime] = useState<string>(() => {
-    if (existingPost?.when) {
-      const d = new Date(existingPost.when);
-      const hh = String(d.getHours()).padStart(2, "0");
-      const mm = String(d.getMinutes()).padStart(2, "0");
-      return `${hh}:${mm}`;
-    }
-    return "";
-  });
-  const [endTime, setEndTime] = useState<string>("");
+  const [date, setDate] = useState<string>(() => isoToDateInput(existingPost?.when));
+  const [startTime, setStartTime] = useState<string>(() => isoToTimeInputLocal(existingPost?.when));
+  const [endTime, setEndTime] = useState<string>(() => isoToTimeInputLocal(existingPost?.end));
 
   const [categoryId, setCategoryId] = useState<EventCategory>(
     existingPost?.category ?? DEFAULT_CATEGORY_ID
   );
+
   const categoryMeta =
     CATEGORY_OPTIONS.find((c) => c.id === categoryId) ?? CATEGORY_OPTIONS[0];
 
-  // Edit vs Preview mode
   const [mode, setMode] = useState<"edit" | "preview">("edit");
-
-  // For events: separate category step
-  const [showCategoryStep, setShowCategoryStep] = useState(
-    kind === "event" && !existingPost
-  );
-
-  // Toggle to show inline neighbor editor
+  const [showCategoryStep, setShowCategoryStep] = useState(kind === "event" && !existingPost);
   const [showNeighborEditor, setShowNeighborEditor] = useState(false);
-
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  /* ---------- Validation ---------- */
+  const resolvedNeighborLabel = (n: Neighbor) => (n.label ?? n.lastName ?? "").toString();
 
   const canSubmitDetails =
     kind === "happening"
       ? details.trim().length > 0
-      : details.trim().length > 0 &&
-        title.trim().length > 0 &&
-        !!date &&
-        !!startTime;
+      : details.trim().length > 0 && title.trim().length > 0 && !!date && !!startTime;
 
   /* ---------- Submit ---------- */
 
@@ -230,71 +242,119 @@ export default function ComposePost() {
       const all = loadPosts();
       const now = Date.now();
 
+      // label -> uid (best-effort)
+      const labelToId = new Map<string, string>();
+      for (const n of allNeighbors) {
+        const lbl = resolvedNeighborLabel(n);
+        if (lbl && n.id) labelToId.set(lbl, n.id);
+      }
+
+      const recipientIds = (effectiveRecipients || [])
+        .map((lbl) => labelToId.get(lbl))
+        .filter(Boolean) as string[];
+
+      // Build a local payload first (temp id), then replace with backend id after POST succeeds
+      const tempId = existingPost?.id ?? makeId();
+
       if (kind === "happening") {
-        const payload: Post = {
-          id: existingPost?.id ?? makeId(),
+        const localPayload: Post = {
+          id: tempId,
           kind: "happening",
           title: "Happening Now",
           details: details.trim(),
           recipients: effectiveRecipients,
+          recipientIds,
           createdBy,
           ts: existingPost?.ts ?? now,
-          _hostUid: createdBy.id ?? null, // ensure Home can detect host
-        };
-
-        const next = existingPost
-          ? all.map((p) => (p.id === existingPost.id ? payload : p))
-          : [...all, payload];
-
-        savePosts(next);
-        navigate("/");
-      } else {
-        const whenIso = combineDateAndTime(date, startTime);
-        const endIso = endTime ? combineDateAndTime(date, endTime) : undefined;
-
-        const payload: Post = {
-          id: existingPost?.id ?? makeId(),
-          kind: "event",
-          title: title.trim(),
-          details: details.trim(),
-          when: whenIso,
-          end: endIso,
-          recipients: effectiveRecipients,
-          createdBy,
-          ts: existingPost?.ts ?? now,
-          category: categoryId,
           _hostUid: createdBy.id ?? null,
+          category: "neighborhood",
         };
 
-        // Update local cache so Home feed / Your Activity stays in sync
         const nextLocal = existingPost
-          ? all.map((p) => (p.id === existingPost.id ? payload : p))
-          : [...all, payload];
+          ? all.map((p) => (p.id === existingPost.id ? localPayload : p))
+          : [...all, localPayload];
         savePosts(nextLocal);
 
-        // Also persist to backend events collection (best-effort)
+        // ✅ BACKEND SOURCE OF TRUTH
+        // Your backend expects: type = "now" | "future"
         try {
-          await createEvent({
-            // backend treats this as a scheduled/future event
-            type: "future",
-            title: payload.title,
-            details: payload.details,
-            category: payload.category ?? DEFAULT_CATEGORY_ID,
-            // Backend expects start/end timestamps
-            startAt: payload.when ?? null,
-            endAt: payload.end ?? null,
-            // Per-household targeting (optional for now)
-            recipients: payload.recipients ?? [],
-            recipientIds: payload.recipientIds ?? [],
+          const res = await createEvent({
+            type: "now",
+            title: "Happening Now",
+            details: localPayload.details,
+            category: localPayload.category ?? "neighborhood",
+            startAt: new Date().toISOString(),
+            endAt: null,
           } as any);
-        } catch (err) {
-          // Fail silently for now; local cache still works
-          // eslint-disable-next-line no-console
-          console.error("Failed to create backend event", err);
+
+          const backend = res?.data ?? res;
+          const backendId = backend?.id;
+
+          if (backendId) {
+            // Replace local id with backend id so Safari/Chrome use SAME id for RSVPs
+            const updated = loadPosts().map((p) => {
+              if (p.id !== tempId) return p;
+              return { ...p, id: backendId, backendId };
+            });
+            savePosts(updated);
+          }
+        } catch (err: any) {
+          console.error("Failed to create backend happening", err?.response?.data ?? err);
         }
 
         navigate("/");
+        return;
       }
+
+      // Future Event branch
+      const whenIso = combineDateAndTime(date, startTime);
+      const endIso = endTime ? combineDateAndTime(date, endTime) : undefined;
+
+      const localPayload: Post = {
+        id: tempId,
+        kind: "event",
+        title: title.trim(),
+        details: details.trim(),
+        when: whenIso,
+        end: endIso,
+        recipients: effectiveRecipients,
+        recipientIds,
+        createdBy,
+        ts: existingPost?.ts ?? now,
+        category: categoryId,
+        _hostUid: createdBy.id ?? null,
+      };
+
+      const nextLocal = existingPost
+        ? all.map((p) => (p.id === existingPost.id ? localPayload : p))
+        : [...all, localPayload];
+      savePosts(nextLocal);
+
+      try {
+        const res = await createEvent({
+          type: "future",
+          title: localPayload.title || "Future Event",
+          details: localPayload.details,
+          category: localPayload.category ?? DEFAULT_CATEGORY_ID,
+          startAt: localPayload.when ?? null,
+          endAt: localPayload.end ?? null,
+        } as any);
+
+        const backend = res?.data ?? res;
+        const backendId = backend?.id;
+
+        if (backendId) {
+          const updated = loadPosts().map((p) => {
+            if (p.id !== tempId) return p;
+            return { ...p, id: backendId, backendId };
+          });
+          savePosts(updated);
+        }
+      } catch (err: any) {
+        console.error("Failed to create backend future event", err?.response?.data ?? err);
+      }
+
+      navigate("/");
     } finally {
       setIsSubmitting(false);
     }
@@ -316,8 +376,6 @@ export default function ComposePost() {
     });
   }, [kind, date, startTime]);
 
-  /* ---------- UI helpers ---------- */
-
   const heading =
     kind === "happening"
       ? editId
@@ -327,29 +385,18 @@ export default function ComposePost() {
       ? "Edit Future Event"
       : "Create Future Event";
 
-  const primaryLabel =
-    editId ? "Save changes" : kind === "happening" ? "Post" : "Create event";
+  const primaryLabel = editId ? "Save changes" : kind === "happening" ? "Post" : "Create event";
 
   const toggleRecipient = (label: string) => {
-    // For existing posts, "locked" recipients cannot be removed.
-    if (isEditingExisting && lockedRecipients.includes(label)) {
-      return;
-    }
+    if (isEditingExisting && lockedRecipients.includes(label)) return;
     setMutableRecipients((current) =>
-      current.includes(label)
-        ? current.filter((x) => x !== label)
-        : [...current, label]
+      current.includes(label) ? current.filter((x) => x !== label) : [...current, label]
     );
   };
-
-  const resolvedNeighborLabel = (n: Neighbor) =>
-    (n.label ?? n.lastName ?? "").toString();
 
   const selectableNeighbors = allNeighbors.filter((n) => {
     const label = resolvedNeighborLabel(n);
     if (!label) return false;
-    // When editing an existing post, do not show "already invited"
-    // neighbors in the selector; they are locked and shown above.
     if (isEditingExisting && lockedRecipients.includes(label)) return false;
     return true;
   });
@@ -365,273 +412,51 @@ export default function ComposePost() {
   return (
     <div className="gg-compose-root">
       <div className="gg-compose-inner">
-        {/* Scoped styles */}
         <style>{`
-          .gg-compose-root {
-            padding: 16px;
-            display: flex;
-            justify-content: center;
-          }
-          .gg-compose-inner {
-            width: 100%;
-            max-width: 760px;
-          }
-
-          .gg-page-title {
-            font-size: 30px;
-            font-weight: 800;
-            letter-spacing: .02em;
-            color: #0f172a;
-            margin-bottom: 8px;
-          }
-          .gg-page-sub {
-            font-size: 14px;
-            color: #6b7280;
-            margin-bottom: 16px;
-          }
-          .gg-card-shell {
-            background: #fff;
-            border-radius: 20px;
-            border: 1px solid rgba(15,23,42,.06);
-            box-shadow: 0 18px 40px rgba(15,23,42,.06);
-            padding: 18px 18px 16px;
-            width: 100%;
-            box-sizing: border-box;
-          }
-          .gg-card-section {
-            margin-bottom: 18px;
-          }
-          .gg-label {
-            font-size: 13px;
-            font-weight: 700;
-            color: #0f172a;
-            margin-bottom: 4px;
-          }
-          .gg-label-sub {
-            font-size: 13px;
-            color: #6b7280;
-          }
-          .recipient-row {
-            display:flex;
-            gap:8px;
-            flex-wrap:wrap;
-            margin-top:4px;
-          }
-          .recipient-pill {
-            padding:6px 10px;
-            border-radius:999px;
-            font-size:12px;
-            font-weight:600;
-            border:1px solid rgba(148,163,184,.6);
-            background:rgba(15,23,42,.03);
-            color:#0f172a;
-          }
-          .recipient-pill-locked {
-            background:rgba(15,23,42,.03);
-            border-style:solid;
-            border-color:rgba(148,163,184,.7);
-          }
-          .recipient-pill-added {
-            background:#eef2ff;
-            border-color:#4f46e5;
-          }
-          .recipient-pill-label-muted {
-            font-size:11px;
-            color:#6b7280;
-            margin-top:4px;
-          }
-          .composer-textarea {
-            width:100%;
-            min-height:96px;
-            resize:vertical;
-            padding:12px 14px;
-            border-radius:14px;
-            border:1px solid #e5e7eb;
-            background:#fff;
-            box-shadow:0 1px 2px rgba(0,0,0,.04) inset;
-            font-size:14px;
-            line-height:1.45;
-            box-sizing: border-box;
-          }
-          .composer-textarea:focus {
-            outline:none;
-            border-color:#93c5fd;
-            box-shadow:0 0 0 3px rgba(147,197,253,.35);
-          }
-          .gg-input {
-            width:100%;
-            padding:9px 11px;
-            border-radius:10px;
-            border:1px solid #e5e7eb;
-            font-size:14px;
-            box-sizing: border-box;
-          }
-          .gg-input:focus {
-            outline:none;
-            border-color:#93c5fd;
-            box-shadow:0 0 0 3px rgba(147,197,253,.25);
-          }
-          .gg-row-2 {
-            display:grid;
-            grid-template-columns: repeat(2, minmax(0,1fr));
-            gap:12px;
-          }
-          .gg-footer {
-            display:flex;
-            justify-content:flex-end;
-            gap:8px;
-            margin-top:16px;
-          }
-          .btn {
-            border-radius:999px;
-            padding:9px 16px;
-            font-size:14px;
-            font-weight:600;
-            border:1px solid transparent;
-            cursor:pointer;
-          }
-          .btn-ghost {
-            background:#f9fafb;
-            border-color:#e5e7eb;
-            color:#111827;
-          }
-          .btn-ghost:hover {
-            background:#f3f4f6;
-          }
-          .btn-primary {
-            background:linear-gradient(180deg,#0f172a,#020617);
-            color:#fff;
-          }
-          .btn-primary:disabled {
-            opacity:.45;
-            cursor:not-allowed;
-          }
-
-          .cat-pill {
-            display:inline-flex;
-            align-items:center;
-            gap:8px;
-            padding:10px 12px;
-            border-radius:14px;
-            background:rgba(15,23,42,.03);
-            border:1px solid rgba(15,23,42,.08);
-          }
-          .cat-emoji {
-            font-size:20px;
-          }
-          .cat-label {
-            font-weight:700;
-            font-size:14px;
-          }
-          .cat-desc {
-            font-size:13px;
-            color:#6b7280;
-          }
-          .cat-change-btn, .neighbor-edit-btn {
-            margin-top:8px;
-            border-radius:999px;
-            border:1px dashed #e5e7eb;
-            padding:6px 12px;
-            font-size:13px;
-            background:#fff;
-            cursor:pointer;
-          }
-          .cat-change-btn:hover,
-          .neighbor-edit-btn:hover {
-            background:#f9fafb;
-          }
-
-          .cat-step-options {
-            display:flex;
-            flex-direction:column;
-            gap:10px;
-            margin-top:8px;
-          }
-          .cat-option {
-            width:100%;
-            text-align:left;
-            border-radius:14px;
-            padding:10px 12px;
-            border:1px solid #e5e7eb;
-            background:#fff;
-            display:flex;
-            align-items:flex-start;
-            gap:10px;
-            cursor:pointer;
-          }
-          .cat-option:hover {
-            background:#f9fafb;
-          }
-          .cat-option-main {
-            font-size:14px;
-            font-weight:700;
-            color:#0f172a;
-          }
-          .cat-option-sub {
-            font-size:13px;
-            color:#6b7280;
-          }
-
-          /* Full preview card (preview step) */
-          .full-preview-card {
-            border-radius: 18px;
-            border: 1px solid rgba(15,23,42,.08);
-            background: #fff;
-            padding: 14px 16px;
-            box-shadow: 0 14px 30px rgba(15,23,42,.08);
-          }
-          .full-preview-title-row {
-            display:flex;
-            justify-content:space-between;
-            align-items:center;
-            gap:10px;
-            margin-bottom:4px;
-          }
-          .full-preview-title {
-            font-size:16px;
-            font-weight:700;
-            color:#0f172a;
-          }
-          .full-preview-pill {
-            font-size:11px;
-            padding:4px 9px;
-            border-radius:999px;
-            border:1px solid rgba(52,211,153,.5);
-            background:#ecfdf5;
-            color:#047857;
-          }
-          .full-preview-meta {
-            font-size:13px;
-            color:#6b7280;
-            margin-bottom:4px;
-          }
-          .full-preview-body {
-            font-size:14px;
-            color:#111827;
-            white-space:pre-wrap;
-          }
-
-          .preview-shell-inline {
-            margin-top:10px;
-            padding:14px 14px 12px;
-            border-radius:16px;
-            border:1px dashed rgba(148,163,184,.8);
-            background:rgba(248,250,252,.85);
-          }
-          .preview-label-inline {
-            font-size:12px;
-            text-transform:uppercase;
-            letter-spacing:.08em;
-            color:#64748b;
-            font-weight:700;
-            margin-bottom:6px;
-          }
-
-          @media (max-width: 640px) {
-            .gg-row-2 {
-              grid-template-columns: 1fr;
-            }
-          }
+          .gg-compose-root { padding: 16px; display: flex; justify-content: center; }
+          .gg-compose-inner { width: 100%; max-width: 760px; }
+          .gg-page-title { font-size: 30px; font-weight: 800; letter-spacing: .02em; color: #0f172a; margin-bottom: 8px; }
+          .gg-page-sub { font-size: 14px; color: #6b7280; margin-bottom: 16px; }
+          .gg-card-shell { background: #fff; border-radius: 20px; border: 1px solid rgba(15,23,42,.06); box-shadow: 0 18px 40px rgba(15,23,42,.06); padding: 18px 18px 16px; width: 100%; box-sizing: border-box; }
+          .gg-card-section { margin-bottom: 18px; }
+          .gg-label { font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 4px; }
+          .gg-label-sub { font-size: 13px; color: #6b7280; }
+          .recipient-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:4px; }
+          .recipient-pill { padding:6px 10px; border-radius:999px; font-size:12px; font-weight:600; border:1px solid rgba(148,163,184,.6); background:rgba(15,23,42,.03); color:#0f172a; }
+          .recipient-pill-locked { background:rgba(15,23,42,.03); border-style:solid; border-color:rgba(148,163,184,.7); }
+          .recipient-pill-added { background:#eef2ff; border-color:#4f46e5; }
+          .recipient-pill-label-muted { font-size:11px; color:#6b7280; margin-top:4px; }
+          .composer-textarea { width:100%; min-height:96px; resize:vertical; padding:12px 14px; border-radius:14px; border:1px solid #e5e7eb; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.04) inset; font-size:14px; line-height:1.45; box-sizing: border-box; }
+          .composer-textarea:focus { outline:none; border-color:#93c5fd; box-shadow:0 0 0 3px rgba(147,197,253,.35); }
+          .gg-input { width:100%; padding:9px 11px; border-radius:10px; border:1px solid #e5e7eb; font-size:14px; box-sizing: border-box; }
+          .gg-input:focus { outline:none; border-color:#93c5fd; box-shadow:0 0 0 3px rgba(147,197,253,.25); }
+          .gg-row-2 { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:12px; }
+          .gg-footer { display:flex; justify-content:flex-end; gap:8px; margin-top:16px; }
+          .btn { border-radius:999px; padding:9px 16px; font-size:14px; font-weight:600; border:1px solid transparent; cursor:pointer; }
+          .btn-ghost { background:#f9fafb; border-color:#e5e7eb; color:#111827; }
+          .btn-ghost:hover { background:#f3f4f6; }
+          .btn-primary { background:linear-gradient(180deg,#0f172a,#020617); color:#fff; }
+          .btn-primary:disabled { opacity:.45; cursor:not-allowed; }
+          .cat-pill { display:inline-flex; align-items:center; gap:8px; padding:10px 12px; border-radius:14px; background:rgba(15,23,42,.03); border:1px solid rgba(15,23,42,.08); }
+          .cat-emoji { font-size:20px; }
+          .cat-label { font-weight:700i7OO; font-size:14px; }
+          .cat-desc { font-size:13px; color:#6b7280; }
+          .cat-change-btn, .neighbor-edit-btn { margin-top:8px; border-radius:999px; border:1px dashed #e5e7eb; padding:6px 12px; font-size:13px; background:#fff; cursor:pointer; }
+          .cat-change-btn:hover, .neighbor-edit-btn:hover { background:#f9fafb; }
+          .cat-step-options { display:flex; flex-direction:column; gap:10px; margin-top:8px; }
+          .cat-option { width:100%; text-align:left; border-radius:14px; padding:10px 12px; border:1px solid #e5e7eb; background:#fff; display:flex; align-items:flex-start; gap:10px; cursor:pointer; }
+          .cat-option:hover { background:#f9fafb; }
+          .cat-option-main { font-size:14px; font-weight:700; color:#0f172a; }
+          .cat-option-sub { font-size:13px; color:#6b7280; }
+          .full-preview-card { border-radius: 18px; border: 1px solid rgba(15,23,42,.08); background: #fff; padding: 14px 16px; box-shadow: 0 14px 30px rgba(15,23,42,.08); }
+          .full-preview-title-row { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:4px; }
+          .full-preview-title { font-size:16px; font-weight:700; color:#0f172a; }
+          .full-preview-pill { font-size:11px; padding:4px 9px; border-radius:999px; border:1px solid rgba(52,211,153,.5); background:#ecfdf5; color:#047857; }
+          .full-preview-meta { font-size:13px; color:#6b7280; margin-bottom:4px; }
+          .full-preview-body { font-size:14px; color:#111827; white-space:pre-wrap; }
+          .preview-shell-inline { margin-top:10px; padding:14px 14px 12px; border-radius:16px; border:1px dashed rgba(148,163,184,.8); background:rgba(248,250,252,.85); }
+          .preview-label-inline { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:#64748b; font-weight:700; margin-bottom:6px; }
+          @media (max-width: 640px) { .gg-row-2 { grid-template-columns: 1fr; } }
         `}</style>
 
         <h1 className="gg-page-title">{heading}</h1>
@@ -642,7 +467,6 @@ export default function ComposePost() {
         </div>
 
         <div className="gg-card-shell">
-          {/* ---------- EVENT CATEGORY STEP ---------- */}
           {kind === "event" && showCategoryStep ? (
             <>
               <div className="gg-card-section">
@@ -672,11 +496,7 @@ export default function ComposePost() {
               </div>
 
               <div className="gg-footer">
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  onClick={() => navigate(-1)}
-                >
+                <button type="button" className="btn btn-ghost" onClick={() => navigate(-1)}>
                   Cancel
                 </button>
                 <button
@@ -690,14 +510,11 @@ export default function ComposePost() {
             </>
           ) : mode === "edit" ? (
             <>
-              {/* ---------- Targeting ---------- */}
               <div className="gg-card-section">
                 <div className="gg-label">Targeting</div>
                 <div className="gg-label-sub">
                   {effectiveRecipients.length === 0
                     ? "Everyone in your neighborhood"
-                    : isEditingExisting
-                    ? "This post is shared with:"
                     : "This post is shared with:"}
                 </div>
 
@@ -705,26 +522,19 @@ export default function ComposePost() {
                   <>
                     <div className="recipient-row">
                       {lockedRecipients.map((r) => (
-                        <span
-                          key={`locked-${r}`}
-                          className="recipient-pill recipient-pill-locked"
-                        >
+                        <span key={`locked-${r}`} className="recipient-pill recipient-pill-locked">
                           {r}
                         </span>
                       ))}
                       {mutableRecipients.map((r) => (
-                        <span
-                          key={`added-${r}`}
-                          className="recipient-pill recipient-pill-added"
-                        >
+                        <span key={`added-${r}`} className="recipient-pill recipient-pill-added">
                           {r}
                         </span>
                       ))}
                     </div>
                     {isEditingExisting && (
                       <div className="recipient-pill-label-muted">
-                        Gray = originally invited · Purple = newly added in
-                        this edit (you can remove these before you save).
+                        Gray = originally invited · Purple = newly added in this edit.
                       </div>
                     )}
                   </>
@@ -742,12 +552,9 @@ export default function ComposePost() {
 
                     {showNeighborEditor && (
                       <div style={{ marginTop: 8 }}>
-                        <div
-                          className="gg-label-sub"
-                          style={{ marginBottom: 4 }}
-                        >
+                        <div className="gg-label-sub" style={{ marginBottom: 4 }}>
                           {isEditingExisting
-                            ? "Tap to add more households to this post. You can only remove the ones you add in this edit."
+                            ? "Tap to add more households to this post."
                             : "Tap to choose which households should see this post."}
                         </div>
                         <div className="recipient-row">
@@ -777,7 +584,6 @@ export default function ComposePost() {
                 )}
               </div>
 
-              {/* ---------- Category summary (events only) ---------- */}
               {kind === "event" && (
                 <div className="gg-card-section">
                   <div className="gg-label">Category</div>
@@ -787,9 +593,7 @@ export default function ComposePost() {
                     </span>
                     <div>
                       <div className="cat-label">{categoryMeta.label}</div>
-                      <div className="cat-desc">
-                        {categoryMeta.description}
-                      </div>
+                      <div className="cat-desc">{categoryMeta.description}</div>
                     </div>
                   </div>
                   <button
@@ -805,7 +609,6 @@ export default function ComposePost() {
                 </div>
               )}
 
-              {/* ---------- Details ---------- */}
               {kind === "event" && (
                 <div className="gg-card-section">
                   <div className="gg-label" style={{ marginBottom: 8 }}>
@@ -877,22 +680,16 @@ export default function ComposePost() {
                 </div>
               )}
 
-              {/* Hint about the preview step */}
               <div className="preview-shell-inline">
                 <div className="preview-label-inline">Next step</div>
                 <div>
-                  Tap <strong>Preview</strong> below to see exactly how your
-                  post will look before you share it.
+                  Tap <strong>Preview</strong> below to see exactly how your post will look
+                  before you share it.
                 </div>
               </div>
 
-              {/* ---------- Footer (EDIT mode) ---------- */}
               <div className="gg-footer">
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  onClick={() => navigate(-1)}
-                >
+                <button type="button" className="btn btn-ghost" onClick={() => navigate(-1)}>
                   Cancel
                 </button>
                 <button
@@ -906,13 +703,11 @@ export default function ComposePost() {
               </div>
             </>
           ) : (
-            /* ---------- PREVIEW MODE ---------- */
             <>
               <div className="gg-card-section">
                 <div className="gg-label">Preview</div>
                 <div className="gg-label-sub">
-                  This is how your post will appear to neighbors on the Home
-                  tab.
+                  This is how your post will appear to neighbors on the Home tab.
                 </div>
               </div>
 
@@ -920,18 +715,13 @@ export default function ComposePost() {
                 <div className="full-preview-card">
                   <div className="full-preview-title-row">
                     <div className="full-preview-title">
-                      {kind === "happening"
-                        ? "Happening Now"
-                        : title.trim() || "Your event title"}
+                      {kind === "happening" ? "Happening Now" : title.trim() || "Your event title"}
                     </div>
-                    <div className="full-preview-pill">
-                      {kind === "happening" ? "Now" : "Future"}
-                    </div>
+                    <div className="full-preview-pill">{kind === "happening" ? "Now" : "Future"}</div>
                   </div>
                   <div className="full-preview-meta">
                     {previewWhen}
-                    {effectiveRecipients.length > 0 &&
-                      ` · ${effectiveRecipients.join(", ")}`}
+                    {effectiveRecipients.length > 0 && ` · ${effectiveRecipients.join(", ")}`}
                   </div>
                   {kind === "event" && (
                     <div className="full-preview-meta">
@@ -939,18 +729,13 @@ export default function ComposePost() {
                     </div>
                   )}
                   <div className="full-preview-body" style={{ marginTop: 8 }}>
-                    {details.trim() ||
-                      "Your details will appear here as you type."}
+                    {details.trim() || "Your details will appear here as you type."}
                   </div>
                 </div>
               </div>
 
               <div className="gg-footer">
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  onClick={() => setMode("edit")}
-                >
+                <button type="button" className="btn btn-ghost" onClick={() => setMode("edit")}>
                   Back
                 </button>
                 <button

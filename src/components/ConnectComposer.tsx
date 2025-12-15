@@ -9,7 +9,12 @@ type Props = {
   onCancel: () => void;
 };
 
-export default function ConnectComposer({ recipients, maxLen = 500, onSend, onCancel }: Props) {
+export default function ConnectComposer({
+  recipients,
+  maxLen = 500,
+  onSend,
+  onCancel,
+}: Props) {
   const [text, setText] = useState("");
   const taRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -46,10 +51,11 @@ export default function ConnectComposer({ recipients, maxLen = 500, onSend, onCa
 
   const quicks = useMemo(
     () => [
-      "Kids are playing outside—want to join?",
-      "Free to connect this weekend?",
-      "We’re new to the neighborhood—would love to say hi!",
-      "Up for a quick park hang this afternoon?"
+      "Hi there! Just wanted to say hello — we're neighbors 👋",
+      "Nice to meet you — just saying hi from around the block.",
+      "Always nice meeting nearby neighbors — hope you're having a good week!",
+      "If you're ever up for a casual walk or quick hello around the neighborhood, we'd love to say hi.",
+      "We love discovering local spots — any favorites you recommend nearby?",
     ],
     []
   );
@@ -69,6 +75,16 @@ export default function ConnectComposer({ recipients, maxLen = 500, onSend, onCa
         .cc-initial {
           width:20px; height:20px; border-radius:999px; background:#eef2ff; color:#3730a3;
           display:inline-flex; align-items:center; justify-content:center; font-size:12px; font-weight:800;
+        }
+        .cc-hint {
+          font-size: 12px;
+          color: #6b7280;
+          margin-top: 2px;
+        }
+        .cc-quickbar-label {
+          font-size: 12px;
+          color: #6b7280;
+          margin-bottom: 2px;
         }
         .cc-quickbar { display:flex; gap:6px; flex-wrap: wrap; }
         .cc-quick {
@@ -95,14 +111,20 @@ export default function ConnectComposer({ recipients, maxLen = 500, onSend, onCa
         .cc-btn:disabled { opacity:.55; cursor:not-allowed; box-shadow:none; }
       `}</style>
 
-      <h3 className="cc-title">Start a Connect</h3>
+      <h3 className="cc-title">Start a Message</h3>
+      <p className="cc-hint">
+        After you send, you&apos;ll find this conversation at the top of the{" "}
+        <b>Messages</b> tab.
+      </p>
 
       <div className="cc-row">
         <div className="cc-label">Sending to</div>
         <div className="cc-recipients">
           {recipients.map((r) => (
             <span key={r.id} className="cc-chip">
-              <span className="cc-initial">{r.label.charAt(0).toUpperCase()}</span>
+              <span className="cc-initial">
+                {r.label.charAt(0).toUpperCase()}
+              </span>
               {r.label}
             </span>
           ))}
@@ -111,9 +133,15 @@ export default function ConnectComposer({ recipients, maxLen = 500, onSend, onCa
 
       <div className="cc-row">
         <div className="cc-label">Message</div>
+        <div className="cc-quickbar-label">Quick suggestions</div>
         <div className="cc-quickbar">
           {quicks.map((q, i) => (
-            <button key={i} type="button" className="cc-quick" onClick={() => setText(q)}>
+            <button
+              key={i}
+              type="button"
+              className="cc-quick"
+              onClick={() => setText(q)}
+            >
               {q}
             </button>
           ))}
@@ -128,13 +156,19 @@ export default function ConnectComposer({ recipients, maxLen = 500, onSend, onCa
           onChange={(e) => setText(e.target.value)}
         />
         <div className="cc-meta">
-          <div>Tip: Press <b>⌘/Ctrl + Enter</b> to send</div>
-          <div className={`cc-counter ${remaining < 0 ? "over" : ""}`}>{Math.max(remaining, -999)}/{maxLen}</div>
+          <div>
+            Tip: Press <b>⌘/Ctrl + Enter</b> to send
+          </div>
+          <div className={`cc-counter ${remaining < 0 ? "over" : ""}`}>
+            {Math.max(remaining, -999)}/{maxLen}
+          </div>
         </div>
       </div>
 
       <div className="cc-actions">
-        <button className="cc-btn" onClick={onCancel}>Cancel</button>
+        <button className="cc-btn" onClick={onCancel}>
+          Cancel
+        </button>
         <button
           className="cc-btn primary"
           onClick={() => onSend(text.trim())}
