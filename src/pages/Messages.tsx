@@ -1,5 +1,4 @@
 // src/pages/Messages.tsx
-import type React from "react";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { getViewer } from "../lib/viewer";

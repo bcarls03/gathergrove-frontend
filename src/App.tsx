@@ -13,7 +13,6 @@ import Home from "./pages/Home.tsx";
 import People from "./pages/People.tsx";
 import Messages from "./pages/Messages.tsx";
 import ComposePost from "./pages/ComposePost.tsx";
-import PreviewEvent from "./pages/PreviewEvent.tsx";
 import Settings from "./pages/Settings.tsx";
 
 // ⬇️ NOTE: all default imports, no curly braces
@@ -85,7 +84,6 @@ function AppShell() {
           <Route path="/messages" element={<Messages />} />
           <Route path="/compose/:kind" element={<ComposePost />} />
           <Route path="/compose/:kind/:id" element={<ComposePost />} />
-          <Route path="/preview-event" element={<PreviewEvent />} />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />

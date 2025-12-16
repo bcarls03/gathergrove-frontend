@@ -1,5 +1,5 @@
 // src/pages/OnboardingPreview.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { OnboardingLayout } from "../components/OnboardingLayout";
 import { getOnboardingState } from "../lib/onboarding";
@@ -13,6 +13,16 @@ const NEIGHBORHOOD_CODES: Record<string, NeighborhoodInfo> = {
   "BH26-GK4": { label: "Bayhill at the Oasis" },
   "EP26-QM7": { label: "Eagles Pointe" },
 };
+
+function normalizeNeighborhoodCode(code?: string | null) {
+  return (code || "").toString().trim().toUpperCase().replace(/\s+/g, "");
+}
+
+function neighborhoodLabelFromCode(code?: string | null) {
+  const c = normalizeNeighborhoodCode(code);
+  if (!c) return "Your neighborhood";
+  return NEIGHBORHOOD_CODES[c]?.label ?? c; // fall back to showing the code
+}
 
 // --- helpers copied from People.tsx so chips look identical ---
 type Kid = {
@@ -74,17 +84,6 @@ function sortKidsByAgeOldestFirst(a: Kid, b: Kid): number {
   return am - bm;
 }
 
-function cleanNeighborhoodLabelFromState(state: any) {
-  const rawCode = (state.neighborhoodCode || "").toString().toUpperCase();
-  const code = rawCode.replace(/\s+/g, "");
-  const match = NEIGHBORHOOD_CODES[code];
-
-  if (match?.label) return match.label;
-  if (state.neighborhoodName) return state.neighborhoodName;
-  if (state.neighborhood) return state.neighborhood;
-  return "Your neighborhood";
-}
-
 function OnboardingPreviewInner() {
   const navigate = useNavigate();
   const state = getOnboardingState();
@@ -92,10 +91,14 @@ function OnboardingPreviewInner() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Derive neighborhood label from the code first, then fall back
+  const neighborhoodCode = useMemo(
+    () => normalizeNeighborhoodCode(state.neighborhoodCode ?? null),
+    [state.neighborhoodCode]
+  );
+
   const neighborhoodLabel = useMemo(
-    () => cleanNeighborhoodLabelFromState(state),
-    [state.neighborhoodCode, state.neighborhoodName, state.neighborhood]
+    () => neighborhoodLabelFromCode(state.neighborhoodCode ?? null),
+    [state.neighborhoodCode]
   );
 
   // If we somehow got here without basic info, send them back
@@ -106,11 +109,12 @@ function OnboardingPreviewInner() {
   }, [state.lastName, navigate]);
 
   const adultsLabel = useMemo(() => {
-    if (!state.adults || state.adults.length === 0) return "";
-    if (state.adults.length === 1) return state.adults[0];
-    if (state.adults.length === 2)
-      return `${state.adults[0]} & ${state.adults[1]}`;
-    return `${state.adults[0]} + ${state.adults.length - 1} more`;
+    const adults: string[] = Array.isArray(state.adults) ? state.adults : [];
+    const cleaned = adults.map((a) => (a || "").trim()).filter(Boolean);
+    if (cleaned.length === 0) return "";
+    if (cleaned.length === 1) return cleaned[0];
+    if (cleaned.length === 2) return `${cleaned[0]} & ${cleaned[1]}`;
+    return `${cleaned[0]} + ${cleaned.length - 1} more`;
   }, [state.adults]);
 
   /* ---------- Kids: always oldest → youngest ---------- */
@@ -153,16 +157,12 @@ function OnboardingPreviewInner() {
 
     try {
       // ---------- 1) Upsert USER (ONLY user fields) ----------
-      // Use Adult1 as the "name" if available, otherwise a friendly default.
       const adults: string[] = Array.isArray(state.adults) ? state.adults : [];
       const userName = adults[0]?.trim() || "Neighbor";
-
-      // Email can be anything in dev; backend wants *name*.
-      // api.ts devHeaders already sends X-Uid / X-Email; this is just the user doc payload.
       await upsertUser({ name: userName });
 
       // ---------- 2) Upsert HOUSEHOLD (household fields only) ----------
-      const adultNames = adults.map((a) => a.trim()).filter(Boolean);
+      const adultNames = adults.map((a) => (a || "").trim()).filter(Boolean);
 
       const normalizedKids: Kid[] =
         householdType === "Family w/ Kids"
@@ -180,10 +180,10 @@ function OnboardingPreviewInner() {
         adultNames,
         householdType: householdType || undefined,
         kids: normalizedKids,
-        neighborhood: neighborhoodLabel, // store resolved label
+        // ✅ canonical field to store
+        neighborhood: neighborhoodCode || undefined,
       });
 
-      // Done → go to your next step
       navigate("/onboarding/save");
     } catch (e: any) {
       console.error("[OnboardingPreview] save failed:", e);
@@ -251,9 +251,7 @@ function OnboardingPreviewInner() {
           gap: 8px;
           flex-wrap: wrap;
         }
-        .kids-section {
-          margin-top: 4px;
-        }
+        .kids-section { margin-top: 4px; }
         .kids-subheading {
           font-size: 12px;
           font-weight: 600;
@@ -298,7 +296,6 @@ function OnboardingPreviewInner() {
         This is how your household will appear to others in GatherGrove.
       </p>
 
-      {/* Preview card – structured like People.tsx card */}
       <div
         className="gg-card"
         style={{
@@ -306,31 +303,18 @@ function OnboardingPreviewInner() {
           background: "linear-gradient(135deg, #ffffff, #f9fafb)",
         }}
       >
-        {/* Empty select pad (no checkbox in preview) */}
         <div className="gg-select-pad" aria-hidden />
 
-        {/* Avatar initial */}
         <div className="gg-avatar" aria-hidden>
           {initial}
         </div>
 
-        {/* Main content */}
         <div className="gg-main">
-          {/* Top row: last name + neighborhood pill */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              flexWrap: "wrap",
-              marginBottom: 4,
-            }}
-          >
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
             <h3 className="gg-name">{label}</h3>
             <span className="gg-pill neighborhood">{neighborhoodLabel}</span>
           </div>
 
-          {/* Adults */}
           {adultsLabel && (
             <div className="adults">
               <span style={{ color: "#6b7280" }}>Adults: </span>
@@ -338,22 +322,13 @@ function OnboardingPreviewInner() {
             </div>
           )}
 
-          {/* Kids summary + chips – ONLY for Family w/ Kids */}
           {isFamily && (
             <>
-              <div
-                style={{
-                  fontSize: 13,
-                  color: "#374151",
-                  marginTop: adultsLabel ? 6 : 2,
-                  marginBottom: kidsAtHome.length || kidsAway.length ? 4 : 8,
-                }}
-              >
+              <div style={{ fontSize: 13, color: "#374151", marginTop: adultsLabel ? 6 : 2, marginBottom: kidsAtHome.length || kidsAway.length ? 4 : 8 }}>
                 <span style={{ fontWeight: 600 }}>Children:&nbsp;</span>
                 {kidsLabel}
               </div>
 
-              {/* If nobody lives away, keep the simple single row */}
               {kids.length > 0 && kidsAway.length === 0 && (
                 <div className="kids-row">
                   {kids.map((k, i) => {
@@ -384,7 +359,6 @@ function OnboardingPreviewInner() {
                 </div>
               )}
 
-              {/* If any kids live away, split into two clearer sections and indent them */}
               {kidsAway.length > 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 6, marginLeft: 12 }}>
                   {kidsAtHome.length > 0 && (
@@ -453,7 +427,6 @@ function OnboardingPreviewInner() {
                 </div>
               )}
 
-              {/* Babysitting helper badge on its OWN row */}
               {hasBabysitter && (
                 <div style={{ marginTop: 8 }}>
                   <span
@@ -479,24 +452,16 @@ function OnboardingPreviewInner() {
             </>
           )}
 
-          {/* Household type pill – now clearly on its own row below */}
           <span className="gg-pill type" style={{ marginTop: 10, display: "inline-block" }}>
             {householdTypeChip}
           </span>
         </div>
 
-        {/* Actions (static star + non-interactive Message) */}
         <div className="gg-actions">
           <div className="gg-star" aria-hidden>
             ★
           </div>
-          <button
-            type="button"
-            className="gg-btn"
-            style={{ cursor: "default", pointerEvents: "none" }}
-            aria-hidden="true"
-            tabIndex={-1}
-          >
+          <button type="button" className="gg-btn" style={{ cursor: "default", pointerEvents: "none" }} aria-hidden="true" tabIndex={-1}>
             <span role="img" aria-label="message">
               💬
             </span>
@@ -526,7 +491,6 @@ function OnboardingPreviewInner() {
         You can always update your household details later from Settings.
       </p>
 
-      {/* Edit / Continue buttons */}
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <button
           type="button"

@@ -1,15 +1,14 @@
 // src/pages/OnboardingAccess.tsx
-import type React from "react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { OnboardingLayout } from "../components/OnboardingLayout";
-import { setOnboardingState } from "../lib/onboarding";
+import { getOnboardingState, setOnboardingState } from "../lib/onboarding";
 
 /* -------- Neighborhood codes -------- */
 
 type NeighborhoodInfo = {
-  id: string;
-  label: string;
+  id: string; // internal id if you ever want it later
+  label: string; // human label
 };
 
 const NEIGHBORHOOD_CODES: Record<string, NeighborhoodInfo> = {
@@ -85,26 +84,35 @@ const successTitleStyle: React.CSSProperties = {
   fontWeight: 600,
 };
 
+/* -------- Helpers -------- */
+
+function normalizeCode(input: string) {
+  return input.toUpperCase().replace(/\s+/g, "").trim();
+}
+
 /* -------- Component -------- */
 
 export default function OnboardingAccess() {
   const navigate = useNavigate();
 
-  const [neighborhoodCode, setNeighborhoodCode] = useState("");
+  const existing = getOnboardingState();
+  const [neighborhoodCode, setNeighborhoodCode] = useState(
+    existing.neighborhoodCode ? String(existing.neighborhoodCode) : ""
+  );
+
   const [touched, setTouched] = useState(false);
   const [validated, setValidated] = useState(false);
   const [hasValidatedSuccess, setHasValidatedSuccess] = useState(false);
 
-  const trimmed = neighborhoodCode.trim();
-  const match = NEIGHBORHOOD_CODES[trimmed] ?? null;
+  const normalized = normalizeCode(neighborhoodCode);
+  const match = NEIGHBORHOOD_CODES[normalized] ?? null;
   const isValidCode = !!match;
 
   // Allow continue as long as there is *some* input
-  const canContinue = trimmed.length > 0;
+  const canContinue = normalized.length > 0;
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const raw = e.target.value.toUpperCase();
-    const value = raw.replace(/\s+/g, "");
+    const value = normalizeCode(e.target.value);
     setNeighborhoodCode(value);
     setValidated(false);
     setHasValidatedSuccess(false);
@@ -119,31 +127,29 @@ export default function OnboardingAccess() {
     setTouched(true);
     setValidated(true);
 
-    const currentTrimmed = neighborhoodCode.trim();
-    const currentMatch = NEIGHBORHOOD_CODES[currentTrimmed] ?? null;
-    const currentIsValid = !!currentMatch;
+    const code = normalizeCode(neighborhoodCode);
+    const currentMatch = NEIGHBORHOOD_CODES[code] ?? null;
 
     // Empty → show required error
-    if (currentTrimmed.length === 0) {
+    if (code.length === 0) {
       setHasValidatedSuccess(false);
       return;
     }
 
-    // Invalid code → show error
-    if (!currentIsValid || !currentMatch) {
+    // Invalid → show error
+    if (!currentMatch) {
       setHasValidatedSuccess(false);
       return;
     }
 
-    // Valid code → save to onboarding state
+    // Valid → save ONLY what OnboardingState supports
+    const prev = getOnboardingState();
     setOnboardingState({
-      neighborhoodCode: currentTrimmed,
-      neighborhoodId: currentMatch.id,
-      neighborhoodName: currentMatch.label,
-      neighborhood: currentMatch.label,
+      ...prev,
+      neighborhoodCode: code,
     });
 
-    // First successful submit: show "Welcome to X" and wait
+    // First successful submit: show "Welcome" state and wait for a second click
     if (!hasValidatedSuccess) {
       setHasValidatedSuccess(true);
       return;
@@ -153,12 +159,8 @@ export default function OnboardingAccess() {
     navigate("/onboarding/household");
   }
 
-  const showRequiredError =
-    validated && trimmed.length === 0; // submit with nothing
-
-  const showCodeError =
-    validated && trimmed.length > 0 && !isValidCode; // submit with wrong code
-
+  const showRequiredError = validated && normalized.length === 0;
+  const showCodeError = validated && normalized.length > 0 && !isValidCode;
   const showSuccess = validated && isValidCode && !!match;
 
   return (
@@ -176,19 +178,15 @@ export default function OnboardingAccess() {
           >
             Welcome to GatherGrove
           </h1>
-          <p
-            style={{
-              fontSize: 13,
-              color: "#4b5563",
-              marginBottom: 18,
-            }}
-          >
+
+          <p style={{ fontSize: 13, color: "#4b5563", marginBottom: 18 }}>
             Enter your neighborhood code to join your community.
           </p>
 
           <label style={labelStyle} htmlFor="neighborhoodCode">
             Neighborhood code
           </label>
+
           <input
             id="neighborhoodCode"
             type="text"
@@ -200,11 +198,10 @@ export default function OnboardingAccess() {
             style={{
               ...inputStyle,
               borderColor:
-                showRequiredError || showCodeError ? "#f97373" : "#d1d5db",
+                (touched && (showRequiredError || showCodeError)) ? "#f97373" : "#d1d5db",
             }}
           />
 
-          {/* Error states */}
           {showRequiredError && (
             <div style={{ ...helperStyle, color: "#b91c1c", marginTop: 6 }}>
               Please enter your neighborhood code to continue.
@@ -218,14 +215,11 @@ export default function OnboardingAccess() {
             </div>
           )}
 
-          {/* Success state */}
           {showSuccess && match && (
             <div style={successBoxStyle}>
               <span aria-hidden="true">🌿</span>
               <div>
-                <div style={successTitleStyle}>
-                  Welcome to {match.label}!
-                </div>
+                <div style={successTitleStyle}>Welcome to {match.label}!</div>
                 <div>
                   You’re joining the <strong>{match.label}</strong> neighborhood
                   community.
@@ -238,9 +232,7 @@ export default function OnboardingAccess() {
             <span aria-hidden="true">🔒</span>
             <span>
               Private and secure. Only households in your neighborhood can join
-              with this code. No addresses or child names are ever shown. You’ll
-              also have the option to connect with nearby neighborhoods when
-              enabled.
+              with this code. No addresses or child names are ever shown.
             </span>
           </p>
 

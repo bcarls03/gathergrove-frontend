@@ -1,5 +1,4 @@
 // src/components/MiniHouseholdCard.tsx
-import React from "react";
 
 type MiniHouseholdCardProps = {
   lastName: string;

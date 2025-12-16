@@ -57,20 +57,10 @@ function devHeaders(extra?: Record<string, string>) {
 
 api.interceptors.request.use(
   (config) => {
-    const existing = (config.headers ?? {}) as Record<string, any>;
-
-    // If caller already supplied Authorization, keep it.
-    // Otherwise set a safe dev bearer so prod-style auth code paths don't 401.
-    const hasAuth =
-      typeof existing.Authorization === "string" || typeof existing.authorization === "string";
-
-    const merged: Record<string, any> = {
-      ...(hasAuth ? {} : { Authorization: "Bearer dev" }),
+    config.headers = {
+      ...(config.headers as any),
       ...devHeaders(),
-      ...existing, // caller overrides last
-    };
-
-    config.headers = merged;
+    } as any;
     return config;
   },
   (error) => Promise.reject(error)

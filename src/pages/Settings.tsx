@@ -1,6 +1,5 @@
 // src/pages/Settings.tsx
-import type React from "react";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type CSSProperties, type ComponentType } from "react";
 import { Users, Home, Heart } from "lucide-react";
 import { motion } from "framer-motion";
 import { CURRENT_UID, upsertMyHousehold } from "../lib/api";
@@ -25,7 +24,7 @@ type HouseholdOption = {
   value: HouseholdType;
   title: string;
   subtitle: string;
-  Icon: React.ComponentType<{ size?: number }>;
+  Icon: ComponentType<{ size?: number }>;
   iconBg: string;
 };
 
@@ -77,6 +76,25 @@ const MONTHS = [
 const currentYear = new Date().getFullYear();
 // kids 0–25
 const YEARS = Array.from({ length: 26 }, (_, i) => String(currentYear - i));
+
+/* ---------- Neighborhood (canonical = neighborhoodCode) ---------- */
+
+type NeighborhoodInfo = { label: string };
+
+const NEIGHBORHOOD_CODES: Record<string, NeighborhoodInfo> = {
+  "BH26-GK4": { label: "Bayhill at the Oasis" },
+  "EP26-QM7": { label: "Eagles Pointe" },
+};
+
+function normalizeNeighborhoodCode(code?: string | null) {
+  return (code || "").toString().trim().toUpperCase().replace(/\s+/g, "");
+}
+
+function codeToNeighborhoodLabel(code?: string | null) {
+  const c = normalizeNeighborhoodCode(code);
+  if (!c) return "";
+  return NEIGHBORHOOD_CODES[c]?.label ?? c; // fallback to showing the code
+}
 
 function computeAgeFromKid(kid: KidForm): number | null {
   if (!kid.birthYear) return null;
@@ -195,7 +213,7 @@ type HouseholdPreviewProps = {
   adults: string[];
   householdType: HouseholdType | "";
   kids: KidForm[];
-  neighborhoodName?: string;
+  neighborhoodCode?: string;
 };
 
 function HouseholdPreviewCard({
@@ -203,20 +221,18 @@ function HouseholdPreviewCard({
   adults,
   householdType,
   kids,
-  neighborhoodName,
+  neighborhoodCode,
 }: HouseholdPreviewProps) {
   const label = lastName || "Household";
   const initial = label.charAt(0).toUpperCase();
-  const neighborhood = (neighborhoodName || "").trim();
+  const neighborhood = codeToNeighborhoodLabel(neighborhoodCode ?? null).trim();
   const typeChip = householdType || "Household";
 
   const adultsClean = adults.map((a) => a.trim()).filter(Boolean);
   let adultsLabel = "";
   if (adultsClean.length === 1) adultsLabel = adultsClean[0];
-  else if (adultsClean.length === 2)
-    adultsLabel = `${adultsClean[0]} & ${adultsClean[1]}`;
-  else if (adultsClean.length > 2)
-    adultsLabel = `${adultsClean[0]} + ${adultsClean.length - 1} more`;
+  else if (adultsClean.length === 2) adultsLabel = `${adultsClean[0]} & ${adultsClean[1]}`;
+  else if (adultsClean.length > 2) adultsLabel = `${adultsClean[0]} + ${adultsClean.length - 1} more`;
 
   const previewKids: PreviewKid[] = kids.map((k) => ({
     birthMonth: k.birthMonth ? Number(k.birthMonth) : null,
@@ -294,44 +310,19 @@ function HouseholdPreviewCard({
         }
       `}</style>
 
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "baseline",
-          marginBottom: 6,
-        }}
-      >
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>
-          Household preview
-        </div>
-        <div style={{ fontSize: 11, color: "#6b7280" }}>
-          How you&apos;ll appear in the People tab
-        </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>Household preview</div>
+        <div style={{ fontSize: 11, color: "#6b7280" }}>How you&apos;ll appear in the People tab</div>
       </div>
 
       <div className="settings-preview-card">
         <div className="settings-preview-select-pad" aria-hidden />
-        <div className="settings-preview-avatar" aria-hidden>
-          {initial}
-        </div>
+        <div className="settings-preview-avatar" aria-hidden>{initial}</div>
 
         <div className="settings-preview-main">
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              flexWrap: "wrap",
-              marginBottom: 4,
-            }}
-          >
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
             <h3 className="settings-preview-name">{label}</h3>
-            {neighborhood && (
-              <span className="settings-preview-pill neighborhood">
-                {neighborhood}
-              </span>
-            )}
+            {neighborhood && <span className="settings-preview-pill neighborhood">{neighborhood}</span>}
           </div>
 
           {adultsLabel && (
@@ -343,14 +334,7 @@ function HouseholdPreviewCard({
 
           {isFamily && (
             <>
-              <div
-                style={{
-                  fontSize: 13,
-                  color: "#374151",
-                  marginTop: adultsLabel ? 6 : 2,
-                  marginBottom: kidsAtHome.length || kidsAway.length ? 4 : 8,
-                }}
-              >
+              <div style={{ fontSize: 13, color: "#374151", marginTop: adultsLabel ? 6 : 2, marginBottom: kidsAtHome.length || kidsAway.length ? 4 : 8 }}>
                 <span style={{ fontWeight: 600 }}>Children:&nbsp;</span>
                 {kidsLabel}
               </div>
@@ -358,10 +342,7 @@ function HouseholdPreviewCard({
               {sortedKids.length > 0 && kidsAway.length === 0 && (
                 <div className="settings-preview-kids-row">
                   {sortedKids.map((k, i) => {
-                    const age = ageFromMY(
-                      k.birthMonth ?? null,
-                      k.birthYear ?? null
-                    );
+                    const age = ageFromMY(k.birthMonth ?? null, k.birthYear ?? null);
                     const icon = sexIcon(k.sex);
                     const { bg, fg } = chipColors(k.sex);
                     return (
@@ -389,25 +370,13 @@ function HouseholdPreviewCard({
               )}
 
               {kidsAway.length > 0 && (
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 6,
-                    marginLeft: 12,
-                  }}
-                >
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginLeft: 12 }}>
                   {kidsAtHome.length > 0 && (
                     <div className="settings-preview-kids-section">
-                      <div className="settings-preview-kids-subheading">
-                        At home
-                      </div>
+                      <div className="settings-preview-kids-subheading">At home</div>
                       <div className="settings-preview-kids-row">
                         {kidsAtHome.map((k, i) => {
-                          const age = ageFromMY(
-                            k.birthMonth ?? null,
-                            k.birthYear ?? null
-                          );
+                          const age = ageFromMY(k.birthMonth ?? null, k.birthYear ?? null);
                           const icon = sexIcon(k.sex);
                           const { bg, fg } = chipColors(k.sex);
                           return (
@@ -436,15 +405,10 @@ function HouseholdPreviewCard({
                   )}
 
                   <div className="settings-preview-kids-section">
-                    <div className="settings-preview-kids-subheading">
-                      Lives away from home
-                    </div>
+                    <div className="settings-preview-kids-subheading">Lives away from home</div>
                     <div className="settings-preview-kids-row">
                       {kidsAway.map((k, i) => {
-                        const age = ageFromMY(
-                          k.birthMonth ?? null,
-                          k.birthYear ?? null
-                        );
+                        const age = ageFromMY(k.birthMonth ?? null, k.birthYear ?? null);
                         const icon = sexIcon(k.sex);
                         const { bg, fg } = chipColors(k.sex);
                         return (
@@ -488,9 +452,7 @@ function HouseholdPreviewCard({
                       fontWeight: 600,
                     }}
                   >
-                    <span role="img" aria-label="babysitting">
-                      🧑‍🍼
-                    </span>
+                    <span role="img" aria-label="babysitting">🧑‍🍼</span>
                     <span>Babysitting help available</span>
                   </span>
                 </div>
@@ -498,18 +460,13 @@ function HouseholdPreviewCard({
             </>
           )}
 
-          <span
-            className="settings-preview-pill type"
-            style={{ marginTop: 10, display: "inline-block" }}
-          >
+          <span className="settings-preview-pill type" style={{ marginTop: 10, display: "inline-block" }}>
             {typeChip}
           </span>
         </div>
 
         <div className="settings-preview-actions">
-          <div className="settings-preview-star" aria-hidden>
-            ★
-          </div>
+          <div className="settings-preview-star" aria-hidden>★</div>
           <button
             type="button"
             className="settings-preview-btn"
@@ -517,9 +474,7 @@ function HouseholdPreviewCard({
             aria-hidden="true"
             tabIndex={-1}
           >
-            <span role="img" aria-label="message">
-              💬
-            </span>
+            <span role="img" aria-label="message">💬</span>
             Message
           </button>
         </div>
@@ -538,29 +493,33 @@ export default function Settings() {
   const [type, setType] = useState<HouseholdType | "">("");
   const [kids, setKids] = useState<KidForm[]>([]);
   const [savingHousehold, setSavingHousehold] = useState(false);
-  const [neighborhoodName, setNeighborhoodName] = useState("");
+
+  // ✅ canonical: neighborhoodCode (store code; derive label for display)
+  const [neighborhoodCode, setNeighborhoodCode] = useState("");
 
   const [flash, setFlash] = useState<string | null>(null);
 
   // Dev neighbor tools
   const [nLast, setNLast] = useState("");
   const [nEmail, setNEmail] = useState("");
-  const [nType, setNType] = useState<
-    "" | "Family w/ Kids" | "Empty Nesters" | "Singles/Couples"
-  >("");
+  const [nType, setNType] = useState<"" | HouseholdType>("");
   const [neighbors, setNeighbors] = useState(loadNeighbors());
 
   // Load viewer household from onboarding ONLY (no overrides)
   useEffect(() => {
     const ob = getOnboardingState();
+
     if (ob.lastName) setLastName(ob.lastName);
+
     if (Array.isArray(ob.adults) && ob.adults.length > 0) {
       setAdult1(ob.adults[0] || "");
       setAdult2(ob.adults[1] || "");
     }
+
     if (ob.householdType && typeof ob.householdType === "string") {
       setType(ob.householdType as HouseholdType);
     }
+
     if (ob.kids && ob.kids.length > 0) {
       setKids(
         ob.kids.map((k: any, idx: number) => ({
@@ -573,8 +532,9 @@ export default function Settings() {
         }))
       );
     }
-    if (ob.neighborhoodName || ob.neighborhood) {
-      setNeighborhoodName(ob.neighborhoodName || ob.neighborhood || "");
+
+    if (ob.neighborhoodCode) {
+      setNeighborhoodCode(normalizeNeighborhoodCode(ob.neighborhoodCode));
     }
   }, []);
 
@@ -609,14 +569,8 @@ export default function Settings() {
     setKids((prev) => prev.filter((k) => k.id !== id));
   }
 
-  function updateKid(
-    id: string,
-    field: keyof Omit<KidForm, "id">,
-    value: string | boolean
-  ) {
-    setKids((prev) =>
-      prev.map((k) => (k.id === id ? { ...k, [field]: value } : k))
-    );
+  function updateKid(id: string, field: keyof Omit<KidForm, "id">, value: string | boolean) {
+    setKids((prev) => prev.map((k) => (k.id === id ? { ...k, [field]: value } : k)));
   }
 
   // MAIN SAVE HANDLER – backend is the source of truth
@@ -656,7 +610,7 @@ export default function Settings() {
 
     setSavingHousehold(true);
 
-    // Keep onboarding state in sync (local UX) INCLUDING neighborhood
+    // Keep onboarding state in sync (local UX) — ✅ only use valid OnboardingState fields
     const prev = getOnboardingState();
     setOnboardingState({
       ...prev,
@@ -664,8 +618,7 @@ export default function Settings() {
       adults,
       householdType,
       kids: normalizedKids,
-      neighborhoodName,
-      neighborhood: neighborhoodName,
+      neighborhoodCode: normalizeNeighborhoodCode(neighborhoodCode) || null,
     });
 
     try {
@@ -676,7 +629,8 @@ export default function Settings() {
         householdType,
         adultNames: adults,
         kids: normalizedKids,
-        neighborhood: neighborhoodName || undefined, // important for Bayhill/Eagles Pointe filtering
+        // ✅ canonical: store the code in the household neighborhood field
+        neighborhood: normalizeNeighborhoodCode(neighborhoodCode) || undefined,
       });
 
       setFlash("Household updated ✅");
@@ -712,7 +666,7 @@ export default function Settings() {
     setNeighbors(loadNeighbors());
   };
 
-  const kidSelectStyle: React.CSSProperties = {
+  const kidSelectStyle: CSSProperties = {
     padding: "10px 12px",
     borderRadius: 10,
     border: "1px solid #d1d5db",
@@ -721,6 +675,11 @@ export default function Settings() {
     boxSizing: "border-box",
     background: "#ffffff",
   };
+
+  const neighborhoodLabel = useMemo(
+    () => codeToNeighborhoodLabel(neighborhoodCode || null),
+    [neighborhoodCode]
+  );
 
   return (
     <div style={{ padding: 16, maxWidth: 760, margin: "0 auto" }}>
@@ -779,11 +738,7 @@ export default function Settings() {
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
-        <img
-          src={Logo}
-          alt="GatherGrove logo"
-          style={{ width: 28, height: 28, borderRadius: 6 }}
-        />
+        <img src={Logo} alt="GatherGrove logo" style={{ width: 28, height: 28, borderRadius: 6 }} />
         <h2 className="settings-title">Settings</h2>
       </div>
       <p className="settings-sub">Manage your account, household profile, and privacy.</p>
@@ -872,6 +827,26 @@ export default function Settings() {
             />
           </div>
 
+          {/* Neighborhood code (canonical) */}
+          <div>
+            <div className="settings-field-label">
+              Neighborhood Code{" "}
+              <span style={{ fontWeight: 400, color: "#9ca3af", fontSize: 11 }}>(read-only for now)</span>
+            </div>
+            <input
+              value={neighborhoodCode}
+              onChange={(e) => setNeighborhoodCode(e.target.value)}
+              placeholder="e.g., BH26-GK4"
+              className="settings-input"
+              disabled
+            />
+            {neighborhoodLabel && (
+              <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
+                Neighborhood: <span style={{ fontWeight: 700, color: "#111827" }}>{neighborhoodLabel}</span>
+              </div>
+            )}
+          </div>
+
           <div>
             <div className="settings-field-label">Household Type</div>
             <div className="household-tiles">
@@ -912,12 +887,8 @@ export default function Settings() {
                         <Icon size={18} />
                       </div>
                       <div>
-                        <div style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>
-                          {opt.title}
-                        </div>
-                        <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
-                          {opt.subtitle}
-                        </div>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>{opt.title}</div>
+                        <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{opt.subtitle}</div>
                       </div>
                     </div>
                   </motion.button>
@@ -985,19 +956,13 @@ export default function Settings() {
                         style={{
                           ...kidSelectStyle,
                           ...(isMonthActive
-                            ? {
-                                borderColor: "#22c55e",
-                                boxShadow: "0 0 0 1px rgba(34,197,94,0.55)",
-                                background: "#f0fdf4",
-                              }
+                            ? { borderColor: "#22c55e", boxShadow: "0 0 0 1px rgba(34,197,94,0.55)", background: "#f0fdf4" }
                             : {}),
                         }}
                       >
                         <option value="">Month</option>
                         {MONTHS.map((m, idx) => (
-                          <option key={m} value={idx + 1}>
-                            {m}
-                          </option>
+                          <option key={m} value={idx + 1}>{m}</option>
                         ))}
                       </select>
 
@@ -1007,19 +972,13 @@ export default function Settings() {
                         style={{
                           ...kidSelectStyle,
                           ...(isYearActive
-                            ? {
-                                borderColor: "#22c55e",
-                                boxShadow: "0 0 0 1px rgba(34,197,94,0.55)",
-                                background: "#f0fdf4",
-                              }
+                            ? { borderColor: "#22c55e", boxShadow: "0 0 0 1px rgba(34,197,94,0.55)", background: "#f0fdf4" }
                             : {}),
                         }}
                       >
                         <option value="">Year</option>
                         {YEARS.map((y) => (
-                          <option key={y} value={y}>
-                            {y}
-                          </option>
+                          <option key={y} value={y}>{y}</option>
                         ))}
                       </select>
 
@@ -1029,11 +988,7 @@ export default function Settings() {
                         style={{
                           ...kidSelectStyle,
                           ...(isGenderActive
-                            ? {
-                                borderColor: "#22c55e",
-                                boxShadow: "0 0 0 1px rgba(34,197,94,0.55)",
-                                background: "#f0fdf4",
-                              }
+                            ? { borderColor: "#22c55e", boxShadow: "0 0 0 1px rgba(34,197,94,0.55)", background: "#f0fdf4" }
                             : {}),
                         }}
                       >
@@ -1044,25 +999,12 @@ export default function Settings() {
                       </select>
                     </div>
 
-                    {preview && (
-                      <div style={{ marginTop: 6, fontSize: 11, color: "#6b7280" }}>
-                        Preview: {preview}
-                      </div>
-                    )}
+                    {preview && <div style={{ marginTop: 6, fontSize: 11, color: "#6b7280" }}>Preview: {preview}</div>}
 
                     {/* Away from home toggle (18+) */}
                     {age !== null && age >= 18 && (
                       <>
-                        <label
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            marginTop: 8,
-                            fontSize: 12,
-                            color: "#374151",
-                          }}
-                        >
+                        <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 12, color: "#374151" }}>
                           <input
                             type="checkbox"
                             checked={kid.awayAtCollege}
@@ -1078,16 +1020,7 @@ export default function Settings() {
 
                     {/* Babysitting toggle (13–25) */}
                     {age !== null && age >= 13 && age <= 25 && (
-                      <label
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                          marginTop: 8,
-                          fontSize: 12,
-                          color: "#374151",
-                        }}
-                      >
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 12, color: "#374151" }}>
                         <input
                           type="checkbox"
                           checked={kid.canBabysit}
@@ -1127,7 +1060,7 @@ export default function Settings() {
             adults={[adult1, adult2]}
             householdType={type}
             kids={kids}
-            neighborhoodName={neighborhoodName}
+            neighborhoodCode={neighborhoodCode}
           />
 
           <p className="settings-section-sub">
@@ -1182,9 +1115,7 @@ export default function Settings() {
         </ul>
 
         <div className="settings-meta-row">
-          <span role="img" aria-label="info">
-            ℹ️
-          </span>
+          <span role="img" aria-label="info">ℹ️</span>
           <span>Neighborhood access requires a private code. Exact street addresses are not shown.</span>
         </div>
       </section>

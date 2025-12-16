@@ -43,7 +43,7 @@ type HouseholdTypeFilter = (typeof HOUSEHOLD_TYPES)[number];
 const HOUSEHOLD_TYPE_META: Record<
   HouseholdTypeFilter,
   {
-    Icon: React.ComponentType<{ size?: number }>;
+    Icon: React.ComponentType<{ size?: number; color?: string }>;
     border: string;
     glow: string;
     color: string;
@@ -190,7 +190,7 @@ function normalize(u: any): AnyUser {
   } as AnyUser;
 }
 
-function infoScore(u: Partial<AnyUser>) {
+function infoScore(u: any) {
   return (
     (u.householdType ? 1 : 0) +
     (u.neighborhood ? 1 : 0) +
@@ -848,14 +848,16 @@ function ActionDock({
   );
 }
 
-function neighborhoodKey(raw?: string | null): "bayhill" | "eagles" | "other" {
+type NeighborhoodKey = "bayhill" | "eagles";
+
+function neighborhoodKey(raw?: string | null): NeighborhoodKey | null {
   const s = (raw || "").toLowerCase().replace(/\s+/g, "");
-  if (!s) return "other";
+  if (!s) return null;
 
   if (s.includes("bayhill")) return "bayhill";
   if (s.includes("eagles") || s.includes("pointe")) return "eagles";
 
-  return "other";
+  return null;
 }
 
 function neighborhoodLabel(key: "bayhill" | "eagles") {
@@ -987,7 +989,11 @@ const neighborhoods = useMemo(() => {
     )
   );
 
-  list = list.filter((u) => keys.has(neighborhoodKey(u.neighborhood ?? null)));
+list = list.filter((u) => {
+  const k = neighborhoodKey(u.neighborhood ?? null);
+  return k ? keys.has(k) : false;
+});
+
 }
 
     if (selectedTypes.size > 0) {
