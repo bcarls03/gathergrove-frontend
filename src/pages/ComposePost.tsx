@@ -3,7 +3,8 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useMemo, useState } from "react";
 import { getViewer } from "../lib/viewer";
 import { loadNeighbors } from "../lib/profile";
-import { createEvent, type EventCategory } from "../lib/api";
+import * as Api from "../lib/api";
+import type { EventCategory } from "../lib/api";
 
 /* ---------- Types ---------- */
 
@@ -26,7 +27,7 @@ type Post = {
 
   _hostUid?: string | null;
 
-  // ✅ IMPORTANT: keep the backend id explicitly too (future-proof)
+  // keep backend id explicitly too (future-proof)
   backendId?: string;
 };
 
@@ -79,45 +80,18 @@ type CategoryMeta = {
 const DEFAULT_CATEGORY_ID: EventCategory = "neighborhood";
 
 const CATEGORY_OPTIONS: CategoryMeta[] = [
-  {
-    id: "neighborhood",
-    emoji: "🏡",
-    label: "Neighborhood",
-    description: "Block parties, driveway hangs, cul-de-sac meetups",
-  },
-  {
-    id: "playdate",
-    emoji: "🤸",
-    label: "Playdate",
-    description: "Kids playing together, park meetups, family fun",
-  },
-  {
-    id: "help",
-    emoji: "🤝",
-    label: "Help & favors",
-    description: "Borrow tools, give a hand, share rides",
-  },
-  {
-    id: "pet",
-    emoji: "🐶",
-    label: "Pets",
-    description: "Dog playtimes, lost/found pets, pet sitting",
-  },
-  {
-    id: "other",
-    emoji: "✨",
-    label: "Other",
-    description: "Anything that doesn’t fit above",
-  },
+  { id: "neighborhood", emoji: "🏡", label: "Neighborhood", description: "Block parties, driveway hangs, cul-de-sac meetups" },
+  { id: "playdate", emoji: "🤸", label: "Playdate", description: "Kids playing together, park meetups, family fun" },
+  { id: "help", emoji: "🤝", label: "Help & favors", description: "Borrow tools, give a hand, share rides" },
+  { id: "pet", emoji: "🐶", label: "Pets", description: "Dog playtimes, lost/found pets, pet sitting" },
+  { id: "other", emoji: "✨", label: "Other", description: "Anything that doesn’t fit above" },
 ];
 
 /* ---------- Small helpers ---------- */
 
 function makeId() {
   try {
-    if (typeof crypto !== "undefined" && (crypto as any).randomUUID) {
-      return (crypto as any).randomUUID();
-    }
+    if (typeof crypto !== "undefined" && (crypto as any).randomUUID) return (crypto as any).randomUUID();
   } catch {}
   return Math.random().toString(36).slice(2);
 }
@@ -159,6 +133,11 @@ function isoToTimeInputLocal(iso?: string): string {
   }
 }
 
+function removeLocalPostById(id: string) {
+  const all = loadPosts();
+  savePosts(all.filter((p) => p.id !== id));
+}
+
 /* ---------- Page ---------- */
 
 export default function ComposePost() {
@@ -185,7 +164,7 @@ export default function ComposePost() {
     return loadPosts().find((p) => p.id === editId);
   }, [editId]);
 
-  const isEditingExisting = !!existingPost;
+  const isEditingExisting = !!editId;
 
   const allNeighbors: Neighbor[] = useMemo(() => {
     try {
@@ -198,9 +177,7 @@ export default function ComposePost() {
 
   const lockedRecipients: string[] = existingPost?.recipients ?? [];
 
-  const [mutableRecipients, setMutableRecipients] = useState<string[]>(() => {
-    return recipientsFromState;
-  });
+  const [mutableRecipients, setMutableRecipients] = useState<string[]>(() => recipientsFromState);
 
   const effectiveRecipients: string[] = isEditingExisting
     ? Array.from(new Set([...lockedRecipients, ...mutableRecipients]))
@@ -213,12 +190,9 @@ export default function ComposePost() {
   const [startTime, setStartTime] = useState<string>(() => isoToTimeInputLocal(existingPost?.when));
   const [endTime, setEndTime] = useState<string>(() => isoToTimeInputLocal(existingPost?.end));
 
-  const [categoryId, setCategoryId] = useState<EventCategory>(
-    existingPost?.category ?? DEFAULT_CATEGORY_ID
-  );
+  const [categoryId, setCategoryId] = useState<EventCategory>(existingPost?.category ?? DEFAULT_CATEGORY_ID);
 
-  const categoryMeta =
-    CATEGORY_OPTIONS.find((c) => c.id === categoryId) ?? CATEGORY_OPTIONS[0];
+  const categoryMeta = CATEGORY_OPTIONS.find((c) => c.id === categoryId) ?? CATEGORY_OPTIONS[0];
 
   const [mode, setMode] = useState<"edit" | "preview">("edit");
   const [showCategoryStep, setShowCategoryStep] = useState(kind === "event" && !existingPost);
@@ -253,7 +227,7 @@ export default function ComposePost() {
         .map((lbl) => labelToId.get(lbl))
         .filter(Boolean) as string[];
 
-      // Build a local payload first (temp id), then replace with backend id after POST succeeds
+      // Build local payload first (temp id), then replace with backend id after POST succeeds
       const tempId = existingPost?.id ?? makeId();
 
       if (kind === "happening") {
@@ -270,32 +244,25 @@ export default function ComposePost() {
           category: "neighborhood",
         };
 
-        const nextLocal = existingPost
-          ? all.map((p) => (p.id === existingPost.id ? localPayload : p))
-          : [...all, localPayload];
+        const nextLocal = existingPost ? all.map((p) => (p.id === existingPost.id ? localPayload : p)) : [...all, localPayload];
         savePosts(nextLocal);
 
-        // ✅ BACKEND SOURCE OF TRUTH
-        // Your backend expects: type = "now" | "future"
+        // Backend source of truth
         try {
-          const res = await createEvent({
+          const res = await (Api as any).createEvent?.({
             type: "now",
             title: "Happening Now",
             details: localPayload.details,
             category: localPayload.category ?? "neighborhood",
             startAt: new Date().toISOString(),
             endAt: null,
-          } as any);
+          });
 
           const backend = res?.data ?? res;
           const backendId = backend?.id;
 
           if (backendId) {
-            // Replace local id with backend id so Safari/Chrome use SAME id for RSVPs
-            const updated = loadPosts().map((p) => {
-              if (p.id !== tempId) return p;
-              return { ...p, id: backendId, backendId };
-            });
+            const updated = loadPosts().map((p) => (p.id !== tempId ? p : { ...p, id: backendId, backendId }));
             savePosts(updated);
           }
         } catch (err: any) {
@@ -325,35 +292,67 @@ export default function ComposePost() {
         _hostUid: createdBy.id ?? null,
       };
 
-      const nextLocal = existingPost
-        ? all.map((p) => (p.id === existingPost.id ? localPayload : p))
-        : [...all, localPayload];
+      const nextLocal = existingPost ? all.map((p) => (p.id === existingPost.id ? localPayload : p)) : [...all, localPayload];
       savePosts(nextLocal);
 
       try {
-        const res = await createEvent({
+        const res = await (Api as any).createEvent?.({
           type: "future",
           title: localPayload.title || "Future Event",
           details: localPayload.details,
           category: localPayload.category ?? DEFAULT_CATEGORY_ID,
           startAt: localPayload.when ?? null,
           endAt: localPayload.end ?? null,
-        } as any);
+        });
 
         const backend = res?.data ?? res;
         const backendId = backend?.id;
 
         if (backendId) {
-          const updated = loadPosts().map((p) => {
-            if (p.id !== tempId) return p;
-            return { ...p, id: backendId, backendId };
-          });
+          const updated = loadPosts().map((p) => (p.id !== tempId ? p : { ...p, id: backendId, backendId }));
           savePosts(updated);
         }
       } catch (err: any) {
         console.error("Failed to create backend future event", err?.response?.data ?? err);
       }
 
+      navigate("/");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  /* ---------- Cancel Event (works for Happening Now + Future Event) ---------- */
+
+  const onCancelEvent = async () => {
+    if (!existingPost || isSubmitting) return;
+
+    const label = existingPost.kind === "happening" ? "Cancel this Happening Now post?" : "Cancel this event?";
+    const ok = window.confirm(label);
+    if (!ok) return;
+
+    setIsSubmitting(true);
+    try {
+      const eventId = existingPost.backendId ?? existingPost.id;
+
+      // Prefer the real API helper if present
+      if (typeof (Api as any).cancelEvent === "function") {
+        await (Api as any).cancelEvent(eventId);
+      } else if (typeof (Api as any).deleteEvent === "function") {
+        // fallback if cancel isn't implemented
+        await (Api as any).deleteEvent(eventId);
+      } else {
+        console.warn("No cancelEvent/deleteEvent found in lib/api — canceled locally only.");
+      }
+
+      // Always remove local copy so UI updates immediately
+      removeLocalPostById(existingPost.id);
+
+      navigate("/");
+    } catch (err: any) {
+      console.error("Failed to cancel event", err?.response?.data ?? err);
+      // Still remove locally so you can proceed
+      removeLocalPostById(existingPost.id);
       navigate("/");
     } finally {
       setIsSubmitting(false);
@@ -389,9 +388,7 @@ export default function ComposePost() {
 
   const toggleRecipient = (label: string) => {
     if (isEditingExisting && lockedRecipients.includes(label)) return;
-    setMutableRecipients((current) =>
-      current.includes(label) ? current.filter((x) => x !== label) : [...current, label]
-    );
+    setMutableRecipients((current) => (current.includes(label) ? current.filter((x) => x !== label) : [...current, label]));
   };
 
   const selectableNeighbors = allNeighbors.filter((n) => {
@@ -408,6 +405,8 @@ export default function ComposePost() {
     : isEditingExisting
     ? "Done adding neighbors"
     : "Done choosing neighbors";
+
+  const showCancelEventButton = isEditingExisting; // ✅ show for BOTH edit happening + edit future
 
   return (
     <div className="gg-compose-root">
@@ -431,15 +430,18 @@ export default function ComposePost() {
           .gg-input { width:100%; padding:9px 11px; border-radius:10px; border:1px solid #e5e7eb; font-size:14px; box-sizing: border-box; }
           .gg-input:focus { outline:none; border-color:#93c5fd; box-shadow:0 0 0 3px rgba(147,197,253,.25); }
           .gg-row-2 { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:12px; }
-          .gg-footer { display:flex; justify-content:flex-end; gap:8px; margin-top:16px; }
+          .gg-footer { display:flex; justify-content:space-between; gap:8px; margin-top:16px; align-items:center; flex-wrap:wrap; }
+          .gg-footer-right { display:flex; gap:8px; justify-content:flex-end; flex:1; }
           .btn { border-radius:999px; padding:9px 16px; font-size:14px; font-weight:600; border:1px solid transparent; cursor:pointer; }
           .btn-ghost { background:#f9fafb; border-color:#e5e7eb; color:#111827; }
           .btn-ghost:hover { background:#f3f4f6; }
           .btn-primary { background:linear-gradient(180deg,#0f172a,#020617); color:#fff; }
           .btn-primary:disabled { opacity:.45; cursor:not-allowed; }
+          .btn-danger { background:#fff; border-color:#fecaca; color:#b91c1c; }
+          .btn-danger:hover { background:#fef2f2; }
           .cat-pill { display:inline-flex; align-items:center; gap:8px; padding:10px 12px; border-radius:14px; background:rgba(15,23,42,.03); border:1px solid rgba(15,23,42,.08); }
           .cat-emoji { font-size:20px; }
-          .cat-label { font-weight:700i7OO; font-size:14px; }
+          .cat-label { font-weight:700; font-size:14px; }
           .cat-desc { font-size:13px; color:#6b7280; }
           .cat-change-btn, .neighbor-edit-btn { margin-top:8px; border-radius:999px; border:1px dashed #e5e7eb; padding:6px 12px; font-size:13px; background:#fff; cursor:pointer; }
           .cat-change-btn:hover, .neighbor-edit-btn:hover { background:#f9fafb; }
@@ -461,9 +463,7 @@ export default function ComposePost() {
 
         <h1 className="gg-page-title">{heading}</h1>
         <div className="gg-page-sub">
-          {kind === "happening"
-            ? "Share something neighbors can jump into right now."
-            : "Plan something neighbors can join later."}
+          {kind === "happening" ? "Share something neighbors can jump into right now." : "Plan something neighbors can join later."}
         </div>
 
         <div className="gg-card-shell">
@@ -471,9 +471,8 @@ export default function ComposePost() {
             <>
               <div className="gg-card-section">
                 <div className="gg-label">Choose a category</div>
-                <div className="gg-label-sub">
-                  This helps neighbors quickly understand what kind of event it is.
-                </div>
+                <div className="gg-label-sub">This helps neighbors quickly understand what kind of event it is.</div>
+
                 <div className="cat-step-options">
                   {CATEGORY_OPTIONS.map((opt) => (
                     <button
@@ -496,16 +495,15 @@ export default function ComposePost() {
               </div>
 
               <div className="gg-footer">
-                <button type="button" className="btn btn-ghost" onClick={() => navigate(-1)}>
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={() => setShowCategoryStep(false)}
-                >
-                  Continue
-                </button>
+                <div />
+                <div className="gg-footer-right">
+                  <button type="button" className="btn btn-ghost" onClick={() => navigate(-1)}>
+                    Cancel
+                  </button>
+                  <button type="button" className="btn btn-primary" onClick={() => setShowCategoryStep(false)}>
+                    Continue
+                  </button>
+                </div>
               </div>
             </>
           ) : mode === "edit" ? (
@@ -513,9 +511,7 @@ export default function ComposePost() {
               <div className="gg-card-section">
                 <div className="gg-label">Targeting</div>
                 <div className="gg-label-sub">
-                  {effectiveRecipients.length === 0
-                    ? "Everyone in your neighborhood"
-                    : "This post is shared with:"}
+                  {effectiveRecipients.length === 0 ? "Everyone in your neighborhood" : "This post is shared with:"}
                 </div>
 
                 {effectiveRecipients.length > 0 && (
@@ -533,20 +529,14 @@ export default function ComposePost() {
                       ))}
                     </div>
                     {isEditingExisting && (
-                      <div className="recipient-pill-label-muted">
-                        Gray = originally invited · Purple = newly added in this edit.
-                      </div>
+                      <div className="recipient-pill-label-muted">Gray = originally invited · Purple = newly added in this edit.</div>
                     )}
                   </>
                 )}
 
                 {allNeighbors.length > 0 && (
                   <>
-                    <button
-                      type="button"
-                      className="neighbor-edit-btn"
-                      onClick={() => setShowNeighborEditor((v) => !v)}
-                    >
+                    <button type="button" className="neighbor-edit-btn" onClick={() => setShowNeighborEditor((v) => !v)}>
                       {neighborButtonLabel}
                     </button>
 
@@ -567,10 +557,7 @@ export default function ComposePost() {
                                 key={n.id}
                                 type="button"
                                 className="recipient-pill recipient-pill-added"
-                                style={{
-                                  opacity: selected ? 1 : 0.35,
-                                  borderStyle: selected ? "solid" : "dashed",
-                                }}
+                                style={{ opacity: selected ? 1 : 0.35, borderStyle: selected ? "solid" : "dashed" }}
                                 onClick={() => toggleRecipient(label)}
                               >
                                 {label}
@@ -617,43 +604,23 @@ export default function ComposePost() {
 
                   <div style={{ marginBottom: 10 }}>
                     <label className="gg-label">Title</label>
-                    <input
-                      className="gg-input"
-                      placeholder="Title of the event"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                    />
+                    <input className="gg-input" placeholder="Title of the event" value={title} onChange={(e) => setTitle(e.target.value)} />
                   </div>
 
                   <div className="gg-row-2" style={{ marginBottom: 10 }}>
                     <div>
                       <label className="gg-label">Select a date</label>
-                      <input
-                        className="gg-input"
-                        type="date"
-                        value={date}
-                        onChange={(e) => setDate(e.target.value)}
-                      />
+                      <input className="gg-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
                     </div>
                     <div>
                       <label className="gg-label">Start time</label>
-                      <input
-                        className="gg-input"
-                        type="time"
-                        value={startTime}
-                        onChange={(e) => setStartTime(e.target.value)}
-                      />
+                      <input className="gg-input" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
                     </div>
                   </div>
 
                   <div style={{ marginBottom: 10 }}>
                     <label className="gg-label">Finish time (optional)</label>
-                    <input
-                      className="gg-input"
-                      type="time"
-                      value={endTime}
-                      onChange={(e) => setEndTime(e.target.value)}
-                    />
+                    <input className="gg-input" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
                   </div>
 
                   <div>
@@ -683,40 +650,41 @@ export default function ComposePost() {
               <div className="preview-shell-inline">
                 <div className="preview-label-inline">Next step</div>
                 <div>
-                  Tap <strong>Preview</strong> below to see exactly how your post will look
-                  before you share it.
+                  Tap <strong>Preview</strong> below to see exactly how your post will look before you share it.
                 </div>
               </div>
 
               <div className="gg-footer">
-                <button type="button" className="btn btn-ghost" onClick={() => navigate(-1)}>
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={!canSubmitDetails}
-                  onClick={() => setMode("preview")}
-                >
-                  Preview
-                </button>
+                {/* ✅ Cancel Event button on EDIT screen for both kinds */}
+                <div>
+                  {showCancelEventButton && (
+                    <button type="button" className="btn btn-danger" disabled={isSubmitting} onClick={onCancelEvent}>
+                      Cancel event
+                    </button>
+                  )}
+                </div>
+
+                <div className="gg-footer-right">
+                  <button type="button" className="btn btn-ghost" onClick={() => navigate(-1)}>
+                    Cancel
+                  </button>
+                  <button type="button" className="btn btn-primary" disabled={!canSubmitDetails} onClick={() => setMode("preview")}>
+                    Preview
+                  </button>
+                </div>
               </div>
             </>
           ) : (
             <>
               <div className="gg-card-section">
                 <div className="gg-label">Preview</div>
-                <div className="gg-label-sub">
-                  This is how your post will appear to neighbors on the Home tab.
-                </div>
+                <div className="gg-label-sub">This is how your post will appear to neighbors on the Home tab.</div>
               </div>
 
               <div className="gg-card-section">
                 <div className="full-preview-card">
                   <div className="full-preview-title-row">
-                    <div className="full-preview-title">
-                      {kind === "happening" ? "Happening Now" : title.trim() || "Your event title"}
-                    </div>
+                    <div className="full-preview-title">{kind === "happening" ? "Happening Now" : title.trim() || "Your event title"}</div>
                     <div className="full-preview-pill">{kind === "happening" ? "Now" : "Future"}</div>
                   </div>
                   <div className="full-preview-meta">
@@ -735,17 +703,16 @@ export default function ComposePost() {
               </div>
 
               <div className="gg-footer">
-                <button type="button" className="btn btn-ghost" onClick={() => setMode("edit")}>
-                  Back
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={!canSubmitDetails || isSubmitting}
-                  onClick={onSubmit}
-                >
-                  {primaryLabel}
-                </button>
+                <div />
+
+                <div className="gg-footer-right">
+                  <button type="button" className="btn btn-ghost" onClick={() => setMode("edit")}>
+                    Back
+                  </button>
+                  <button type="button" className="btn btn-primary" disabled={!canSubmitDetails || isSubmitting} onClick={onSubmit}>
+                    {primaryLabel}
+                  </button>
+                </div>
               </div>
             </>
           )}

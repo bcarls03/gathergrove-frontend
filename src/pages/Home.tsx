@@ -9,17 +9,27 @@ import {
   type GGEvent,
   type EventCategory,
   sendEventRsvp,
+  leaveEventRsvp,
   getEventRsvps,
   type EventRsvpBuckets,
 } from "../lib/api";
 import Logo from "../assets/gathergrove-logo.png";
 
+// ✅ IMPORTANT: this path/case must match the actual file name on disk
+import MiniHouseholdCard from "../components/MiniHouseholdCard";
+
 /* ---------- Posts (Happening / Event) ---------- */
 
 type Post = {
+  // ✅ CANONICAL event id (the one used for RSVP endpoints)
   id: string;
-  // underlying event id if backend sends separate rows for host / invite
+
+  // optional raw row id (invite row, etc.) if backend returns separate rows
+  rowId?: string;
+
+  // underlying true event id if backend includes it
   eventId?: string;
+
   kind: "happening" | "event";
   title?: string;
   when?: string;
@@ -280,25 +290,45 @@ function formatJoinedRelative(joinedAt?: number, nowMs?: number): string | null 
   return "Joined " + d.toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" });
 }
 
-/* ---------- Map backend events → Home posts ---------- */
+/* ---------- Map backend events → Home posts (RSVP-safe) ---------- */
+
+function getCanonicalEventId(ev: GGEvent): string {
+  const anyEv = ev as any;
+
+  // ✅ Accept multiple naming conventions from backend
+  const raw =
+    anyEv.eventId ??
+    anyEv.event_id ??
+    anyEv.eventID ??
+    anyEv.eventid ??
+    anyEv.parentEventId ??
+    anyEv.parent_event_id ??
+    null;
+
+  return (raw ?? ev.id) as string;
+}
 
 function mapEventToPost(ev: GGEvent): Post {
   const anyEv = ev as any;
 
-  const eventId: string | undefined = anyEv.eventId ?? ev.id;
+  const canonicalEventId = getCanonicalEventId(ev);
+  const rowId = ev.id;
+
   const kind: "happening" | "event" = ev.type === "future" ? "event" : "happening";
 
   const startIso = ev.startAt ?? null;
-  const expiresIso = anyEv.expiresAt ?? null;
-  const endIso = ev.endAt ?? null;
+  const expiresIso = anyEv.expiresAt ?? anyEv.expires_at ?? null;
+  const endIso = ev.endAt ?? anyEv.endAt ?? anyEv.end_at ?? null;
   const primaryIso = startIso ?? expiresIso ?? endIso ?? null;
 
-  const ts =
-    primaryIso && !Number.isNaN(Date.parse(primaryIso)) ? Date.parse(primaryIso) : Date.now();
+  const ts = primaryIso && !Number.isNaN(Date.parse(primaryIso)) ? Date.parse(primaryIso) : Date.now();
 
   return {
-    id: ev.id,
-    eventId,
+    // ✅ IMPORTANT: id is the canonicalEventId so RSVP calls are stable for future events
+    id: canonicalEventId,
+    eventId: canonicalEventId,
+    rowId: rowId !== canonicalEventId ? rowId : undefined,
+
     kind,
     title: ev.title,
     when: startIso || undefined,
@@ -307,16 +337,13 @@ function mapEventToPost(ev: GGEvent): Post {
     recipientIds: [],
     createdBy: anyEv.createdBy,
     ts,
-    _hostUid: anyEv.hostUid ?? null,
-    category: anyEv.category as EventCategory | undefined,
+    _hostUid: anyEv.hostUid ?? anyEv.host_uid ?? null,
+    category: (anyEv.category ?? anyEv.eventCategory ?? anyEv.event_category) as EventCategory | undefined,
   };
 }
 
 /* ---------- Dedupe helpers for Future Events ---------- */
 
-// "Same event" if:
-// - eventId matches, OR
-// - title matches (case-insensitive) AND start times are within 5 minutes.
 function isSameEvent(a: Post, b: Post): boolean {
   if (a.eventId && b.eventId && a.eventId === b.eventId) return true;
 
@@ -334,7 +361,6 @@ function isSameEvent(a: Post, b: Post): boolean {
   return diff <= FIVE_MIN;
 }
 
-// Prefer row that's clearly "from you" and/or from backend (has eventId / non-local id)
 function pickPreferredEvent(a: Post, b: Post, viewerId: string | null): Post {
   function score(p: Post): number {
     let s = 0;
@@ -387,18 +413,15 @@ function computeNextRsvpState(prev: EventRsvpState | undefined, choice: RSVPChoi
   let nextChoice: RSVPChoice | null = prevState.choice;
 
   if (prevState.choice === choice) {
-    // toggle off
     if (choice === "going" && nextCounts.going > 0) nextCounts.going--;
     if (choice === "maybe" && nextCounts.maybe > 0) nextCounts.maybe--;
     if (choice === "cant" && nextCounts.cant > 0) nextCounts.cant--;
     nextChoice = null;
   } else {
-    // remove old
     if (prevState.choice === "going" && nextCounts.going > 0) nextCounts.going--;
     if (prevState.choice === "maybe" && nextCounts.maybe > 0) nextCounts.maybe--;
     if (prevState.choice === "cant" && nextCounts.cant > 0) nextCounts.cant--;
 
-    // add new
     if (choice === "going") nextCounts.going++;
     if (choice === "maybe") nextCounts.maybe++;
     if (choice === "cant") nextCounts.cant++;
@@ -407,6 +430,19 @@ function computeNextRsvpState(prev: EventRsvpState | undefined, choice: RSVPChoi
   }
 
   return { choice: nextChoice, counts: nextCounts };
+}
+
+/* ---------- RSVP helpers (keying + backend conversions) ---------- */
+
+function getRsvpStateKey(post: Post): string {
+  return post.eventId ?? post.id;
+}
+
+function bucketsToCounts(buckets: any): EventRsvpCounts {
+  const going = (buckets?.going ?? []) as any[];
+  const maybe = (buckets?.maybe ?? []) as any[];
+  const cant = (buckets?.cant ?? buckets?.declined ?? buckets?.["can't"] ?? []) as any[];
+  return { going: going.length || 0, maybe: maybe.length || 0, cant: cant.length || 0 };
 }
 
 /* ---------- Page ---------- */
@@ -430,11 +466,12 @@ export default function Home() {
   const [eventRsvps, setEventRsvps] = useState<EventRsvpMap>({});
   const [now, setNow] = useState(() => Date.now());
 
-  const [showActivity, setShowActivity] = useState(false);
-  const [showNewNeighbors, setShowNewNeighbors] = useState(false);
-  const [showDM, setShowDM] = useState(false);
-  const [showHappening, setShowHappening] = useState(false);
-  const [showEvents, setShowEvents] = useState(false);
+  // ✅ default open
+  const [showActivity, setShowActivity] = useState(true);
+  const [showNewNeighbors, setShowNewNeighbors] = useState(true);
+  const [showDM, setShowDM] = useState(true);
+  const [showHappening, setShowHappening] = useState(true);
+  const [showEvents, setShowEvents] = useState(true);
 
   const [eventCategoryFilter, setEventCategoryFilter] = useState<EventFilter>("all");
 
@@ -447,8 +484,28 @@ export default function Home() {
   const [rsvpDetailBuckets, setRsvpDetailBuckets] = useState<EventRsvpBuckets | null>(null);
   const [rsvpDetailLoading, setRsvpDetailLoading] = useState(false);
   const [rsvpDetailError, setRsvpDetailError] = useState<string | null>(null);
-  // 🔑 local inline RSVP (for fallback when backend buckets are empty)
   const [rsvpDetailInline, setRsvpDetailInline] = useState<EventRsvpState | null>(null);
+
+  const refreshHomeEvents = async () => {
+    const events = await fetchEvents();
+
+    // ✅ hide canceled events if backend returns them
+    const activeOnly = events.filter((ev) => {
+      const s = String((ev as any)?.status ?? "").toLowerCase();
+      if (!s) return true;
+      return !(s === "canceled" || s === "cancelled");
+    });
+
+    const backendPosts = activeOnly.map(mapEventToPost);
+    const localPosts = loadLocalPosts();
+
+    // ✅ merge by canonical event id (Post.id)
+    const merged = new Map<string, Post>();
+    for (const p of backendPosts) merged.set(p.id, p);
+    for (const p of localPosts) merged.set(p.id, p);
+
+    setPosts(Array.from(merged.values()));
+  };
 
   const replyCounts = useMemo(() => {
     const map: Record<string, number> = {};
@@ -506,24 +563,41 @@ export default function Home() {
     setReplyDraft(text);
   };
 
+  // ✅ IMPORTANT: edit route should use the real backend eventId (canonical) if present
   const handleEditPost = (post: Post) => {
-    navigate(`/compose/${post.kind}/${post.id}`);
+    navigate(`/compose/${post.kind}/${post.eventId ?? post.id}`);
   };
 
-  // Open RSVP detail drawer for anyone invited
   const openRsvpDetails = (post: Post) => {
-    const eventId = post.eventId ?? post.id;
     setRsvpDetailEvent(post);
     setRsvpDetailBuckets(null);
     setRsvpDetailError(null);
+
+    const key = getRsvpStateKey(post);
+    setRsvpDetailInline(eventRsvps[key] ?? null);
+
+    // ✅ Happening Now RSVPs are LOCAL ONLY (no backend calls)
+    if (post.kind === "happening") {
+      setRsvpDetailLoading(false);
+      return;
+    }
+
     setRsvpDetailLoading(true);
-    // save local inline state for this post so sheet can fall back
-    setRsvpDetailInline(eventRsvps[post.id] ?? null);
 
     void (async () => {
       try {
-        const buckets = await getEventRsvps(eventId);
-        setRsvpDetailBuckets(buckets);
+        const buckets = await getEventRsvps(key);
+        setRsvpDetailBuckets(buckets as any);
+
+        // also update counts locally from backend truth
+        const counts = bucketsToCounts(buckets as any);
+        setEventRsvps((prev) => {
+          const next: EventRsvpMap = { ...prev };
+          const prior = next[key] ?? { choice: null, counts: { going: 0, maybe: 0, cant: 0 } };
+          next[key] = { ...prior, counts };
+          saveRsvps(next);
+          return next;
+        });
       } catch (err) {
         console.error("Failed to load RSVPs", err);
         setRsvpDetailError("Unable to load RSVPs right now.");
@@ -544,20 +618,10 @@ export default function Home() {
   useEffect(() => {
     void (async () => {
       try {
-        const events = await fetchEvents();
-        const backendPosts = events.map(mapEventToPost);
-        const localPosts = loadLocalPosts();
-
-        const merged = new Map<string, Post>();
-        for (const p of backendPosts) merged.set(p.id, p);
-        for (const p of localPosts) merged.set(p.id, p);
-
-        setPosts(Array.from(merged.values()));
-
+        await refreshHomeEvents();
         const existing = loadRsvps();
-        const nextMap: EventRsvpMap = { ...existing };
-        setEventRsvps(nextMap);
-        saveRsvps(nextMap);
+        setEventRsvps(existing);
+        saveRsvps(existing);
       } catch (err) {
         console.error("Failed to fetch events for Home", err);
         setPosts(loadLocalPosts());
@@ -573,11 +637,7 @@ export default function Home() {
 
       return {
         id: n.id ?? n.email ?? n.lastName ?? `neighbor-${Math.random()}`,
-        label:
-          n.lastName ??
-          n.last_name ??
-          n.name ??
-          (n.email ? n.email.split("@")[0] : "Household"),
+        label: n.lastName ?? n.last_name ?? n.name ?? (n.email ? n.email.split("@")[0] : "Household"),
         neighborhood: n.neighborhood ?? null,
         joinedAt,
       };
@@ -586,11 +646,11 @@ export default function Home() {
 
     const stored = loadCollapse();
     if (stored) {
-      setShowDM(stored.dm ?? false);
-      setShowHappening(stored.happening ?? false);
-      setShowEvents(stored.events ?? false);
-      setShowNewNeighbors(stored.newNeighbors ?? false);
-      setShowActivity(stored.activity ?? false);
+      setShowDM(stored.dm ?? true);
+      setShowHappening(stored.happening ?? true);
+      setShowEvents(stored.events ?? true);
+      setShowNewNeighbors(stored.newNeighbors ?? true);
+      setShowActivity(stored.activity ?? true);
     }
 
     const id = window.setInterval(() => setNow(Date.now()), 60_000);
@@ -607,7 +667,6 @@ export default function Home() {
     });
   }, [showDM, showHappening, showEvents, showNewNeighbors, showActivity]);
 
-  // Buckets: filter only posts that involve the viewer (or are broadcast)
   const { happeningNow, upcomingEvents } = useMemo(() => {
     const relevant = posts.filter((p) => isPostRelevantToViewer(p, viewer));
     const nowMs = now;
@@ -625,9 +684,7 @@ export default function Home() {
           }
         } else {
           const age = nowMs - p.ts;
-          if (age <= DAY_MS) {
-            happening.push(p);
-          }
+          if (age <= DAY_MS) happening.push(p);
         }
       } else if (p.kind === "event") {
         if (!p.when) {
@@ -641,12 +698,9 @@ export default function Home() {
       }
     }
 
-    // --- HARD DEDUPE: ensure each Future Event only appears once ---
     const deduped: Post[] = [];
-
     for (const p of upcomingRaw) {
       let merged = false;
-
       for (let i = 0; i < deduped.length; i++) {
         const existing = deduped[i];
         if (isSameEvent(existing, p)) {
@@ -655,22 +709,19 @@ export default function Home() {
           break;
         }
       }
-
       if (!merged) deduped.push(p);
     }
 
-    const upcoming: Post[] = deduped;
-
     happening.sort((a, b) => b.ts - a.ts);
 
-    upcoming.sort((a, b) => {
+    deduped.sort((a, b) => {
       if (a.when && b.when) return a.when.localeCompare(b.when);
       if (a.when) return -1;
       if (b.when) return 1;
       return a.ts - b.ts;
     });
 
-    return { happeningNow: happening, upcomingEvents: upcoming };
+    return { happeningNow: happening, upcomingEvents: deduped };
   }, [posts, viewer, viewerId, now]);
 
   const filteredUpcomingEvents = useMemo(() => {
@@ -718,12 +769,7 @@ export default function Home() {
     const cutoffMs = 14 * DAY_MS;
 
     return newNeighbors
-      .filter(
-        (n) =>
-          typeof n.joinedAt === "number" &&
-          nowMs - n.joinedAt >= 0 &&
-          nowMs - n.joinedAt <= cutoffMs
-      )
+      .filter((n) => typeof n.joinedAt === "number" && nowMs - n.joinedAt >= 0 && nowMs - n.joinedAt <= cutoffMs)
       .sort((a, b) => b.joinedAt! - a.joinedAt!);
   }, [newNeighbors, now]);
 
@@ -739,9 +785,7 @@ export default function Home() {
     eventCategoryFilter === "all" ? "future events" : `${CATEGORY_META[eventCategoryFilter].label.toLowerCase()} events`;
 
   const otherParticipantsLabel = (t: DMThread): string => {
-    if (!viewerId) {
-      return t.participants.map((p) => p.label).join(", ");
-    }
+    if (!viewerId) return t.participants.map((p) => p.label).join(", ");
     const others = t.participants.filter((p) => p.id !== viewerId);
     if (others.length === 0) return "You";
     return others.map((p) => p.label).join(", ");
@@ -754,29 +798,46 @@ export default function Home() {
     } catch {}
   };
 
-  // 🔑 RSVP handler – optimistic update + backend sync
-  const handleRsvp = (postId: string, choice: RSVPChoice) => {
-    const prevState = eventRsvps[postId];
+  const handleRsvp = (post: Post, choice: RSVPChoice) => {
+    const key = getRsvpStateKey(post);
+
+    const prevState = eventRsvps[key];
     const nextState = computeNextRsvpState(prevState, choice);
 
-    const nextMap: EventRsvpMap = {
-      ...eventRsvps,
-      [postId]: nextState,
-    };
+    const nextMap: EventRsvpMap = { ...eventRsvps, [key]: nextState };
     setEventRsvps(nextMap);
     saveRsvps(nextMap);
 
-    const post = posts.find((p) => p.id === postId);
-    const eventId = post?.eventId ?? postId;
+    // ✅ Happening Now: local only (no backend call)
+    if (post.kind === "happening") return;
 
-    const backendStatus: "going" | "maybe" | "declined" =
-      nextState.choice === "going" ? "going" : nextState.choice === "maybe" ? "maybe" : "declined";
+    void (async () => {
+      try {
+        if (!nextState.choice) {
+          await leaveEventRsvp(key);
+        } else {
+          await sendEventRsvp(key, nextState.choice);
+        }
 
-    try {
-      void sendEventRsvp(eventId, backendStatus);
-    } catch (err) {
-      console.error("Failed to submit RSVP", err);
-    }
+        // refresh counts from backend truth
+        try {
+          const buckets = await getEventRsvps(key);
+          const counts = bucketsToCounts(buckets as any);
+
+          setEventRsvps((prev) => {
+            const updated: EventRsvpMap = { ...prev };
+            const prior = updated[key] ?? { choice: null, counts: { going: 0, maybe: 0, cant: 0 } };
+            updated[key] = { ...prior, counts };
+            saveRsvps(updated);
+            return updated;
+          });
+        } catch {
+          // ignore
+        }
+      } catch (err) {
+        console.error("Failed to submit RSVP", err);
+      }
+    })();
   };
 
   const formatRsvpSummary = (counts: EventRsvpCounts): string | null => {
@@ -789,127 +850,50 @@ export default function Home() {
   };
 
   const formatHappeningSummary = (counts: EventRsvpCounts): string | null => {
-    if (counts.going <= 0) return null;
-    const n = counts.going;
-    return `${n} neighbor${n === 1 ? "" : "s"} going`;
+    const responded = counts.going + counts.maybe + counts.cant;
+    if (responded <= 0) return null;
+    return `${responded} household${responded === 1 ? "" : "s"} responded`;
   };
 
   return (
     <div className="gg-page" style={{ padding: 16, maxWidth: 760, margin: "0 auto" }}>
       <style>{`
-        @keyframes gg-page-in {
-          from { opacity: 0; transform: translateY(6px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .gg-page {
-          animation: gg-page-in .32s ease-out;
-        }
+        @keyframes gg-page-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        .gg-page { animation: gg-page-in .32s ease-out; }
 
-        .home-title {
-          font-size: 30px;
-          font-weight: 800;
-          letter-spacing: .02em;
-          color: #0f172a;
-          margin: 0;
-        }
-        .home-sub {
-          font-size: 14px;
-          color: #6b7280;
-          margin: 2px 0 6px;
-        }
+        .home-title { font-size: 30px; font-weight: 800; letter-spacing: .02em; color: #0f172a; margin: 0; }
+        .home-sub { font-size: 14px; color: #6b7280; margin: 2px 0 6px; }
 
         .welcome-card {
-          border-radius: 16px;
-          border: 1px solid #A7F3D0;
-          background: #ffffff;
-          padding: 14px 16px;
-          margin-bottom: 18px;
+          border-radius: 16px; border: 1px solid #A7F3D0; background: #ffffff;
+          padding: 14px 16px; margin-bottom: 18px;
           box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
-          display:flex;
-          justify-content:space-between;
-          align-items:flex-start;
-          gap:10px;
+          display:flex; justify-content:space-between; align-items:flex-start; gap:10px;
         }
-        .welcome-main {
-          flex:1;
-          min-width:0;
-        }
-        .welcome-title {
-          font-weight: 700;
-          margin-bottom: 4px;
-          font-size: 15px;
-          display:flex;
-          align-items:center;
-          gap:6px;
-          color:#065F46;
-        }
-        .welcome-body {
-          font-size: 14px;
-          color:#374151;
-        }
+        .welcome-main { flex:1; min-width:0; }
+        .welcome-title { font-weight: 700; margin-bottom: 4px; font-size: 15px; display:flex; align-items:center; gap:6px; color:#065F46; }
+        .welcome-body { font-size: 14px; color:#374151; }
         .welcome-pill {
-          font-size: 11px;
-          padding: 4px 10px;
-          border-radius: 999px;
-          border: 1px solid #BBF7D0;
-          background: #F0FDF4;
-          color:#047857;
-          white-space:nowrap;
-          cursor:pointer;
+          font-size: 11px; padding: 4px 10px; border-radius: 999px;
+          border: 1px solid #BBF7D0; background: #F0FDF4; color:#047857;
+          white-space:nowrap; cursor:pointer;
         }
 
-        .home-section-title {
-          font-size: 18px;
-          font-weight: 700;
-          margin: 0;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
+        .home-section-title { font-size: 18px; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 8px; }
         .section-icon {
-          width: 26px;
-          height: 26px;
-          border-radius: 999px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 14px;
-          background: #eef2ff;
-          color: #1d4ed8;
+          width: 26px; height: 26px; border-radius: 999px;
+          display: inline-flex; align-items: center; justify-content: center;
+          font-size: 14px; background: #eef2ff; color: #1d4ed8;
         }
-        .section-icon.activity {
-          background: #ecfdf5;
-          color: #047857;
-        }
-        .section-icon.neighbors {
-          background: #fefce8;
-          color: #a16207;
-        }
-        .section-icon.messages {
-          background: #eff6ff;
-          color: #1d4ed8;
-        }
-        .section-icon.happening {
-          background: #f5f3ff;
-          color: #7c3aed;
-        }
-        .section-icon.events {
-          background: #f0f9ff;
-          color: #0369a1;
-        }
+        .section-icon.activity { background: #ecfdf5; color: #047857; }
+        .section-icon.neighbors { background: #fefce8; color: #a16207; }
+        .section-icon.messages { background: #eff6ff; color: #1d4ed8; }
+        .section-icon.happening { background: #f5f3ff; color: #7c3aed; }
+        .section-icon.events { background: #f0f9ff; color: #0369a1; }
 
-        .section-count {
-          font-size: 11px;
-          padding: 2px 8px;
-          border-radius: 999px;
-          background: #f3f4f6;
-          color: #374151;
-        }
+        .section-count { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #f3f4f6; color: #374151; }
 
-        .home-section {
-          margin-bottom: 18px;
-        }
+        .home-section { margin-bottom: 18px; }
         .home-card {
           border-radius: 14px;
           border: 1px solid rgba(15,23,42,.08);
@@ -923,262 +907,96 @@ export default function Home() {
           gap: 10px;
           transition: box-shadow .15s ease;
         }
-        .home-card:hover {
-          box-shadow: 0 8px 18px rgba(15,23,42,.10);
-        }
-        .home-card-main {
-          flex: 1;
-          min-width: 0;
-        }
-        .home-card-title {
-          font-weight: 600;
-          margin-bottom: 2px;
-          font-size: 15px;
-        }
-        .home-card-meta {
-          font-size: 12px;
-          color: #64748b;
-          margin-bottom: 4px;
-        }
-        .home-card-body {
-          font-size: 14px;
-          color: #0f172a;
-        }
-        .home-card-body--neighbor {
-          font-size: 13px;
-          color: #4b5563;
-        }
-        .pill {
-          font-size: 11px;
-          padding: 4px 8px;
-          border-radius: 999px;
-          border: 1px solid rgba(148,163,184,.6);
-          color: #0f172a;
-          white-space: nowrap;
-        }
-        .pill.happening {
-          background: #ecfeff;
-          border-color: #a5f3fc;
-        }
-        .pill.event {
-          background: #fefce8;
-          border-color: #facc15;
-        }
+        .home-card:hover { box-shadow: 0 8px 18px rgba(15,23,42,.10); }
+
+        .home-card-main { flex: 1; min-width: 0; }
+        .home-card-title { font-weight: 600; margin-bottom: 2px; font-size: 15px; }
+        .home-card-meta { font-size: 12px; color: #64748b; margin-bottom: 4px; }
+        .home-card-body { font-size: 14px; color: #0f172a; }
+        .home-card-body--neighbor { font-size: 13px; color: #4b5563; }
+
+        .pill { font-size: 11px; padding: 4px 8px; border-radius: 999px; border: 1px solid rgba(148,163,184,.6); color: #0f172a; white-space: nowrap; }
+        .pill.happening { background: #ecfeff; border-color: #a5f3fc; }
+        .pill.event { background: #fefce8; border-color: #facc15; }
         .pill.host {
-          background:#ecfdf5;
-          border-color:#6ee7b7;
-          color:#047857;
-          font-size: 11px;
-          padding: 3px 8px;
-          border-radius:999px;
-          display:inline-flex;
-          align-items:center;
-          gap:4px;
+          background:#ecfdf5; border-color:#6ee7b7; color:#047857;
+          font-size: 11px; padding: 3px 8px; border-radius:999px;
+          display:inline-flex; align-items:center; gap:4px;
         }
-        .empty {
-          font-size: 14px;
-          color: #6b7280;
-          padding: 8px 2px;
-        }
+
+        .empty { font-size: 14px; color: #6b7280; padding: 8px 2px; }
+
         .view-all {
-          font-size: 12px;
-          color: #4f46e5;
-          cursor: pointer;
-          font-weight: 600;
-          background: #eef2ff;
-          border-radius: 999px;
+          font-size: 12px; color: #4f46e5; cursor: pointer; font-weight: 600;
+          background: #eef2ff; border-radius: 999px;
           border: 1px solid rgba(129,140,248,0.7);
           padding: 4px 10px;
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          transition:
-            background .12s ease,
-            box-shadow .12s ease,
-            transform .12s ease,
-            opacity .12s ease;
+          display: inline-flex; align-items: center; gap: 4px;
+          transition: background .12s ease, box-shadow .12s ease, transform .12s ease, opacity .12s ease;
         }
-        .view-all:hover {
-          background: #e0e7ff;
-          box-shadow: 0 6px 14px rgba(79,70,229,0.20);
-          transform: translateY(-1px);
-        }
-        .view-all.is-disabled {
-          opacity: 0.4;
-          cursor: default;
-          box-shadow: none;
-          transform: none;
-          background: #eef2ff;
-        }
-        .section-header-row {
-          display:flex;
-          justify-content:space-between;
-          align-items:center;
-          gap:8px;
-          margin: 18px 0 8px;
-        }
-        .section-toggle {
-          display:inline-flex;
-          align-items:center;
-          gap:6px;
-          border:0;
-          padding:0;
-          background:transparent;
-          cursor:pointer;
-        }
-        .chevron {
-          font-size: 13px;
-          color:#64748b;
-          transition: transform .15s ease;
-        }
-        .chevron.closed {
-          transform: rotate(180deg);
-        }
+        .view-all:hover { background: #e0e7ff; box-shadow: 0 6px 14px rgba(79,70,229,0.20); transform: translateY(-1px); }
+        .view-all.is-disabled { opacity: 0.4; cursor: default; box-shadow: none; transform: none; background: #eef2ff; }
+
+        .section-header-row { display:flex; justify-content:space-between; align-items:center; gap:8px; margin: 18px 0 8px; }
+        .section-toggle { display:inline-flex; align-items:center; gap:6px; border:0; padding:0; background:transparent; cursor:pointer; }
+
+        .chevron { font-size: 13px; color:#64748b; transition: transform .15s ease; }
+        .chevron.closed { transform: rotate(180deg); }
 
         .rsvp-row {
-          display:flex;
-          flex-wrap:wrap;
-          gap:6px;
-          align-items:center;
-          margin-top:8px;
-          justify-content:space-between;
+          display:flex; flex-wrap:wrap; gap:6px; align-items:center;
+          margin-top:8px; justify-content:space-between;
         }
-        .rsvp-buttons {
-          display:flex;
-          flex-wrap:wrap;
-          gap:6px;
-        }
+        .rsvp-buttons { display:flex; flex-wrap:wrap; gap:6px; }
 
         .rsvp-btn {
-          font-size: 11px;
-          padding: 5px 11px;
-          border-radius: 999px;
+          font-size: 11px; padding: 5px 11px; border-radius: 999px;
           border: 1px solid rgba(148,163,184,0.6);
-          background:#ffffff;
-          color:#0f172a;
-          cursor:pointer;
-          display:inline-flex;
-          align-items:center;
-          gap:4px;
-          transition:
-            box-shadow .12s ease,
-            transform .12s ease,
-            border-color .12s ease,
-            background-color .12s ease;
+          background:#ffffff; color:#0f172a; cursor:pointer;
+          display:inline-flex; align-items:center; gap:4px;
+          transition: box-shadow .12s ease, transform .12s ease, border-color .12s ease, background-color .12s ease;
         }
-        .rsvp-btn:hover {
-          box-shadow: 0 6px 14px rgba(15,23,42,.06);
-          background:#f9fafb;
-          transform: translateY(-1px);
-        }
+        .rsvp-btn:hover { box-shadow: 0 6px 14px rgba(15,23,42,.06); background:#f9fafb; transform: translateY(-1px); }
         .rsvp-btn.is-on {
-          background:#ffffff;
-          border-color:#2563eb;
-          border-width:2px;
-          color:#0f172a;
-          box-shadow:none;
-          transform: translateY(-1px);
+          background:#ffffff; border-color:#2563eb; border-width:2px; color:#0f172a;
+          box-shadow:none; transform: translateY(-1px);
         }
 
-        .rsvp-summary {
-          font-size: 12px;
-          color:#6b7280;
-        }
-
-        .rsvp-meta-right {
-          display:flex;
-          align-items:center;
-          gap:8px;
-          flex-wrap:wrap;
-        }
+        .rsvp-summary { font-size: 12px; color:#6b7280; }
+        .rsvp-meta-right { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 
         .rsvp-view-btn {
-          font-size: 11px;
-          padding: 5px 10px;
-          border-radius: 999px;
+          font-size: 11px; padding: 5px 10px; border-radius: 999px;
           border: 1px solid #e5e7eb;
-          background:#ffffff;
-          color:#111827;
-          cursor:pointer;
-          display:inline-flex;
-          align-items:center;
-          gap:4px;
+          background:#ffffff; color:#111827; cursor:pointer;
+          display:inline-flex; align-items:center; gap:4px;
         }
 
-        .manage-row {
-          display:flex;
-          flex-wrap:wrap;
-          gap:12px;
-          margin-top:10px;
-        }
+        .manage-row { display:flex; flex-wrap:wrap; gap:12px; margin-top:10px; }
         .manage-link {
-          font-size:12px;
-          color:#4b5563;
-          display:inline-flex;
-          align-items:center;
-          gap:4px;
-          cursor:pointer;
-          background:transparent;
-          border:0;
-          padding:0;
+          font-size:12px; color:#4b5563; display:inline-flex; align-items:center; gap:4px;
+          cursor:pointer; background:transparent; border:0; padding:0;
         }
-        .manage-link .icon {
-          font-size:14px;
-        }
+        .manage-link .icon { font-size:14px; }
 
-        .event-filter-row {
-          display:flex;
-          flex-wrap:wrap;
-          gap:8px;
-          margin: 4px 0 10px;
-        }
-
+        .event-filter-row { display:flex; flex-wrap:wrap; gap:8px; margin: 4px 0 10px; }
         .event-filter-chip {
-          padding: 6px 12px;
-          border-radius: 999px;
+          padding: 6px 12px; border-radius: 999px;
           border: 1px solid rgba(148,163,184,0.6);
-          font-size: 12px;
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          background: #ffffff;
-          color: #0f172a;
-          cursor: pointer;
-          transition:
-            box-shadow .12s ease,
-            transform .12s ease,
-            border-color .12s ease,
-            background-color .12s ease;
+          font-size: 12px; display: inline-flex; align-items: center; gap: 6px;
+          background: #ffffff; color: #0f172a; cursor: pointer;
+          transition: box-shadow .12s ease, transform .12s ease, border-color .12s ease, background-color .12s ease;
         }
-
-        .event-filter-chip:focus,
-        .event-filter-chip:focus-visible {
-          outline: none;
-          box-shadow: 0 0 0 2px rgba(148,163,184,0.55);
-        }
-
-        .event-filter-chip:hover {
-          box-shadow: 0 6px 14px rgba(15,23,42,.06);
-          transform: translateY(-1px);
-        }
-
+        .event-filter-chip:focus, .event-filter-chip:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(148,163,184,0.55); }
+        .event-filter-chip:hover { box-shadow: 0 6px 14px rgba(15,23,42,.06); transform: translateY(-1px); }
         .event-filter-chip.is-active {
-          background: #ffffff;
-          border-color: #2563eb;
-          border-width: 2px;
-          color: #0f172a;
-          box-shadow: none;
-          transform: translateY(-1px);
+          background: #ffffff; border-color: #2563eb; border-width: 2px;
+          color: #0f172a; box-shadow: none; transform: translateY(-1px);
         }
 
         @media (max-width: 520px) {
-          .rsvp-row {
-            flex-direction:column;
-            align-items:flex-start;
-          }
-          .rsvp-meta-right {
-            align-items:flex-start;
-          }
+          .rsvp-row { flex-direction:column; align-items:flex-start; }
+          .rsvp-meta-right { align-items:flex-start; }
         }
       `}</style>
 
@@ -1192,7 +1010,6 @@ export default function Home() {
         your household.
       </p>
 
-      {/* Helper link to re-open the welcome explainer */}
       <button
         type="button"
         onClick={() => setShowWelcome(true)}
@@ -1258,8 +1075,11 @@ export default function Home() {
 
             {/* Your Happening Now */}
             {myHappeningNow.map((p) => {
-              const rsvpState: EventRsvpState =
-                eventRsvps[p.id] ?? { choice: null, counts: { going: 0, maybe: 0, cant: 0 } };
+              const keyId = getRsvpStateKey(p);
+              const rsvpState: EventRsvpState = eventRsvps[keyId] ?? {
+                choice: null,
+                counts: { going: 0, maybe: 0, cant: 0 },
+              };
               const summary = formatHappeningSummary(rsvpState.counts);
               const replyCount = replyCounts[p.id] || 0;
 
@@ -1284,22 +1104,24 @@ export default function Home() {
                         <motion.button
                           type="button"
                           className={"rsvp-btn" + (rsvpState.choice === "going" ? " is-on" : "")}
-                          onClick={() => handleRsvp(p.id, "going")}
+                          onClick={() => handleRsvp(p, "going")}
                           {...rsvpMotionProps}
                         >
                           <span>👍</span>
                           <span>Going</span>
                         </motion.button>
+
                         <motion.button
                           type="button"
                           className={"rsvp-btn" + (rsvpState.choice === "cant" ? " is-on" : "")}
-                          onClick={() => handleRsvp(p.id, "cant")}
+                          onClick={() => handleRsvp(p, "cant")}
                           {...rsvpMotionProps}
                         >
                           <span>❌</span>
                           <span>Can't go</span>
                         </motion.button>
                       </div>
+
                       <div className="rsvp-meta-right">
                         {summary && <div className="rsvp-summary">{summary}</div>}
                         <button type="button" className="rsvp-view-btn" onClick={() => openRsvpDetails(p)}>
@@ -1309,7 +1131,6 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* Edit + replies from Your Activity */}
                     <div
                       style={{
                         marginTop: 10,
@@ -1325,6 +1146,7 @@ export default function Home() {
                         <span className="icon">✏️</span>
                         <span>Edit</span>
                       </button>
+
                       <button
                         type="button"
                         onClick={() => openReplies(p)}
@@ -1356,8 +1178,11 @@ export default function Home() {
 
             {/* Your Future Events */}
             {myFutureEvents.map((p) => {
-              const rsvpState: EventRsvpState =
-                eventRsvps[p.id] ?? { choice: null, counts: { going: 0, maybe: 0, cant: 0 } };
+              const keyId = getRsvpStateKey(p);
+              const rsvpState: EventRsvpState = eventRsvps[keyId] ?? {
+                choice: null,
+                counts: { going: 0, maybe: 0, cant: 0 },
+              };
               const summary = formatRsvpSummary(rsvpState.counts);
               const categoryMeta = p.category && CATEGORY_META[p.category] ? CATEGORY_META[p.category] : null;
 
@@ -1371,15 +1196,18 @@ export default function Home() {
                         <span>You’re hosting</span>
                       </span>
                     </div>
+
                     <div className="home-card-meta">
                       {p.when ? formatEventWhen(p.when) : "Time TBA"}
                       {p.createdBy?.label ? ` · from ${p.createdBy.label}` : ""}
                     </div>
+
                     {categoryMeta && (
                       <div className="home-card-meta">
                         {categoryMeta.emoji} {categoryMeta.label}
                       </div>
                     )}
+
                     <div className="home-card-body">{p.details}</div>
 
                     <div className="rsvp-row">
@@ -1387,31 +1215,34 @@ export default function Home() {
                         <motion.button
                           type="button"
                           className={"rsvp-btn" + (rsvpState.choice === "going" ? " is-on" : "")}
-                          onClick={() => handleRsvp(p.id, "going")}
+                          onClick={() => handleRsvp(p, "going")}
                           {...rsvpMotionProps}
                         >
                           <span>👍</span>
                           <span>Going</span>
                         </motion.button>
+
                         <motion.button
                           type="button"
                           className={"rsvp-btn" + (rsvpState.choice === "maybe" ? " is-on" : "")}
-                          onClick={() => handleRsvp(p.id, "maybe")}
+                          onClick={() => handleRsvp(p, "maybe")}
                           {...rsvpMotionProps}
                         >
                           <span>❓</span>
                           <span>Maybe</span>
                         </motion.button>
+
                         <motion.button
                           type="button"
                           className={"rsvp-btn" + (rsvpState.choice === "cant" ? " is-on" : "")}
-                          onClick={() => handleRsvp(p.id, "cant")}
+                          onClick={() => handleRsvp(p, "cant")}
                           {...rsvpMotionProps}
                         >
                           <span>❌</span>
                           <span>Can't go</span>
                         </motion.button>
                       </div>
+
                       <div className="rsvp-meta-right">
                         {summary && <div className="rsvp-summary">{summary}</div>}
                         <button type="button" className="rsvp-view-btn" onClick={() => openRsvpDetails(p)}>
@@ -1428,6 +1259,7 @@ export default function Home() {
                       </button>
                     </div>
                   </div>
+
                   <div>
                     <span className="pill event">Future</span>
                   </div>
@@ -1458,13 +1290,13 @@ export default function Home() {
                 No neighbors have joined in the last couple weeks. When a new household signs up, you’ll see them here.
               </div>
             )}
+
             {recentNeighbors.slice(0, 5).map((n) => {
               const joinedLabel = formatJoinedRelative(n.joinedAt, now);
               const neighborhoodLabel = n.neighborhood || "New household";
               const metaLabel = joinedLabel ? `${neighborhoodLabel} · ${joinedLabel}` : neighborhoodLabel;
 
-              const isNew =
-                typeof n.joinedAt === "number" && now - n.joinedAt >= 0 && now - n.joinedAt <= 7 * DAY_MS;
+              const isNew = typeof n.joinedAt === "number" && now - n.joinedAt >= 0 && now - n.joinedAt <= 7 * DAY_MS;
 
               return (
                 <motion.div key={n.id} className="home-card" {...cardMotionProps}>
@@ -1494,6 +1326,7 @@ export default function Home() {
             </div>
             <span className={"chevron " + (showDM ? "" : "closed")}>{showDM ? "⌃" : "⌄"}</span>
           </button>
+
           <button
             type="button"
             className={"view-all" + (!hasMessages ? " is-disabled" : "")}
@@ -1509,6 +1342,7 @@ export default function Home() {
         {showDM && (
           <>
             {sortedThreads.length === 0 && <div className="empty">No messages yet. Start a message from the People tab.</div>}
+
             {sortedThreads.slice(0, 5).map((t) => (
               <motion.button
                 key={t.id}
@@ -1550,9 +1384,13 @@ export default function Home() {
         {showHappening && (
           <>
             {happeningNow.length === 0 && <div className="empty">No live happenings that involve you right now.</div>}
+
             {happeningNow.map((p) => {
-              const rsvpState: EventRsvpState =
-                eventRsvps[p.id] ?? { choice: null, counts: { going: 0, maybe: 0, cant: 0 } };
+              const keyId = getRsvpStateKey(p);
+              const rsvpState: EventRsvpState = eventRsvps[keyId] ?? {
+                choice: null,
+                counts: { going: 0, maybe: 0, cant: 0 },
+              };
               const summary = formatHappeningSummary(rsvpState.counts);
               const replyCount = replyCounts[p.id] || 0;
 
@@ -1560,10 +1398,12 @@ export default function Home() {
                 <motion.div key={p.id} className="home-card" {...cardMotionProps}>
                   <div className="home-card-main">
                     {p.title && <div className="home-card-title">{p.title}</div>}
+
                     <div className="home-card-meta">
                       {formatTimeShort(p.ts)}
                       {p.createdBy?.label ? ` · from ${p.createdBy.label}` : ""}
                     </div>
+
                     <div className="home-card-body">{p.details}</div>
 
                     <div className="rsvp-row">
@@ -1571,22 +1411,24 @@ export default function Home() {
                         <motion.button
                           type="button"
                           className={"rsvp-btn" + (rsvpState.choice === "going" ? " is-on" : "")}
-                          onClick={() => handleRsvp(p.id, "going")}
+                          onClick={() => handleRsvp(p, "going")}
                           {...rsvpMotionProps}
                         >
                           <span>👍</span>
                           <span>Going</span>
                         </motion.button>
+
                         <motion.button
                           type="button"
                           className={"rsvp-btn" + (rsvpState.choice === "cant" ? " is-on" : "")}
-                          onClick={() => handleRsvp(p.id, "cant")}
+                          onClick={() => handleRsvp(p, "cant")}
                           {...rsvpMotionProps}
                         >
                           <span>❌</span>
                           <span>Can't go</span>
                         </motion.button>
                       </div>
+
                       <div className="rsvp-meta-right">
                         {summary && <div className="rsvp-summary">{summary}</div>}
                         <button type="button" className="rsvp-view-btn" onClick={() => openRsvpDetails(p)}>
@@ -1621,12 +1463,11 @@ export default function Home() {
                         }}
                       >
                         <span aria-hidden>💬</span>
-                        <span>
-                          {replyCount > 0 ? `${replyCount} repl${replyCount === 1 ? "y" : "ies"}` : "Join chat"}
-                        </span>
+                        <span>{replyCount > 0 ? `${replyCount} repl${replyCount === 1 ? "y" : "ies"}` : "Join chat"}</span>
                       </button>
                     </div>
                   </div>
+
                   <div>
                     <span className="pill happening">Now</span>
                   </div>
@@ -1661,6 +1502,7 @@ export default function Home() {
               >
                 <span>All</span>
               </motion.button>
+
               {(Object.entries(CATEGORY_META) as [EventCategory, CategoryMeta][]).map(([id, meta]) => (
                 <motion.button
                   key={id}
@@ -1675,10 +1517,16 @@ export default function Home() {
               ))}
             </div>
 
-            {filteredUpcomingEvents.length === 0 && <div className="empty">No {currentFilterLabel} that include you yet.</div>}
+            {filteredUpcomingEvents.length === 0 && (
+              <div className="empty">No {currentFilterLabel} that include you yet.</div>
+            )}
+
             {filteredUpcomingEvents.map((p) => {
-              const rsvpState: EventRsvpState =
-                eventRsvps[p.id] ?? { choice: null, counts: { going: 0, maybe: 0, cant: 0 } };
+              const keyId = getRsvpStateKey(p);
+              const rsvpState: EventRsvpState = eventRsvps[keyId] ?? {
+                choice: null,
+                counts: { going: 0, maybe: 0, cant: 0 },
+              };
               const summary = formatRsvpSummary(rsvpState.counts);
               const categoryMeta = p.category && CATEGORY_META[p.category] ? CATEGORY_META[p.category] : null;
 
@@ -1686,15 +1534,18 @@ export default function Home() {
                 <motion.div key={p.id} className="home-card" {...cardMotionProps}>
                   <div className="home-card-main">
                     <div className="home-card-title">{p.title || "Event"}</div>
+
                     <div className="home-card-meta">
                       {p.when ? formatEventWhen(p.when) : "Time TBA"}
                       {p.createdBy?.label ? ` · from ${p.createdBy.label}` : ""}
                     </div>
+
                     {categoryMeta && (
                       <div className="home-card-meta">
                         {categoryMeta.emoji} {categoryMeta.label}
                       </div>
                     )}
+
                     <div className="home-card-body">{p.details}</div>
 
                     <div className="rsvp-row">
@@ -1702,31 +1553,34 @@ export default function Home() {
                         <motion.button
                           type="button"
                           className={"rsvp-btn" + (rsvpState.choice === "going" ? " is-on" : "")}
-                          onClick={() => handleRsvp(p.id, "going")}
+                          onClick={() => handleRsvp(p, "going")}
                           {...rsvpMotionProps}
                         >
                           <span>👍</span>
                           <span>Going</span>
                         </motion.button>
+
                         <motion.button
                           type="button"
                           className={"rsvp-btn" + (rsvpState.choice === "maybe" ? " is-on" : "")}
-                          onClick={() => handleRsvp(p.id, "maybe")}
+                          onClick={() => handleRsvp(p, "maybe")}
                           {...rsvpMotionProps}
                         >
                           <span>❓</span>
                           <span>Maybe</span>
                         </motion.button>
+
                         <motion.button
                           type="button"
                           className={"rsvp-btn" + (rsvpState.choice === "cant" ? " is-on" : "")}
-                          onClick={() => handleRsvp(p.id, "cant")}
+                          onClick={() => handleRsvp(p, "cant")}
                           {...rsvpMotionProps}
                         >
                           <span>❌</span>
                           <span>Can't go</span>
                         </motion.button>
                       </div>
+
                       <div className="rsvp-meta-right">
                         {summary && <div className="rsvp-summary">{summary}</div>}
                         <button type="button" className="rsvp-view-btn" onClick={() => openRsvpDetails(p)}>
@@ -1736,6 +1590,7 @@ export default function Home() {
                       </div>
                     </div>
                   </div>
+
                   <div>
                     <span className="pill event">Future</span>
                   </div>
@@ -1781,80 +1636,28 @@ type RsvpDetailsSheetProps = {
   buckets: EventRsvpBuckets | null;
   loading: boolean;
   error: string | null;
-  // local inline state for this event (used as fallback)
   inlineRsvp: EventRsvpState | null;
   onClose: () => void;
 };
 
-/** Helpers to tolerate BOTH snake_case (backend) and camelCase (frontend/dev) rows */
-function asArray<T = any>(x: any): T[] {
-  return Array.isArray(x) ? x : [];
-}
-
-function pickRsvpName(h: any): string {
-  const v =
-    h?.last_name ??
-    h?.lastName ??
-    h?.householdLastName ??
-    h?.displayLastName ??
-    h?.display_last_name ??
-    h?.name ??
-    h?.label;
-  return v && String(v).trim().length > 0 ? String(v) : "Household";
-}
-
-function pickRsvpNeighborhood(h: any): string | null {
-  const v = h?.neighborhood ?? h?.neighborhood_name ?? h?.neighborhoodName;
-  return v && String(v).trim().length > 0 ? String(v) : null;
-}
-
-function pickRsvpType(h: any): string | null {
-  const v = h?.household_type ?? h?.householdType ?? h?.type;
-  return v && String(v).trim().length > 0 ? String(v) : null;
-}
-
-function pickRsvpChildAges(h: any): number[] {
-  const ages = asArray<number>(h?.child_ages ?? h?.childAges);
-  return ages.map((n) => Number(n)).filter((n) => Number.isFinite(n));
-}
-
-function pickRsvpChildSexes(h: any): (string | null)[] {
-  const sexes = asArray<any>(h?.child_sexes ?? h?.childSexes);
-  return sexes.map((s) => (s ? String(s).toUpperCase() : null));
-}
-
-function formatKidsLabel(ages: number[], sexes: (string | null)[]): string | null {
-  if (!ages.length && !sexes.length) return null;
-
-  const parts: string[] = [];
-  const max = Math.max(ages.length, sexes.length);
-  for (let i = 0; i < max; i++) {
-    const a = ages[i];
-    const s = sexes[i];
-    const ageStr = Number.isFinite(a) ? `${a}` : "";
-    const sexStr = s ? s.replace(/[^A-Z]/g, "").slice(0, 1) : "";
-    const combined = `${ageStr}${sexStr}`.trim();
-    if (combined) parts.push(combined);
-  }
-  return parts.length ? `Kids: ${parts.join(", ")}` : null;
-}
-
 function RsvpDetailsSheet({ open, post, buckets, loading, error, inlineRsvp, onClose }: RsvpDetailsSheetProps) {
   if (!open || !post) return null;
 
-  let going = buckets?.going ?? [];
-  let maybe = buckets?.maybe ?? [];
-  let cant = buckets?.cant ?? [];
+  // ✅ tolerate different backend naming: cant vs declined
+  const anyBuckets = buckets as any;
+  let going = (anyBuckets?.going ?? []) as any[];
+  let maybe = (anyBuckets?.maybe ?? []) as any[];
+  let cant = (anyBuckets?.cant ?? anyBuckets?.declined ?? anyBuckets?.["can't"] ?? []) as any[];
+
+  // For Happening Now, backend buckets are usually empty because we’re local-only
+  // We'll compute "responded" from local inline counts.
+  const inlineCounts = inlineRsvp?.counts ?? { going: 0, maybe: 0, cant: 0 };
+  const inlineResponded = inlineCounts.going + inlineCounts.maybe + inlineCounts.cant;
 
   let total = (going?.length || 0) + (maybe?.length || 0) + (cant?.length || 0);
 
-  // 🔁 Fallback: if backend returns no households but we have local RSVP counts,
-  // synthesize a "Your household" row so the sheet isn't empty.
-  if (
-    total === 0 &&
-    inlineRsvp &&
-    (inlineRsvp.counts.going > 0 || inlineRsvp.counts.maybe > 0 || inlineRsvp.counts.cant > 0)
-  ) {
+  // If backend returns no households but local RSVP state exists, show "Your household"
+  if (total === 0 && inlineResponded > 0) {
     const selfRow: any = {
       uid: "self",
       householdId: "self",
@@ -1865,12 +1668,15 @@ function RsvpDetailsSheet({ open, post, buckets, loading, error, inlineRsvp, onC
       childSexes: [] as (string | null)[],
     };
 
-    if (inlineRsvp.counts.going > 0) going = [selfRow];
-    if (inlineRsvp.counts.maybe > 0) maybe = [selfRow];
-    if (inlineRsvp.counts.cant > 0) cant = [selfRow];
+    if (inlineCounts.going > 0) going = [selfRow];
+    if (inlineCounts.maybe > 0) maybe = [selfRow];
+    if (inlineCounts.cant > 0) cant = [selfRow];
 
     total = (going?.length || 0) + (maybe?.length || 0) + (cant?.length || 0);
   }
+
+  const subtitle =
+    post.kind === "event" ? (post.when ? new Date(post.when).toLocaleString() : "Time TBA") : "Happening now";
 
   return (
     <div
@@ -1907,7 +1713,6 @@ function RsvpDetailsSheet({ open, post, buckets, loading, error, inlineRsvp, onC
       >
         <div style={{ width: 40, height: 4, borderRadius: 999, margin: "0 auto 6px", background: "#e5e7eb" }} />
 
-        {/* Header */}
         <div style={{ marginBottom: 6 }}>
           <div
             style={{
@@ -1920,18 +1725,20 @@ function RsvpDetailsSheet({ open, post, buckets, loading, error, inlineRsvp, onC
           >
             RSVPs
           </div>
-          {post.title && (
-            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0f172a" }}>{post.title}</h3>
+          {post.title && <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0f172a" }}>{post.title}</h3>}
+          <div style={{ fontSize: 13, color: "#4b5563", marginTop: 4 }}>{subtitle}</div>
+
+          {post.kind === "happening" && (
+            <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
+              Local RSVP preview (Happening Now RSVPs aren’t synced across browsers yet).
+            </div>
           )}
-          <div style={{ fontSize: 13, color: "#4b5563", marginTop: 4 }}>
-            {post.kind === "event" ? (post.when ? formatEventWhen(post.when) : "Time TBA") : "Happening now"}
-          </div>
+
           <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
             {total > 0 ? `${total} household${total === 1 ? "" : "s"} responded` : "No RSVPs yet."}
           </div>
         </div>
 
-        {/* Body */}
         <div
           style={{
             marginTop: 8,
@@ -1940,24 +1747,21 @@ function RsvpDetailsSheet({ open, post, buckets, loading, error, inlineRsvp, onC
             borderBottom: "1px solid #e5e7eb",
             flex: 1,
             minHeight: 120,
-            maxHeight: 320,
+            maxHeight: 360,
             overflowY: "auto",
           }}
         >
           {loading && <div style={{ fontSize: 13, color: "#6b7280" }}>Loading RSVPs…</div>}
-
           {!loading && error && <div style={{ fontSize: 13, color: "#b91c1c" }}>{error}</div>}
-
           {!loading && !error && (
             <div style={{ display: "grid", gap: 12 }}>
-              <RsvpBucketSection label="Going" emoji="✅" items={going as any[]} />
-              <RsvpBucketSection label="Maybe" emoji="🤔" items={maybe as any[]} />
-              <RsvpBucketSection label="Can't go" emoji="🚫" items={cant as any[]} />
+              <RsvpBucketSection label="Going" emoji="✅" items={going} />
+              <RsvpBucketSection label="Maybe" emoji="🤔" items={maybe} />
+              <RsvpBucketSection label="Can't go" emoji="🚫" items={cant} />
             </div>
           )}
         </div>
 
-        {/* Footer */}
         <div
           style={{
             marginTop: 12,
@@ -1989,6 +1793,8 @@ function RsvpDetailsSheet({ open, post, buckets, loading, error, inlineRsvp, onC
   );
 }
 
+/* ---------- RSVP Bucket Section (MiniHouseholdCard) ---------- */
+
 type RsvpBucketSectionProps = {
   label: string;
   emoji: string;
@@ -2009,70 +1815,33 @@ function RsvpBucketSection({ label, emoji, items }: RsvpBucketSectionProps) {
 
   return (
     <div>
-      <div style={{ fontSize: 13, fontWeight: 600, color: "#4b5563", marginBottom: 6 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: "#4b5563", marginBottom: 8 }}>
         {emoji} {label} ({items.length})
       </div>
 
-      <div style={{ display: "grid", gap: 6 }}>
-        {items.map((h, idx) => {
-          const hid = h?.household_id ?? h?.householdId ?? h?.household_id_str ?? "hh";
-          const uid = h?.uid ?? h?.user_id ?? h?.id ?? idx;
-          const key = `${hid}-${uid}`;
+      <div style={{ display: "grid", gap: 10 }}>
+        {items.map((h) => {
+          const lastName = (h as any).lastName ?? (h as any).last_name ?? "Household";
+          const householdType = (h as any).householdType ?? (h as any).household_type ?? null;
+          const neighborhood = (h as any).neighborhood ?? null;
 
-          const name = pickRsvpName(h);
-          const type = pickRsvpType(h);
-          const nhood = pickRsvpNeighborhood(h);
-          const kids = formatKidsLabel(pickRsvpChildAges(h), pickRsvpChildSexes(h));
+          const childAges = (h as any).childAges ?? (h as any).child_ages ?? [];
+          const childSexes = (h as any).childSexes ?? (h as any).child_sexes ?? [];
+
+          const hid = (h as any).householdId ?? (h as any).household_id ?? "hid";
+          const uid = (h as any).uid ?? (h as any).id ?? "uid";
 
           return (
-            <div
-              key={key}
-              style={{
-                padding: 10,
-                borderRadius: 12,
-                background: "#f9fafb",
-                border: "1px solid rgba(15,23,42,.06)",
-              }}
-            >
-              <div style={{ fontSize: 13, color: "#111827" }}>
-                <strong>{name}</strong>
-              </div>
-
-              {(type || kids) && (
-                <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {type && (
-                    <span
-                      style={{
-                        fontSize: 11,
-                        padding: "4px 8px",
-                        borderRadius: 999,
-                        background: "#ffffff",
-                        border: "1px solid #e5e7eb",
-                        color: "#374151",
-                      }}
-                    >
-                      🏡 {type}
-                    </span>
-                  )}
-                  {kids && (
-                    <span
-                      style={{
-                        fontSize: 11,
-                        padding: "4px 8px",
-                        borderRadius: 999,
-                        background: "#ffffff",
-                        border: "1px solid #e5e7eb",
-                        color: "#374151",
-                      }}
-                    >
-                      👧👦 {kids.replace(/^Kids:\s*/, "")}
-                    </span>
-                  )}
-                </div>
-              )}
-
-              {nhood && <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 6 }}>{nhood}</div>}
-            </div>
+            <MiniHouseholdCard
+              key={`${hid}-${uid}-${label}`}
+              lastName={lastName}
+              householdType={householdType}
+              neighborhood={neighborhood}
+              childAges={childAges}
+              childSexes={childSexes}
+              statusLabel={label}
+              statusEmoji={emoji}
+            />
           );
         })}
       </div>
@@ -2142,7 +1911,6 @@ function HappeningRepliesSheet({
       >
         <div style={{ width: 40, height: 4, borderRadius: 999, margin: "0 auto 6px", background: "#e5e7eb" }} />
 
-        {/* Header */}
         <div style={{ marginBottom: 6 }}>
           <div
             style={{
@@ -2155,13 +1923,10 @@ function HappeningRepliesSheet({
           >
             Happening now
           </div>
-          {post.title && (
-            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0f172a" }}>{post.title}</h3>
-          )}
+          {post.title && <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0f172a" }}>{post.title}</h3>}
           <div style={{ fontSize: 13, color: "#4b5563", marginTop: 4 }}>{post.details}</div>
         </div>
 
-        {/* Replies list */}
         <div
           style={{
             marginTop: 8,
@@ -2190,7 +1955,6 @@ function HappeningRepliesSheet({
           )}
         </div>
 
-        {/* Composer */}
         <div style={{ marginTop: 8 }}>
           <textarea
             value={draft}
@@ -2266,10 +2030,10 @@ function HappeningRepliesSheet({
                 fontSize: 13,
                 fontWeight: 600,
                 cursor: draft.trim() ? "pointer" : "default",
-                boxShadow: draft.trim() ? "0 8px 16px rgba(16,185,129,.35)" : "none",
+                boxShadow: draft.trim() ? "0 8px 16px rgba(16,185,129,0.24)" : "none",
               }}
             >
-              Send reply
+              Send
             </button>
           </div>
         </div>

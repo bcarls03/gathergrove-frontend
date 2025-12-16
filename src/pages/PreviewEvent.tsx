@@ -7,6 +7,8 @@ import {
   fetchMyRsvp,
   rsvpToEvent,
   leaveEventRsvp,
+  cancelEvent,
+  CURRENT_UID,
   type GGEvent,
 } from "../lib/api";
 
@@ -104,6 +106,20 @@ export default function PreviewEvent({ open, onClose, event }: Props) {
   const title = event?.title || "Happening Now";
   const details = event?.details || "";
 
+  // host + status may be present on GGEvent; tolerate partial event objects
+  const hostUid = (event as any)?.hostUid ?? null;
+  const initialStatus = String((event as any)?.status ?? "active").toLowerCase();
+  const [localStatus, setLocalStatus] = useState<string>(initialStatus);
+
+  useEffect(() => {
+    // whenever a new event opens, reset local status from the incoming event
+    if (open) setLocalStatus(String((event as any)?.status ?? "active").toLowerCase());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, eventId]);
+
+  const isCanceled = localStatus === "canceled";
+  const isHost = !!hostUid && hostUid === CURRENT_UID;
+
   const [loading, setLoading] = useState(false);
   const [loadErr, setLoadErr] = useState<string | null>(null);
 
@@ -154,6 +170,8 @@ export default function PreviewEvent({ open, onClose, event }: Props) {
 
   async function setRsvp(status: "going" | "maybe" | "declined") {
     if (!eventId) return;
+    if (isCanceled) return;
+
     setLoading(true);
     setLoadErr(null);
     try {
@@ -167,6 +185,8 @@ export default function PreviewEvent({ open, onClose, event }: Props) {
 
   async function clearRsvp() {
     if (!eventId) return;
+    if (isCanceled) return;
+
     setLoading(true);
     setLoadErr(null);
     try {
@@ -174,6 +194,29 @@ export default function PreviewEvent({ open, onClose, event }: Props) {
       await refresh();
     } catch (e: any) {
       setLoadErr(e?.response?.data?.detail || e?.message || "Unable to remove RSVP.");
+      setLoading(false);
+    }
+  }
+
+  async function handleCancel() {
+    if (!eventId) return;
+    if (!isHost) return;
+    if (isCanceled) return;
+
+    const ok = confirm("Cancel this event?");
+    if (!ok) return;
+
+    setLoading(true);
+    setLoadErr(null);
+    try {
+      const updated = await cancelEvent(eventId);
+      // if backend returns status, reflect it immediately
+      const st = String((updated as any)?.status ?? "canceled").toLowerCase();
+      setLocalStatus(st);
+      await refresh();
+    } catch (e: any) {
+      setLoadErr(e?.response?.data?.detail || e?.message || "Unable to cancel event.");
+    } finally {
       setLoading(false);
     }
   }
@@ -200,12 +243,21 @@ export default function PreviewEvent({ open, onClose, event }: Props) {
             <div className="flex items-start justify-between p-6">
               <div className="min-w-0">
                 <div className="text-xs tracking-widest text-gray-500">RSVPS</div>
-                <div className="mt-1 text-2xl font-semibold text-gray-900">{title}</div>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <div className="text-2xl font-semibold text-gray-900">{title}</div>
+
+                  {isCanceled && (
+                    <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 ring-1 ring-red-200">
+                      CANCELED
+                    </span>
+                  )}
+                </div>
+
                 <div className="mt-1 text-gray-600">{details}</div>
 
                 {/* 🔥 IF YOU DON'T SEE THIS, YOU ARE NOT USING THIS FILE */}
                 <div className="mt-3 inline-flex items-center gap-2 rounded-xl bg-yellow-100 px-3 py-2 text-xs font-semibold text-yellow-900 ring-1 ring-yellow-200">
-                  ✅ PreviewEvent.tsx ACTIVE — build 12/14 (marker)
+                  ✅ PreviewEvent.tsx ACTIVE — build 12/16 (marker)
                 </div>
 
                 <div className="mt-2 text-sm text-gray-500">
@@ -219,7 +271,11 @@ export default function PreviewEvent({ open, onClose, event }: Props) {
                 )}
               </div>
 
-              <button onClick={onClose} className="rounded-full p-2 hover:bg-gray-100" aria-label="Close">
+              <button
+                onClick={onClose}
+                className="rounded-full p-2 hover:bg-gray-100"
+                aria-label="Close"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -227,39 +283,47 @@ export default function PreviewEvent({ open, onClose, event }: Props) {
             <div className="px-6 pb-6">
               <div className="flex flex-wrap gap-2">
                 <button
-                  disabled={!eventId || loading}
+                  disabled={!eventId || loading || isCanceled}
                   onClick={() => setRsvp("going")}
                   className={`rounded-full px-4 py-2 text-sm font-medium ${
-                    myStatus === "going" ? "bg-green-600 text-white" : "bg-green-50 text-green-700"
-                  }`}
+                    myStatus === "going"
+                      ? "bg-green-600 text-white"
+                      : "bg-green-50 text-green-700"
+                  } ${isCanceled ? "opacity-50" : ""}`}
                 >
                   ✅ Going
                 </button>
 
                 <button
-                  disabled={!eventId || loading}
+                  disabled={!eventId || loading || isCanceled}
                   onClick={() => setRsvp("maybe")}
                   className={`rounded-full px-4 py-2 text-sm font-medium ${
-                    myStatus === "maybe" ? "bg-amber-500 text-white" : "bg-amber-50 text-amber-700"
-                  }`}
+                    myStatus === "maybe"
+                      ? "bg-amber-500 text-white"
+                      : "bg-amber-50 text-amber-700"
+                  } ${isCanceled ? "opacity-50" : ""}`}
                 >
                   🤔 Maybe
                 </button>
 
                 <button
-                  disabled={!eventId || loading}
+                  disabled={!eventId || loading || isCanceled}
                   onClick={() => setRsvp("declined")}
                   className={`rounded-full px-4 py-2 text-sm font-medium ${
-                    myStatus === "declined" ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-700"
-                  }`}
+                    myStatus === "declined"
+                      ? "bg-gray-800 text-white"
+                      : "bg-gray-100 text-gray-700"
+                  } ${isCanceled ? "opacity-50" : ""}`}
                 >
                   🚫 Can’t go
                 </button>
 
                 <button
-                  disabled={!eventId || loading}
+                  disabled={!eventId || loading || isCanceled}
                   onClick={clearRsvp}
-                  className="rounded-full bg-white px-4 py-2 text-sm font-medium text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50"
+                  className={`rounded-full bg-white px-4 py-2 text-sm font-medium text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50 ${
+                    isCanceled ? "opacity-50" : ""
+                  }`}
                 >
                   Clear
                 </button>
@@ -273,11 +337,33 @@ export default function PreviewEvent({ open, onClose, event }: Props) {
                 </button>
               </div>
 
+              {/* ✅ Cancel button (host-only, active-only) */}
+              {isHost && !isCanceled && (
+                <button
+                  disabled={!eventId || loading}
+                  onClick={handleCancel}
+                  className="mt-3 w-full rounded-xl border border-red-300 bg-red-50 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60"
+                >
+                  Cancel Event
+                </button>
+              )}
+
               {debugOpen && (
                 <div className="mt-4 rounded-2xl bg-gray-900 p-4 text-xs text-gray-100">
-                  <div className="mb-2 font-semibold text-gray-200">Debug: buckets.going[0]</div>
+                  <div className="mb-2 font-semibold text-gray-200">Debug</div>
                   <pre className="whitespace-pre-wrap break-words">
-                    {JSON.stringify(buckets.going?.[0] ?? null, null, 2)}
+                    {JSON.stringify(
+                      {
+                        eventId,
+                        hostUid,
+                        currentUid: CURRENT_UID,
+                        localStatus,
+                        myStatus,
+                        bucketsGoing0: buckets.going?.[0] ?? null,
+                      },
+                      null,
+                      2
+                    )}
                   </pre>
                 </div>
               )}
@@ -289,15 +375,33 @@ export default function PreviewEvent({ open, onClose, event }: Props) {
                 {!loading && !loadErr && (
                   <div className="space-y-4">
                     <Section title={`✅ Going (${buckets.going.length})`}>
-                      {buckets.going.length ? buckets.going.map((h, idx) => <Row key={(h as any)?.uid ?? idx} h={h} />) : <Empty />}
+                      {buckets.going.length ? (
+                        buckets.going.map((h, idx) => (
+                          <Row key={(h as any)?.uid ?? idx} h={h} />
+                        ))
+                      ) : (
+                        <Empty />
+                      )}
                     </Section>
 
                     <Section title={`🤔 Maybe (${buckets.maybe.length})`}>
-                      {buckets.maybe.length ? buckets.maybe.map((h, idx) => <Row key={(h as any)?.uid ?? idx} h={h} />) : <Empty />}
+                      {buckets.maybe.length ? (
+                        buckets.maybe.map((h, idx) => (
+                          <Row key={(h as any)?.uid ?? idx} h={h} />
+                        ))
+                      ) : (
+                        <Empty />
+                      )}
                     </Section>
 
                     <Section title={`🚫 Can’t go (${buckets.cant.length})`}>
-                      {buckets.cant.length ? buckets.cant.map((h, idx) => <Row key={(h as any)?.uid ?? idx} h={h} />) : <Empty />}
+                      {buckets.cant.length ? (
+                        buckets.cant.map((h, idx) => (
+                          <Row key={(h as any)?.uid ?? idx} h={h} />
+                        ))
+                      ) : (
+                        <Empty />
+                      )}
                     </Section>
                   </div>
                 )}
@@ -339,9 +443,21 @@ function Row({ h }: { h: BucketRow }) {
       <div className="text-sm font-semibold text-gray-900">{name}</div>
 
       <div className="mt-1 flex flex-wrap gap-2 text-xs text-gray-600">
-        {nhood && <span className="rounded-full bg-gray-50 px-2 py-1 ring-1 ring-gray-100">📍 {nhood}</span>}
-        {type && <span className="rounded-full bg-gray-50 px-2 py-1 ring-1 ring-gray-100">🏡 {type}</span>}
-        {kids && <span className="rounded-full bg-gray-50 px-2 py-1 ring-1 ring-gray-100">👧👦 {kids}</span>}
+        {nhood && (
+          <span className="rounded-full bg-gray-50 px-2 py-1 ring-1 ring-gray-100">
+            📍 {nhood}
+          </span>
+        )}
+        {type && (
+          <span className="rounded-full bg-gray-50 px-2 py-1 ring-1 ring-gray-100">
+            🏡 {type}
+          </span>
+        )}
+        {kids && (
+          <span className="rounded-full bg-gray-50 px-2 py-1 ring-1 ring-gray-100">
+            👧👦 {kids}
+          </span>
+        )}
       </div>
     </div>
   );

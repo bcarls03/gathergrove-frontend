@@ -42,11 +42,12 @@ const api = axios.create({
 
 /**
  * Headers your FastAPI dev auth expects.
- * IMPORTANT: attach these to *every* request.
+ * IMPORTANT:
+ * - We attach X-Uid/X-Email/X-Admin ALWAYS in dev
+ * - We DO NOT clobber an existing Authorization header if caller already set one
  */
 function devHeaders(extra?: Record<string, string>) {
   return {
-    Authorization: "Bearer dev",
     "X-Uid": CURRENT_UID,
     "X-Email": `${CURRENT_UID}@dev.local`,
     "X-Admin": "true",
@@ -57,7 +58,19 @@ function devHeaders(extra?: Record<string, string>) {
 api.interceptors.request.use(
   (config) => {
     const existing = (config.headers ?? {}) as Record<string, any>;
-    config.headers = { ...devHeaders(), ...existing };
+
+    // If caller already supplied Authorization, keep it.
+    // Otherwise set a safe dev bearer so prod-style auth code paths don't 401.
+    const hasAuth =
+      typeof existing.Authorization === "string" || typeof existing.authorization === "string";
+
+    const merged: Record<string, any> = {
+      ...(hasAuth ? {} : { Authorization: "Bearer dev" }),
+      ...devHeaders(),
+      ...existing, // caller overrides last
+    };
+
+    config.headers = merged;
     return config;
   },
   (error) => Promise.reject(error)
@@ -141,6 +154,9 @@ export type GGEvent = {
   goingCount?: number;
   maybeCount?: number;
   cantCount?: number;
+
+  hostUid?: string | null;
+  status?: string | null; // e.g. "active" | "canceled"
 };
 
 export type EventRsvpHousehold = {
@@ -192,7 +208,9 @@ export async function upsertUser(payload?: Partial<GGUser>): Promise<GGUser> {
       body.name = isSafari ? "Safari User" : "Chrome User";
     }
 
-    const res = await api.post("/users", body, { headers: { "Content-Type": "application/json" } });
+    const res = await api.post("/users", body, {
+      headers: { "Content-Type": "application/json" },
+    });
     return res.data as GGUser;
   } catch (e) {
     throw unwrapAxiosError(e);
@@ -216,7 +234,9 @@ export async function fetchHouseholds(params?: {
 
 export async function upsertMyHousehold(payload: Partial<GGHousehold>): Promise<GGHousehold> {
   try {
-    const res = await api.post("/households", payload, { headers: { "Content-Type": "application/json" } });
+    const res = await api.post("/households", payload, {
+      headers: { "Content-Type": "application/json" },
+    });
     return res.data as GGHousehold;
   } catch (e) {
     throw unwrapAxiosError(e);
@@ -263,6 +283,47 @@ export async function createEvent(input: {
     },
     { headers: { "Content-Type": "application/json" } }
   );
+}
+
+/* ------------------------ Cancel / Delete event endpoints -------------------- */
+/**
+ * Soft cancel (host-only): PATCH /events/{event_id}/cancel
+ */
+export async function cancelEvent(eventId: string): Promise<GGEvent> {
+  try {
+    const res = await api.patch(`/events/${eventId}/cancel`);
+    return res.data as GGEvent;
+  } catch (e) {
+    throw unwrapAxiosError(e);
+  }
+}
+
+/**
+ * Hard delete (host or admin): DELETE /events/{event_id}
+ */
+export async function deleteEvent(eventId: string): Promise<any> {
+  try {
+    const res = await api.delete(`/events/${eventId}`);
+    return res.data;
+  } catch (e) {
+    throw unwrapAxiosError(e);
+  }
+}
+
+/**
+ * Convenience: try cancel first, if backend says method/route not supported, fall back to delete.
+ */
+export async function cancelOrDeleteEvent(eventId: string): Promise<any> {
+  try {
+    return await cancelEvent(eventId);
+  } catch (e: any) {
+    const ax = e as AxiosError<any>;
+    const status = ax?.response?.status;
+    if (status === 404 || status === 405) {
+      return await deleteEvent(eventId);
+    }
+    throw unwrapAxiosError(e);
+  }
 }
 
 /* ------------------------------- RSVP endpoints ------------------------------ */
@@ -332,3 +393,6 @@ export async function getEventRsvps(eventId: string): Promise<any> {
     return await fetchMyRsvp(eventId);
   }
 }
+
+// Export axios instance if any file imports it directly
+export { api };
