@@ -795,6 +795,30 @@ export default function Home() {
     return upcomingEvents.filter((p) => p.category === eventCategoryFilter);
   }, [upcomingEvents, eventCategoryFilter]);
 
+  // ✅ one canonical "is host" helper used for hiding hosted items in lower sections
+  const isHostPost = (p: Post) => {
+    const viewerLabel = viewer?.label ?? viewer?.name ?? viewer?.lastName ?? viewer?.email ?? null;
+
+    const hostUid = p._hostUid;
+    if (hostUid && viewerId && hostUid === viewerId) return true;
+
+    if (!p.createdBy) return false;
+    if (p.createdBy.id && viewerId && p.createdBy.id === viewerId) return true;
+    if (viewerLabel && p.createdBy.label === viewerLabel) return true;
+
+    return false;
+  };
+
+  // ✅ These are ONLY for the lower "Happening Now" + "Future Events" sections
+  //    (so hosted items show in Your Activity but don’t duplicate below)
+  const displayHappeningNow = useMemo(() => {
+    return happeningNow.filter((p) => !isHostPost(p));
+  }, [happeningNow, viewerId, viewer]);
+
+  const displayUpcomingEvents = useMemo(() => {
+    return filteredUpcomingEvents.filter((p) => !isHostPost(p));
+  }, [filteredUpcomingEvents, viewerId, viewer]);
+
   const { myHappeningNow, myFutureEvents } = useMemo(() => {
     if (!viewer || !viewerId) {
       return { myHappeningNow: [] as Post[], myFutureEvents: [] as Post[] };
@@ -842,8 +866,10 @@ export default function Home() {
   const activityCount = myHappeningNow.length + myFutureEvents.length;
   const newNeighborCount = recentNeighbors.length;
   const dmCount = sortedThreads.length;
-  const happeningCount = happeningNow.length;
-  const futureEventsCount = upcomingEvents.length;
+
+  // ✅ counts for the lower sections (exclude hosted so they don’t duplicate)
+  const happeningCount = displayHappeningNow.length;
+  const futureEventsCount = displayUpcomingEvents.length;
 
   const hasMessages = dmCount > 0;
 
@@ -1449,9 +1475,9 @@ export default function Home() {
 
         {showHappening && (
           <>
-            {happeningNow.length === 0 && <div className="empty">No live happenings that involve you right now.</div>}
+            {displayHappeningNow.length === 0 && <div className="empty">No live happenings that involve you right now.</div>}
 
-            {happeningNow.map((p) => {
+            {displayHappeningNow.map((p) => {
               const keyId = getRsvpStateKey(p);
               const rsvpState: EventRsvpState = eventRsvps[keyId] ?? {
                 choice: null,
@@ -1583,9 +1609,11 @@ export default function Home() {
               ))}
             </div>
 
-            {filteredUpcomingEvents.length === 0 && <div className="empty">No {currentFilterLabel} that include you yet.</div>}
+            {displayUpcomingEvents.length === 0 && (
+              <div className="empty">No {currentFilterLabel} that include you yet.</div>
+            )}
 
-            {filteredUpcomingEvents.map((p) => {
+            {displayUpcomingEvents.map((p) => {
               const keyId = getRsvpStateKey(p);
               const rsvpState: EventRsvpState = eventRsvps[keyId] ?? {
                 choice: null,
