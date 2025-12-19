@@ -1,13 +1,25 @@
 // src/pages/Settings.tsx
-import { useEffect, useMemo, useState, type FormEvent, type CSSProperties, type ComponentType } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+  type CSSProperties,
+  type ComponentType,
+} from "react";
 import { Users, Home, Heart } from "lucide-react";
 import { motion } from "framer-motion";
 import { CURRENT_UID, upsertMyHousehold } from "../lib/api";
 import { loadNeighbors, addNeighbor, removeNeighbor } from "../lib/profile";
 import { getOnboardingState, setOnboardingState } from "../lib/onboarding";
+import {
+  NEIGHBORHOOD_CODES,
+  normalizeNeighborhoodCode,
+  neighborhoodLabelFromCode,
+} from "../lib/neighborhood";
 import Logo from "../assets/gathergrove-logo.png";
 
-const SHOW_DEV_TOOLS = true; // flip to false before pilot if you want
+const SHOW_DEV_TOOLS = true;
 
 type HouseholdType = "Family w/ Kids" | "Empty Nesters" | "Singles/Couples";
 
@@ -74,27 +86,7 @@ const MONTHS = [
 ];
 
 const currentYear = new Date().getFullYear();
-// kids 0–25
 const YEARS = Array.from({ length: 26 }, (_, i) => String(currentYear - i));
-
-/* ---------- Neighborhood (canonical = neighborhoodCode) ---------- */
-
-type NeighborhoodInfo = { label: string };
-
-const NEIGHBORHOOD_CODES: Record<string, NeighborhoodInfo> = {
-  "BH26-GK4": { label: "Bayhill at the Oasis" },
-  "EP26-QM7": { label: "Eagles Pointe" },
-};
-
-function normalizeNeighborhoodCode(code?: string | null) {
-  return (code || "").toString().trim().toUpperCase().replace(/\s+/g, "");
-}
-
-function codeToNeighborhoodLabel(code?: string | null) {
-  const c = normalizeNeighborhoodCode(code);
-  if (!c) return "";
-  return NEIGHBORHOOD_CODES[c]?.label ?? c; // fallback to showing the code
-}
 
 function computeAgeFromKid(kid: KidForm): number | null {
   if (!kid.birthYear) return null;
@@ -147,7 +139,7 @@ function buildChildPreview(kid: KidForm): string {
   return parts.join(" · ");
 }
 
-/* ---------- Household preview helpers (shared logic with OnboardingPreview) ---------- */
+/* ---------- Preview helpers ---------- */
 
 type PreviewKid = {
   birthMonth?: number | null;
@@ -170,7 +162,6 @@ function ageFromMY(m?: number | null, y?: number | null): number | null {
   return a < 0 ? 0 : a;
 }
 
-// Updated: no symbol when gender is hidden or unspecified
 function sexIcon(sex?: string | null) {
   const s = (sex || "").toLowerCase();
   if (s.startsWith("m")) return "♂";
@@ -185,22 +176,19 @@ function chipColors(sex?: string | null) {
   return { bg: "#f3f4f6", fg: "#374151" };
 }
 
-/** Oldest → youngest sort helper for preview */
 function sortKidsByAgeOldestFirst(a: PreviewKid, b: PreviewKid): number {
   const ay = a.birthYear ?? null;
   const by = b.birthYear ?? null;
 
-  // push unknown years to the end
   if (!ay && !by) return 0;
   if (!ay) return 1;
   if (!by) return -1;
 
-  if (ay !== by) return ay - by; // smaller year = older
+  if (ay !== by) return ay - by;
 
   const am = a.birthMonth ?? null;
   const bm = b.birthMonth ?? null;
 
-  // if year same, sort by month (earlier month = older)
   if (!am && !bm) return 0;
   if (!am) return 1;
   if (!bm) return -1;
@@ -225,14 +213,16 @@ function HouseholdPreviewCard({
 }: HouseholdPreviewProps) {
   const label = lastName || "Household";
   const initial = label.charAt(0).toUpperCase();
-  const neighborhood = codeToNeighborhoodLabel(neighborhoodCode ?? null).trim();
+
+  const neighborhood = (neighborhoodLabelFromCode(neighborhoodCode ?? null) ?? "").trim();
   const typeChip = householdType || "Household";
 
   const adultsClean = adults.map((a) => a.trim()).filter(Boolean);
   let adultsLabel = "";
   if (adultsClean.length === 1) adultsLabel = adultsClean[0];
   else if (adultsClean.length === 2) adultsLabel = `${adultsClean[0]} & ${adultsClean[1]}`;
-  else if (adultsClean.length > 2) adultsLabel = `${adultsClean[0]} + ${adultsClean.length - 1} more`;
+  else if (adultsClean.length > 2)
+    adultsLabel = `${adultsClean[0]} + ${adultsClean.length - 1} more`;
 
   const previewKids: PreviewKid[] = kids.map((k) => ({
     birthMonth: k.birthMonth ? Number(k.birthMonth) : null,
@@ -310,19 +300,42 @@ function HouseholdPreviewCard({
         }
       `}</style>
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>Household preview</div>
-        <div style={{ fontSize: 11, color: "#6b7280" }}>How you&apos;ll appear in the People tab</div>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "baseline",
+          marginBottom: 6,
+        }}
+      >
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>
+          Household preview
+        </div>
+        <div style={{ fontSize: 11, color: "#6b7280" }}>
+          How you&apos;ll appear in the People tab
+        </div>
       </div>
 
       <div className="settings-preview-card">
         <div className="settings-preview-select-pad" aria-hidden />
-        <div className="settings-preview-avatar" aria-hidden>{initial}</div>
+        <div className="settings-preview-avatar" aria-hidden>
+          {initial}
+        </div>
 
         <div className="settings-preview-main">
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              flexWrap: "wrap",
+              marginBottom: 4,
+            }}
+          >
             <h3 className="settings-preview-name">{label}</h3>
-            {neighborhood && <span className="settings-preview-pill neighborhood">{neighborhood}</span>}
+            {neighborhood && (
+              <span className="settings-preview-pill neighborhood">{neighborhood}</span>
+            )}
           </div>
 
           {adultsLabel && (
@@ -334,7 +347,14 @@ function HouseholdPreviewCard({
 
           {isFamily && (
             <>
-              <div style={{ fontSize: 13, color: "#374151", marginTop: adultsLabel ? 6 : 2, marginBottom: kidsAtHome.length || kidsAway.length ? 4 : 8 }}>
+              <div
+                style={{
+                  fontSize: 13,
+                  color: "#374151",
+                  marginTop: adultsLabel ? 6 : 2,
+                  marginBottom: kidsAtHome.length || kidsAway.length ? 4 : 8,
+                }}
+              >
                 <span style={{ fontWeight: 600 }}>Children:&nbsp;</span>
                 {kidsLabel}
               </div>
@@ -370,7 +390,14 @@ function HouseholdPreviewCard({
               )}
 
               {kidsAway.length > 0 && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginLeft: 12 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 6,
+                    marginLeft: 12,
+                  }}
+                >
                   {kidsAtHome.length > 0 && (
                     <div className="settings-preview-kids-section">
                       <div className="settings-preview-kids-subheading">At home</div>
@@ -405,7 +432,9 @@ function HouseholdPreviewCard({
                   )}
 
                   <div className="settings-preview-kids-section">
-                    <div className="settings-preview-kids-subheading">Lives away from home</div>
+                    <div className="settings-preview-kids-subheading">
+                      Lives away from home
+                    </div>
                     <div className="settings-preview-kids-row">
                       {kidsAway.map((k, i) => {
                         const age = ageFromMY(k.birthMonth ?? null, k.birthYear ?? null);
@@ -452,7 +481,9 @@ function HouseholdPreviewCard({
                       fontWeight: 600,
                     }}
                   >
-                    <span role="img" aria-label="babysitting">🧑‍🍼</span>
+                    <span role="img" aria-label="babysitting">
+                      🧑‍🍼
+                    </span>
                     <span>Babysitting help available</span>
                   </span>
                 </div>
@@ -460,13 +491,18 @@ function HouseholdPreviewCard({
             </>
           )}
 
-          <span className="settings-preview-pill type" style={{ marginTop: 10, display: "inline-block" }}>
+          <span
+            className="settings-preview-pill type"
+            style={{ marginTop: 10, display: "inline-block" }}
+          >
             {typeChip}
           </span>
         </div>
 
         <div className="settings-preview-actions">
-          <div className="settings-preview-star" aria-hidden>★</div>
+          <div className="settings-preview-star" aria-hidden>
+            ★
+          </div>
           <button
             type="button"
             className="settings-preview-btn"
@@ -474,7 +510,9 @@ function HouseholdPreviewCard({
             aria-hidden="true"
             tabIndex={-1}
           >
-            <span role="img" aria-label="message">💬</span>
+            <span role="img" aria-label="message">
+              💬
+            </span>
             Message
           </button>
         </div>
@@ -486,7 +524,6 @@ function HouseholdPreviewCard({
 /* ---------- Settings page ---------- */
 
 export default function Settings() {
-  // Household profile (viewer)
   const [lastName, setLastName] = useState("");
   const [adult1, setAdult1] = useState("");
   const [adult2, setAdult2] = useState("");
@@ -494,8 +531,10 @@ export default function Settings() {
   const [kids, setKids] = useState<KidForm[]>([]);
   const [savingHousehold, setSavingHousehold] = useState(false);
 
-  // ✅ canonical: neighborhoodCode (store code; derive label for display)
+  // Neighborhood access (settings-style, onboarding-like)
   const [neighborhoodCode, setNeighborhoodCode] = useState("");
+  const [hoodTouched, setHoodTouched] = useState(false);
+  const [hoodValidated, setHoodValidated] = useState(false);
 
   const [flash, setFlash] = useState<string | null>(null);
 
@@ -505,7 +544,6 @@ export default function Settings() {
   const [nType, setNType] = useState<"" | HouseholdType>("");
   const [neighbors, setNeighbors] = useState(loadNeighbors());
 
-  // Load viewer household from onboarding ONLY (no overrides)
   useEffect(() => {
     const ob = getOnboardingState();
 
@@ -540,7 +578,6 @@ export default function Settings() {
 
   const isFamily = type === "Family w/ Kids";
 
-  // Derived "guiding highlight" for Month → Year → Gender
   const highlight = useMemo(() => {
     if (!isFamily || kids.length === 0) return null;
     for (const k of kids) {
@@ -569,8 +606,33 @@ export default function Settings() {
     setKids((prev) => prev.filter((k) => k.id !== id));
   }
 
-  function updateKid(id: string, field: keyof Omit<KidForm, "id">, value: string | boolean) {
+  function updateKid(
+    id: string,
+    field: keyof Omit<KidForm, "id">,
+    value: string | boolean
+  ) {
     setKids((prev) => prev.map((k) => (k.id === id ? { ...k, [field]: value } : k)));
+  }
+
+  // Neighborhood validation (same source of truth as onboarding)
+  const normalizedHood = normalizeNeighborhoodCode(neighborhoodCode);
+  const match = NEIGHBORHOOD_CODES[normalizedHood] ?? null;
+  const isValidCode = !!match;
+
+  const showRequiredError = hoodValidated && normalizedHood.length === 0;
+  const showCodeError = hoodValidated && normalizedHood.length > 0 && !isValidCode;
+
+  const displayLabel = neighborhoodLabelFromCode(normalizedHood) || "";
+  const showSuccess = hoodValidated && isValidCode && !!displayLabel;
+
+  function handleHoodChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const value = normalizeNeighborhoodCode(e.target.value);
+    setNeighborhoodCode(value);
+    setHoodValidated(false);
+  }
+
+  function handleHoodBlur() {
+    setHoodTouched(true);
   }
 
   // MAIN SAVE HANDLER – backend is the source of truth
@@ -594,6 +656,7 @@ export default function Settings() {
             }))
         : [];
 
+    // Validate basics
     if (!trimmedLast || !householdType) {
       setFlash("Please add a last name and household type.");
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -608,9 +671,28 @@ export default function Settings() {
       return;
     }
 
+    // Validate neighborhood code like onboarding (private)
+    setHoodTouched(true);
+    setHoodValidated(true);
+
+    // Allow empty? For MVP, we REQUIRE a code to be in a neighborhood.
+    if (normalizedHood.length === 0) {
+      setFlash("Please enter your neighborhood code.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      setTimeout(() => setFlash(null), 2200);
+      return;
+    }
+
+    if (!NEIGHBORHOOD_CODES[normalizedHood]) {
+      setFlash("That neighborhood code doesn’t match any neighborhood.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      setTimeout(() => setFlash(null), 2600);
+      return;
+    }
+
     setSavingHousehold(true);
 
-    // Keep onboarding state in sync (local UX) — ✅ only use valid OnboardingState fields
+    // Keep onboarding state in sync
     const prev = getOnboardingState();
     setOnboardingState({
       ...prev,
@@ -618,19 +700,17 @@ export default function Settings() {
       adults,
       householdType,
       kids: normalizedKids,
-      neighborhoodCode: normalizeNeighborhoodCode(neighborhoodCode) || null,
+      neighborhoodCode: normalizedHood,
     });
 
     try {
-      // Backend save MUST be blocking so People reflects reality
       await upsertMyHousehold({
-        uid: CURRENT_UID, // keep if your API expects it
+        uid: CURRENT_UID,
         lastName: trimmedLast,
         householdType,
         adultNames: adults,
         kids: normalizedKids,
-        // ✅ canonical: store the code in the household neighborhood field
-        neighborhood: normalizeNeighborhoodCode(neighborhoodCode) || undefined,
+        neighborhood: normalizedHood, // ✅ store code, not label
       });
 
       setFlash("Household updated ✅");
@@ -676,11 +756,6 @@ export default function Settings() {
     background: "#ffffff",
   };
 
-  const neighborhoodLabel = useMemo(
-    () => codeToNeighborhoodLabel(neighborhoodCode || null),
-    [neighborhoodCode]
-  );
-
   return (
     <div style={{ padding: 16, maxWidth: 760, margin: "0 auto" }}>
       <style>{`
@@ -705,6 +780,7 @@ export default function Settings() {
         .settings-input {
           padding: 11px 14px; border-radius: 12px; border: 1px solid #d1d5db;
           width: 100%; font-size: 14px; box-sizing: border-box;
+          outline: none;
         }
         .settings-pill-note {
           font-size:11px; padding:4px 8px; border-radius:999px; border:1px solid #e5e7eb;
@@ -734,6 +810,28 @@ export default function Settings() {
         }
         .settings-dev-label-sub { font-size:12px; color:#6b7280; margin: 0 4px 6px; }
         .household-tiles { display:flex; flex-direction:column; gap:8px; margin-top:4px; }
+
+        .hood-helper {
+          margin-top: 8px;
+          font-size: 12px;
+          color: #6b7280;
+          line-height: 1.5;
+          display: flex;
+          align-items: flex-start;
+          gap: 6px;
+        }
+        .hood-success {
+          margin-top: 10px;
+          padding: 10px 12px;
+          border-radius: 12px;
+          border: 1px solid #bbf7d0;
+          background: #f0fdf4;
+          font-size: 13px;
+          color: #166534;
+          display: flex;
+          align-items: flex-start;
+          gap: 8px;
+        }
       `}</style>
 
       {/* Header */}
@@ -827,24 +925,59 @@ export default function Settings() {
             />
           </div>
 
-          {/* Neighborhood code (canonical) */}
+          {/* Neighborhood code (private, onboarding-like) */}
           <div>
             <div className="settings-field-label">
-              Neighborhood Code{" "}
-              <span style={{ fontWeight: 400, color: "#9ca3af", fontSize: 11 }}>(read-only for now)</span>
+              Neighborhood code{" "}
+              <span style={{ fontWeight: 400, color: "#9ca3af", fontSize: 11 }}>(required)</span>
             </div>
+
             <input
               value={neighborhoodCode}
-              onChange={(e) => setNeighborhoodCode(e.target.value)}
-              placeholder="e.g., BH26-GK4"
+              onChange={handleHoodChange}
+              onBlur={handleHoodBlur}
+              placeholder="Enter your neighborhood code…"
               className="settings-input"
-              disabled
+              spellCheck={false}
+              autoComplete="off"
+              style={{
+                borderColor:
+                  hoodTouched && (showRequiredError || showCodeError) ? "#f97373" : "#d1d5db",
+              }}
             />
-            {neighborhoodLabel && (
-              <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
-                Neighborhood: <span style={{ fontWeight: 700, color: "#111827" }}>{neighborhoodLabel}</span>
+
+            {showRequiredError && (
+              <div className="hood-helper" style={{ color: "#b91c1c", marginTop: 6 }}>
+                Please enter your neighborhood code.
               </div>
             )}
+
+            {showCodeError && (
+              <div className="hood-helper" style={{ color: "#b91c1c", marginTop: 6 }}>
+                That code doesn’t match any neighborhood. Double-check the code or reach out to the
+                person who shared it with you.
+              </div>
+            )}
+
+            {showSuccess && (
+              <div className="hood-success">
+                <span aria-hidden="true">🌿</span>
+                <div>
+                  <div style={{ fontWeight: 600 }}>Welcome to {displayLabel}!</div>
+                  <div>
+                    You’re joining the <strong>{displayLabel}</strong> neighborhood community.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <p className="hood-helper">
+              <span aria-hidden="true">🔒</span>
+              <span>
+                Private and secure. Only households in your neighborhood can join with this code.
+                No addresses or child names are ever shown.
+              </span>
+            </p>
           </div>
 
           <div>
@@ -887,8 +1020,12 @@ export default function Settings() {
                         <Icon size={18} />
                       </div>
                       <div>
-                        <div style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>{opt.title}</div>
-                        <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{opt.subtitle}</div>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>
+                          {opt.title}
+                        </div>
+                        <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
+                          {opt.subtitle}
+                        </div>
                       </div>
                     </div>
                   </motion.button>
@@ -956,13 +1093,19 @@ export default function Settings() {
                         style={{
                           ...kidSelectStyle,
                           ...(isMonthActive
-                            ? { borderColor: "#22c55e", boxShadow: "0 0 0 1px rgba(34,197,94,0.55)", background: "#f0fdf4" }
+                            ? {
+                                borderColor: "#22c55e",
+                                boxShadow: "0 0 0 1px rgba(34,197,94,0.55)",
+                                background: "#f0fdf4",
+                              }
                             : {}),
                         }}
                       >
                         <option value="">Month</option>
                         {MONTHS.map((m, idx) => (
-                          <option key={m} value={idx + 1}>{m}</option>
+                          <option key={m} value={idx + 1}>
+                            {m}
+                          </option>
                         ))}
                       </select>
 
@@ -972,13 +1115,19 @@ export default function Settings() {
                         style={{
                           ...kidSelectStyle,
                           ...(isYearActive
-                            ? { borderColor: "#22c55e", boxShadow: "0 0 0 1px rgba(34,197,94,0.55)", background: "#f0fdf4" }
+                            ? {
+                                borderColor: "#22c55e",
+                                boxShadow: "0 0 0 1px rgba(34,197,94,0.55)",
+                                background: "#f0fdf4",
+                              }
                             : {}),
                         }}
                       >
                         <option value="">Year</option>
                         {YEARS.map((y) => (
-                          <option key={y} value={y}>{y}</option>
+                          <option key={y} value={y}>
+                            {y}
+                          </option>
                         ))}
                       </select>
 
@@ -988,7 +1137,11 @@ export default function Settings() {
                         style={{
                           ...kidSelectStyle,
                           ...(isGenderActive
-                            ? { borderColor: "#22c55e", boxShadow: "0 0 0 1px rgba(34,197,94,0.55)", background: "#f0fdf4" }
+                            ? {
+                                borderColor: "#22c55e",
+                                boxShadow: "0 0 0 1px rgba(34,197,94,0.55)",
+                                background: "#f0fdf4",
+                              }
                             : {}),
                         }}
                       >
@@ -999,12 +1152,24 @@ export default function Settings() {
                       </select>
                     </div>
 
-                    {preview && <div style={{ marginTop: 6, fontSize: 11, color: "#6b7280" }}>Preview: {preview}</div>}
+                    {preview && (
+                      <div style={{ marginTop: 6, fontSize: 11, color: "#6b7280" }}>
+                        Preview: {preview}
+                      </div>
+                    )}
 
-                    {/* Away from home toggle (18+) */}
                     {age !== null && age >= 18 && (
                       <>
-                        <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 12, color: "#374151" }}>
+                        <label
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            marginTop: 8,
+                            fontSize: 12,
+                            color: "#374151",
+                          }}
+                        >
                           <input
                             type="checkbox"
                             checked={kid.awayAtCollege}
@@ -1018,9 +1183,17 @@ export default function Settings() {
                       </>
                     )}
 
-                    {/* Babysitting toggle (13–25) */}
                     {age !== null && age >= 13 && age <= 25 && (
-                      <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 12, color: "#374151" }}>
+                      <label
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          marginTop: 8,
+                          fontSize: 12,
+                          color: "#374151",
+                        }}
+                      >
                         <input
                           type="checkbox"
                           checked={kid.canBabysit}
@@ -1060,11 +1233,12 @@ export default function Settings() {
             adults={[adult1, adult2]}
             householdType={type}
             kids={kids}
-            neighborhoodCode={neighborhoodCode}
+            neighborhoodCode={normalizedHood}
           />
 
           <p className="settings-section-sub">
-            Neighbors will only see adult first names and child ages/gender — never birthdays or full personal details.
+            Neighbors will only see adult first names and child ages/gender — never birthdays or full
+            personal details.
           </p>
 
           <div className="settings-save-row">
@@ -1110,12 +1284,15 @@ export default function Settings() {
           <li>Household last name</li>
           <li>Optional adult first names (you can leave these blank if you prefer)</li>
           <li>
-            Kids are shown only as <span style={{ fontWeight: 600 }}>Age • Gender</span> — never names or birthdays
+            Kids are shown only as <span style={{ fontWeight: 600 }}>Age • Gender</span> — never
+            names or birthdays
           </li>
         </ul>
 
         <div className="settings-meta-row">
-          <span role="img" aria-label="info">ℹ️</span>
+          <span role="img" aria-label="info">
+            ℹ️
+          </span>
           <span>Neighborhood access requires a private code. Exact street addresses are not shown.</span>
         </div>
       </section>
@@ -1135,8 +1312,7 @@ export default function Settings() {
               <div>
                 <h3 className="settings-card-title">Reset onboarding (this device only)</h3>
                 <p className="settings-card-helper">
-                  Clears your GatherGrove onboarding state so you can re-enter a neighborhood code (Bayhill / Eagles
-                  Pointe) and run through setup again.
+                  Clears your GatherGrove onboarding state so you can re-enter your neighborhood code.
                 </p>
               </div>
             </div>
@@ -1167,8 +1343,8 @@ export default function Settings() {
               <div>
                 <h3 className="settings-card-title">Developer tools — demo neighbors (local)</h3>
                 <p className="settings-card-helper">
-                  These demo neighbors live only in your browser&apos;s localStorage. Use them to test the People and
-                  Home tabs. This section will not appear in the real neighborhood app.
+                  These demo neighbors live only in your browser&apos;s localStorage. Use them to test
+                  the People and Home tabs.
                 </p>
               </div>
             </div>
@@ -1186,7 +1362,11 @@ export default function Settings() {
                 placeholder="Email (optional)"
                 className="settings-input"
               />
-              <select value={nType} onChange={(e) => setNType(e.target.value as any)} className="settings-input">
+              <select
+                value={nType}
+                onChange={(e) => setNType(e.target.value as any)}
+                className="settings-input"
+              >
                 <option value="">(type optional)</option>
                 <option value="Family w/ Kids">Family w/ Kids</option>
                 <option value="Empty Nesters">Empty Nesters</option>
@@ -1212,12 +1392,18 @@ export default function Settings() {
                       borderBottom: "1px solid #f1f5f9",
                     }}
                   >
-                    <div className="settings-dev-avatar">{(n.last_name?.[0] || "H").toUpperCase()}</div>
+                    <div className="settings-dev-avatar">
+                      {(n.last_name?.[0] || "H").toUpperCase()}
+                    </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 600 }}>{n.last_name ?? "Household"}</div>
                       <div style={{ fontSize: 12, color: "#64748b" }}>{n.email ?? "no email"}</div>
                     </div>
-                    <button type="button" onClick={() => removeDemo(n.id)} className="settings-dev-remove-btn">
+                    <button
+                      type="button"
+                      onClick={() => removeDemo(n.id)}
+                      className="settings-dev-remove-btn"
+                    >
                       Remove
                     </button>
                   </div>

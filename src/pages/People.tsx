@@ -26,16 +26,12 @@ type AnyUser = GGHousehold & {
   householdType?: string | null;
   kids?: Kid[];
   adultNames?: string[];
-  neighborhood?: string | null;
+  neighborhood?: string | null; // ✅ stores code from backend (e.g., BH26-GK4, EP26-QM7)
 };
 
 /* ---------- constants ---------- */
 /** Order aligned with onboarding: Family w/ Kids → Empty Nesters → Singles/Couples */
-const HOUSEHOLD_TYPES = [
-  "Family w/ Kids",
-  "Empty Nesters",
-  "Singles/Couples",
-] as const;
+const HOUSEHOLD_TYPES = ["Family w/ Kids", "Empty Nesters", "Singles/Couples"] as const;
 
 type HouseholdTypeFilter = (typeof HOUSEHOLD_TYPES)[number];
 
@@ -80,10 +76,51 @@ const QUICK_SUGGESTIONS: string[] = [
   "We love discovering local spots — any favorites you recommend nearby?",
 ];
 
+/* ---------- neighborhood helpers (LOCAL, avoids broken imports) ---------- */
+type HoodKey = "bayhill" | "eagles";
+
+function normalizeNeighborhood(s?: string | null): string {
+  return (s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function neighborhoodKey(raw?: string | null): HoodKey | null {
+  const s = normalizeNeighborhood(raw);
+  if (!s) return null;
+
+  // ✅ explicit known codes (backend reality)
+  if (s === "bh26-gk4") return "bayhill";
+  if (s === "ep26-qm7") return "eagles";
+
+  // ✅ code patterns (lets you add new codes without touching UI again)
+  if (/^bh\d{2}-[a-z0-9]{3,}$/i.test(s)) return "bayhill";
+  if (/^ep\d{2}-[a-z0-9]{3,}$/i.test(s)) return "eagles";
+
+  // fallback match by common strings
+  if (s.includes("bayhill") || s === "bay" || s === "bh") return "bayhill";
+  if (s.includes("eagles") || s.includes("eagles point") || s.includes("eagles pointe") || s === "ep")
+    return "eagles";
+
+  return null;
+}
+
+function neighborhoodLabel(k: HoodKey): string {
+  if (k === "bayhill") return "Bayhill at the Oasis";
+  if (k === "eagles") return "Eagles Pointe"; // ✅ Pointe (with e)
+  return "";
+}
+
+/** ✅ label for pill on each card: prefer full name when code is known */
+function neighborhoodDisplay(raw?: string | null): string {
+  const k = neighborhoodKey(raw);
+  if (k) return neighborhoodLabel(k);
+
+  // fallback: if someone stored full text, keep it; otherwise show raw
+  return (raw ?? "").trim();
+}
+
 /* ---------- helpers ---------- */
 const displayLabel = (u: AnyUser) => u.lastName ?? u.name ?? "Household";
-const displaySortKey = (u: AnyUser) =>
-  (u.lastName ?? u.name ?? "").toString().trim().toLowerCase();
+const displaySortKey = (u: AnyUser) => (u.lastName ?? u.name ?? "").toString().trim().toLowerCase();
 
 function toggleInSet<T>(prev: Set<T>, value: T): Set<T> {
   const next = new Set(prev);
@@ -107,8 +144,7 @@ function ageFromMY(m?: number | null, y?: number | null): number | null {
   const d = new Date(y, month - 1, 15);
   let a = now.getFullYear() - d.getFullYear();
   const hadBday =
-    now.getMonth() > d.getMonth() ||
-    (now.getMonth() === d.getMonth() && now.getDate() >= d.getDate());
+    now.getMonth() > d.getMonth() || (now.getMonth() === d.getMonth() && now.getDate() >= d.getDate());
   if (!hadBday) a -= 1;
   return a < 0 ? 0 : a;
 }
@@ -163,12 +199,14 @@ function useFavorites() {
       localStorage.setItem(FAV_KEY, JSON.stringify(Array.from(favs)));
     } catch {}
   }, [favs]);
+
   const toggle = (id: string) =>
     setFavs((prev) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
+
   return { favs, toggle };
 }
 
@@ -297,8 +335,7 @@ function DualAgeRange(props: {
         : 0;
     if (!delta) return;
     e.preventDefault();
-    if (which === "min")
-      onChange(Math.min(clamp(valueMin + delta), valueMax), valueMax);
+    if (which === "min") onChange(Math.min(clamp(valueMin + delta), valueMax), valueMax);
     else onChange(valueMin, Math.max(clamp(valueMax + delta), valueMin));
   };
 
@@ -529,8 +566,7 @@ const saveThreads = (ts: Thread[]) => {
     localStorage.setItem(THREADS_KEY, JSON.stringify(ts));
   } catch {}
 };
-const threadIdFor = (rs: Recipient[]) =>
-  `thread:${rs.map((r) => r.id).sort().join(",")}`;
+const threadIdFor = (rs: Recipient[]) => `thread:${rs.map((r) => r.id).sort().join(",")}`;
 
 /* ---------- DM threads for Home feed (gg:dmThreads) ---------- */
 type DMThread = {
@@ -581,10 +617,7 @@ function upsertDMThread(participants: Recipient[], body: string) {
   if (existing) {
     existing.lastMessage = lastMessage;
     existing.ts = now;
-    existing.participants = participants.map((p) => ({
-      id: p.id,
-      label: p.label,
-    }));
+    existing.participants = participants.map((p) => ({ id: p.id, label: p.label }));
   } else {
     threads.push({
       id,
@@ -660,7 +693,7 @@ function Chip({
   onClick: () => void;
   emoji?: string;
 }) {
-  const meta = HOUSEHOLD_TYPE_META[label as HouseholdTypeFilter];
+  const meta = (HOUSEHOLD_TYPE_META as any)[label as HouseholdTypeFilter];
   const Icon = meta?.Icon;
 
   return (
@@ -752,31 +785,18 @@ function ActionDock({
   const pct = (progress / maxDm) * 100;
 
   const summaryText =
-    count === 1
-      ? "1 selected"
-      : `${count} selected${overLimit ? ` • max ${maxDm} to Message` : ""}`;
+    count === 1 ? "1 selected" : `${count} selected${overLimit ? ` • max ${maxDm} to Message` : ""}`;
 
   return (
     <div className="dock-wrap" role="region" aria-label="Bulk actions">
       <div className="dock">
-        <span
-          className={[
-            "dock-count",
-            overLimit ? "dock-count-warn" : "",
-          ].join(" ")}
-          aria-live="polite"
-        >
+        <span className={["dock-count", overLimit ? "dock-count-warn" : ""].join(" ")} aria-live="polite">
           {summaryText}
         </span>
         <div className="dock-actions" role="toolbar" aria-label="Actions">
           <span className="has-tip">
             <motion.button
-              className={[
-                "dock-btn",
-                "dock-btn-connect",
-                "gg-tap-target",
-                !canDM ? "is-disabled" : "",
-              ].join(" ")}
+              className={["dock-btn", "dock-btn-connect", "gg-tap-target", !canDM ? "is-disabled" : ""].join(" ")}
               onClick={() => {
                 if (canDM) onDM();
               }}
@@ -812,9 +832,7 @@ function ActionDock({
             </span>
             <div className="dock-label">
               <span className="dock-text">Happening Now</span>
-              <span className="dock-sub">
-                Share something everyone can join now.
-              </span>
+              <span className="dock-sub">Share something everyone can join now.</span>
             </div>
           </motion.button>
 
@@ -834,34 +852,13 @@ function ActionDock({
           </motion.button>
 
           <div className="dock-sep" aria-hidden />
-          <motion.button
-            className="dock-ghost"
-            onClick={onClear}
-            title="Clear selection"
-            {...tapMotionProps}
-          >
+          <motion.button className="dock-ghost" onClick={onClear} title="Clear selection" {...tapMotionProps}>
             Clear
           </motion.button>
         </div>
       </div>
     </div>
   );
-}
-
-type NeighborhoodKey = "bayhill" | "eagles";
-
-function neighborhoodKey(raw?: string | null): NeighborhoodKey | null {
-  const s = (raw || "").toLowerCase().replace(/\s+/g, "");
-  if (!s) return null;
-
-  if (s.includes("bayhill")) return "bayhill";
-  if (s.includes("eagles") || s.includes("pointe")) return "eagles";
-
-  return null;
-}
-
-function neighborhoodLabel(key: "bayhill" | "eagles") {
-  return key === "bayhill" ? "Bayhill at the Oasis" : "Eagles Pointe";
 }
 
 /* ---------- Page ---------- */
@@ -875,12 +872,9 @@ export default function People() {
   const [onlyFavs, setOnlyFavs] = useState(false);
   const { favs, toggle } = useFavorites();
 
-  const [selectedNeighborhoods, setSelectedNeighborhoods] = useState<Set<string>>(
-    new Set()
-  );
-  const [selectedTypes, setSelectedTypes] = useState<Set<string>>(
-    new Set(HOUSEHOLD_TYPES)
-  );
+  // ✅ store canonical keys (NOT labels) so renames like “Pointe” never break filters
+  const [selectedNeighborhoods, setSelectedNeighborhoods] = useState<Set<HoodKey>>(new Set());
+  const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set(HOUSEHOLD_TYPES));
   const hasFamilySelected = selectedTypes.has("Family w/ Kids");
   const [ageMin, setAgeMin] = useState(0);
   const [ageMax, setAgeMax] = useState(18);
@@ -893,9 +887,7 @@ export default function People() {
 
   const [snackOpen, setSnackOpen] = useState(false);
   const [snackText, setSnackText] = useState("");
-  const [snackRecipients, setSnackRecipients] = useState<Recipient[] | null>(
-    null
-  );
+  const [snackRecipients, setSnackRecipients] = useState<Recipient[] | null>(null);
 
   const [showToast, setShowToast] = useState(false);
   const prevCount = useRef(0);
@@ -908,61 +900,57 @@ export default function People() {
     prevCount.current = cur;
   }, [selectedIds.size]);
 
-const load = async () => {
-  setLoading(true);
-  try {
-    // ✅ Directory comes ONLY from backend households + demo neighbors
-    const raw = await fetchHouseholds();
-    const base = Array.isArray(raw) ? raw : [];
+  const load = async () => {
+    setLoading(true);
+    try {
+      // ✅ Directory comes ONLY from backend households + demo neighbors
+      const raw = await fetchHouseholds();
+      const base = Array.isArray(raw) ? raw : [];
 
-    // ✅ Normalize backend
-    const backendUsers = base.map((u: any) => normalize(u));
+      // ✅ Normalize backend
+      const backendUsers = base.map((u: any) => normalize(u));
 
-    // ✅ Demo neighbors (local)
-    const demoNeighbors = loadNeighbors().map(
-      (n) =>
-        normalize({
-          id: n.id,
-          lastName:
-            (n as any).last_name ??
-            (n as any).lastName ??
-            (n as any).name ??
-            null,
-          email: (n as any).email,
-          householdType: (n as any).householdType,
-          kids: (n as any).kids,
-          adultNames: (n as any).adultNames,
-          neighborhood: (n as any).neighborhood,
-        }) as AnyUser
-    );
+      // ✅ Demo neighbors (local)
+      const demoNeighbors = loadNeighbors().map(
+        (n) =>
+          normalize({
+            id: (n as any).id,
+            lastName: (n as any).last_name ?? (n as any).lastName ?? (n as any).name ?? null,
+            email: (n as any).email,
+            householdType: (n as any).householdType,
+            kids: (n as any).kids,
+            adultNames: (n as any).adultNames,
+            neighborhood: (n as any).neighborhood,
+          }) as AnyUser
+      );
 
-    let combined = [...backendUsers, ...demoNeighbors];
+      let combined = [...backendUsers, ...demoNeighbors];
 
-    // ✅ De-dupe and sort
-    combined = dedupePeople(combined);
-    combined.sort((a, b) => displaySortKey(a).localeCompare(displaySortKey(b)));
+      // ✅ De-dupe and sort
+      combined = dedupePeople(combined);
+      combined.sort((a, b) => displaySortKey(a).localeCompare(displaySortKey(b)));
 
-    setItems(combined);
-  } finally {
-    setLoading(false);
-  }
-};
+      setItems(combined);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     load();
   }, []);
 
-const neighborhoods = useMemo(() => {
-  // show only the two canonical chips if they exist in data
-  const set = new Set<"bayhill" | "eagles">();
-  for (const u of items) {
-    const k = neighborhoodKey(u.neighborhood ?? null);
-    if (k === "bayhill" || k === "eagles") set.add(k);
-  }
-  return Array.from(set)
-    .sort()
-    .map((k) => neighborhoodLabel(k));
-}, [items]);
+  const neighborhoods = useMemo(() => {
+    const set = new Set<HoodKey>();
+    for (const u of items) {
+      const k = neighborhoodKey(u.neighborhood ?? null);
+      if (k === "bayhill" || k === "eagles") set.add(k);
+    }
+    const keys = Array.from(set);
+    // keep a stable order
+    keys.sort((a, b) => neighborhoodLabel(a).localeCompare(neighborhoodLabel(b)));
+    return keys.map((k) => ({ key: k, label: neighborhoodLabel(k) }));
+  }, [items]);
 
   const filtered = useMemo(() => {
     const needle = qDebounced.trim().toLowerCase();
@@ -970,36 +958,22 @@ const neighborhoods = useMemo(() => {
 
     if (needle) {
       list = list.filter((u) => {
-        const hay = [
-          displayLabel(u),
-          u.householdType ?? "",
-          (u.adultNames ?? []).join(" "),
-          u.neighborhood ?? "",
-        ]
+        const hay = [displayLabel(u), u.householdType ?? "", (u.adultNames ?? []).join(" "), u.neighborhood ?? ""]
           .join(" ")
           .toLowerCase();
         return hay.includes(needle);
       });
     }
 
-  if (selectedNeighborhoods.size > 0) {
-  const keys = new Set(
-    Array.from(selectedNeighborhoods).map((lbl) =>
-      lbl.toLowerCase().includes("bayhill") ? "bayhill" : "eagles"
-    )
-  );
-
-list = list.filter((u) => {
-  const k = neighborhoodKey(u.neighborhood ?? null);
-  return k ? keys.has(k) : false;
-});
-
-}
+    if (selectedNeighborhoods.size > 0) {
+      list = list.filter((u) => {
+        const k = neighborhoodKey(u.neighborhood ?? null);
+        return k ? selectedNeighborhoods.has(k) : false;
+      });
+    }
 
     if (selectedTypes.size > 0) {
-      list = list.filter((u) =>
-        u.householdType ? selectedTypes.has(u.householdType) : false
-      );
+      list = list.filter((u) => (u.householdType ? selectedTypes.has(u.householdType) : false));
     }
 
     if (onlyBabysitters) list = list.filter((u) => userHasBabysitter(u));
@@ -1014,9 +988,8 @@ list = list.filter((u) => {
     }
 
     if (onlyFavs) list = list.filter((u) => favs.has(u.id));
-    return list
-      .slice()
-      .sort((a, b) => displaySortKey(a).localeCompare(displaySortKey(b)));
+
+    return list.slice().sort((a, b) => displaySortKey(a).localeCompare(displaySortKey(b)));
   }, [
     items,
     qDebounced,
@@ -1042,33 +1015,19 @@ list = list.filter((u) => {
     });
   }, [filtered]);
 
-  const isSelected = (id: string) => selectedIds.has(id);
   const clearSelection = () => setSelectedIds(new Set());
   const selectAllFiltered = () => setSelectedIds(new Set(filtered.map((u) => u.id)));
 
-  const selectedUsers = useMemo(
-    () => filtered.filter((u) => selectedIds.has(u.id)),
-    [filtered, selectedIds]
-  );
+  const selectedUsers = useMemo(() => filtered.filter((u) => selectedIds.has(u.id)), [filtered, selectedIds]);
 
-  const selectedRecipientLabels = useMemo(
-    () => selectedUsers.map((u) => displayLabel(u)),
-    [selectedUsers]
-  );
-
-  const selectedRecipientIds = useMemo(
-  () => selectedUsers.map((u) => u.id),
-  [selectedUsers]
-);
+  const selectedRecipientLabels = useMemo(() => selectedUsers.map((u) => displayLabel(u)), [selectedUsers]);
+  const selectedRecipientIds = useMemo(() => selectedUsers.map((u) => u.id), [selectedUsers]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const ae = document.activeElement as HTMLElement | null;
       const tag = (ae?.tagName || "").toLowerCase();
-      const isTyping =
-        tag === "input" ||
-        tag === "textarea" ||
-        ae?.getAttribute("contenteditable") === "true";
+      const isTyping = tag === "input" || tag === "textarea" || ae?.getAttribute("contenteditable") === "true";
       if (isTyping) return;
 
       const isMod = e.metaKey || e.ctrlKey;
@@ -1083,11 +1042,9 @@ list = list.filter((u) => {
       if (k === "c") {
         if (count > 0 && count <= MAX_DM_TARGETS) setShowConnectModal(true);
       } else if (k === "h") {
-        if (count > 0)
-          navigate("/compose/happening", { state: { recipients: selectedRecipientLabels } });
+        if (count > 0) navigate("/compose/happening", { state: { recipients: selectedRecipientLabels } });
       } else if (k === "e") {
-        if (count > 0)
-          navigate("/compose/event", { state: { recipients: selectedRecipientLabels } });
+        if (count > 0) navigate("/compose/event", { state: { recipients: selectedRecipientLabels } });
       } else if (e.key === "Escape") {
         clearSelection();
       }
@@ -1106,12 +1063,9 @@ list = list.filter((u) => {
 
     const viewer = getViewer() as any;
     const selfId = viewer?.id ?? viewer?.uid ?? viewer?.email ?? null;
-    const selfLabel =
-      viewer?.label ?? viewer?.name ?? viewer?.lastName ?? viewer?.email ?? "You";
+    const selfLabel = viewer?.label ?? viewer?.name ?? viewer?.lastName ?? viewer?.email ?? "You";
 
-    const participants: Recipient[] = selfId
-      ? [...targets, { id: String(selfId), label: selfLabel }]
-      : targets;
+    const participants: Recipient[] = selfId ? [...targets, { id: String(selfId), label: selfLabel }] : targets;
 
     const tid = threadIdFor(participants);
     const all = loadThreads();
@@ -1320,10 +1274,10 @@ list = list.filter((u) => {
             <div className="chip-scroll">
               {neighborhoods.map((n) => (
                 <Chip
-                  key={n}
-                  label={n}
-                  selected={selectedNeighborhoods.has(n)}
-                  onClick={() => setSelectedNeighborhoods(toggleInSet(selectedNeighborhoods, n))}
+                  key={n.key}
+                  label={n.label}
+                  selected={selectedNeighborhoods.has(n.key)}
+                  onClick={() => setSelectedNeighborhoods((prev) => toggleInSet(prev, n.key))}
                 />
               ))}
             </div>
@@ -1340,7 +1294,12 @@ list = list.filter((u) => {
             </div>
             <div className="chip-scroll">
               {HOUSEHOLD_TYPES.map((t) => (
-                <Chip key={t} label={t} selected={selectedTypes.has(t)} onClick={() => setSelectedTypes(toggleInSet(selectedTypes, t))} />
+                <Chip
+                  key={t}
+                  label={t}
+                  selected={selectedTypes.has(t)}
+                  onClick={() => setSelectedTypes(toggleInSet(selectedTypes, t))}
+                />
               ))}
             </div>
           </div>
@@ -1376,7 +1335,13 @@ list = list.filter((u) => {
               {(ageMin !== 0 || ageMax !== 18) && (
                 <div className="age-meta">
                   {ageMin}–{ageMax}
-                  <button className="mini-clear" onClick={() => { setAgeMin(0); setAgeMax(18); }}>
+                  <button
+                    className="mini-clear"
+                    onClick={() => {
+                      setAgeMin(0);
+                      setAgeMax(18);
+                    }}
+                  >
                     Reset
                   </button>
                 </div>
@@ -1430,9 +1395,7 @@ list = list.filter((u) => {
                 <h3 className="gg-name" style={{ marginBottom: 6 }}>
                   No matching households
                 </h3>
-                <div style={{ color: "#4b5563", fontSize: 14 }}>
-                  Try adjusting filters or clearing search text.
-                </div>
+                <div style={{ color: "#4b5563", fontSize: 14 }}>Try adjusting filters or clearing search text.</div>
               </div>
               <div className="gg-actions" />
             </div>
@@ -1444,7 +1407,7 @@ list = list.filter((u) => {
               const initial = label.charAt(0).toUpperCase();
               const isFav = favs.has(u.id);
               const type = u.householdType ?? undefined;
-              const selected = isSelected(u.id);
+              const selected = selectedIds.has(u.id);
 
               const kids: Kid[] = Array.isArray(u.kids) ? (u.kids as Kid[]) : [];
               const kidsAtHome = kids.filter((k) => !k.awayAtCollege);
@@ -1452,6 +1415,9 @@ list = list.filter((u) => {
               const totalKids = kids.length;
               const kidsLabel = totalKids === 0 ? "None listed yet" : `${totalKids} kid${totalKids > 1 ? "s" : ""}`;
               const hasBabysitter = userHasBabysitter(u);
+
+              // ✅ display neighborhood label (code → friendly name)
+              const hoodText = u.neighborhood ? neighborhoodDisplay(u.neighborhood) : "";
 
               return (
                 <div
@@ -1472,11 +1438,7 @@ list = list.filter((u) => {
                     </motion.button>
                   </div>
 
-                  <div
-                    className="gg-avatar"
-                    aria-hidden
-                    onClick={() => setSelectedIds((prev) => toggleInSet(prev, u.id))}
-                  >
+                  <div className="gg-avatar" aria-hidden onClick={() => setSelectedIds((prev) => toggleInSet(prev, u.id))}>
                     {initial}
                   </div>
 
@@ -1488,7 +1450,7 @@ list = list.filter((u) => {
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       <h3 className="gg-name">{label}</h3>
-                      {u.neighborhood && <span className="gg-pill neighborhood">{u.neighborhood}</span>}
+                      {hoodText && <span className="gg-pill neighborhood">{hoodText}</span>}
                     </div>
 
                     {Array.isArray(u.adultNames) && u.adultNames.length > 0 && (
@@ -1534,7 +1496,11 @@ list = list.filter((u) => {
                                   }}
                                 >
                                   {age != null ? `${age} yr` : "?"}
-                                  {icon && <span aria-hidden style={{ marginLeft: 4 }}>{icon}</span>}
+                                  {icon && (
+                                    <span aria-hidden style={{ marginLeft: 4 }}>
+                                      {icon}
+                                    </span>
+                                  )}
                                 </span>
                               );
                             })}
@@ -1568,7 +1534,11 @@ list = list.filter((u) => {
                                         }}
                                       >
                                         {age != null ? `${age} yr` : "?"}
-                                        {icon && <span aria-hidden style={{ marginLeft: 4 }}>{icon}</span>}
+                                        {icon && (
+                                          <span aria-hidden style={{ marginLeft: 4 }}>
+                                            {icon}
+                                          </span>
+                                        )}
                                       </span>
                                     );
                                   })}
@@ -1600,7 +1570,11 @@ list = list.filter((u) => {
                                       }}
                                     >
                                       {age != null ? `${age} yr` : "?"}
-                                      {icon && <span aria-hidden style={{ marginLeft: 4 }}>{icon}</span>}
+                                      {icon && (
+                                        <span aria-hidden style={{ marginLeft: 4 }}>
+                                          {icon}
+                                        </span>
+                                      )}
                                     </span>
                                   );
                                 })}

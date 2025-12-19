@@ -7,23 +7,27 @@ import axios, { AxiosError } from "axios";
  * - Chrome and Safari will behave like two separate users.
  */
 function getDevUid(): string {
+  // SSR / non-window fallback
   if (typeof window === "undefined") {
-    return (import.meta.env.VITE_DEV_UID as string | undefined) || "demo-uid-123";
+    return (import.meta.env.VITE_DEV_UID as string | undefined) || "dev-ssr";
   }
 
-  const KEY = "gg_dev_uid_v1";
-  let uid = window.localStorage.getItem(KEY);
+  const KEY = "gg:uid"; // ✅ canonical per-browser identity key
+  try {
+    const existing = window.localStorage.getItem(KEY);
+    if (existing && existing.trim()) return existing.trim();
 
-  if (!uid) {
-    if ("crypto" in window && "randomUUID" in window.crypto) {
-      uid = window.crypto.randomUUID();
-    } else {
-      uid = "dev-" + Math.random().toString(16).slice(2);
-    }
+    const uid =
+      "crypto" in window && "randomUUID" in window.crypto
+        ? `dev-${window.crypto.randomUUID()}`
+        : `dev-${Math.random().toString(36).slice(2)}-${Date.now()}`;
+
     window.localStorage.setItem(KEY, uid);
+    return uid;
+  } catch {
+    // If storage is blocked, fall back to a non-persisted uid
+    return `dev-${Math.random().toString(36).slice(2)}-${Date.now()}`;
   }
-
-  return uid;
 }
 
 export const CURRENT_UID = getDevUid();
@@ -364,10 +368,18 @@ export async function fetchEventRsvps(eventId: string): Promise<EventRsvpBuckets
   try {
     const res = await api.get(`/events/${eventId}/rsvps`);
     const d = res.data || {};
+
+    // ✅ Tolerate backend naming differences
+    // Some backends use "declined" instead of "cant"
+    // Others might use yes/no/attending/interested
+    const going = d.going ?? d.yes ?? d.attending ?? [];
+    const maybe = d.maybe ?? d.interested ?? [];
+    const cant = d.cant ?? d.declined ?? d.no ?? [];
+
     return {
-      going: Array.isArray(d.going) ? d.going : [],
-      maybe: Array.isArray(d.maybe) ? d.maybe : [],
-      cant: Array.isArray(d.cant) ? d.cant : [],
+      going: Array.isArray(going) ? going : [],
+      maybe: Array.isArray(maybe) ? maybe : [],
+      cant: Array.isArray(cant) ? cant : [],
     };
   } catch (e) {
     throw unwrapAxiosError(e);

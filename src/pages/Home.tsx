@@ -1,8 +1,9 @@
 // src/pages/Home.tsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { getViewer } from "../lib/viewer";
+import { neighborhoodDisplayLabel } from "../lib/neighborhood";
 import { loadNeighbors } from "../lib/profile";
 import {
   fetchEvents,
@@ -281,12 +282,8 @@ function formatJoinedRelative(joinedAt?: number, nowMs?: number): string | null 
 
   if (diffDays === 0) return "Joined today";
   if (diffDays === 1) return "Joined yesterday";
-  if (diffDays < 7) {
-    return "Joined " + d.toLocaleDateString([], { weekday: "short" });
-  }
-  if (diffDays < 365) {
-    return "Joined " + d.toLocaleDateString([], { month: "short", day: "numeric" });
-  }
+  if (diffDays < 7) return "Joined " + d.toLocaleDateString([], { weekday: "short" });
+  if (diffDays < 365) return "Joined " + d.toLocaleDateString([], { month: "short", day: "numeric" });
   return "Joined " + d.toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" });
 }
 
@@ -324,7 +321,7 @@ function mapEventToPost(ev: GGEvent): Post {
   const ts = primaryIso && !Number.isNaN(Date.parse(primaryIso)) ? Date.parse(primaryIso) : Date.now();
 
   return {
-    // ✅ IMPORTANT: id is the canonicalEventId so RSVP calls are stable for future events
+    // ✅ IMPORTANT: id is the canonicalEventId so RSVP calls are stable
     id: canonicalEventId,
     eventId: canonicalEventId,
     rowId: rowId !== canonicalEventId ? rowId : undefined,
@@ -438,11 +435,36 @@ function getRsvpStateKey(post: Post): string {
   return post.eventId ?? post.id;
 }
 
+function isBackendRsvpEligible(post: Post): boolean {
+  const key = getRsvpStateKey(post);
+  // local-only posts should NOT call backend
+  if (!key) return false;
+  if (String(key).startsWith("local-")) return false;
+  return true;
+}
+
 function bucketsToCounts(buckets: any): EventRsvpCounts {
   const going = (buckets?.going ?? []) as any[];
   const maybe = (buckets?.maybe ?? []) as any[];
   const cant = (buckets?.cant ?? buckets?.declined ?? buckets?.["can't"] ?? []) as any[];
   return { going: going.length || 0, maybe: maybe.length || 0, cant: cant.length || 0 };
+}
+
+/* ---------- small concurrency helper ---------- */
+
+async function runWithLimit<T>(limit: number, tasks: (() => Promise<T>)[]): Promise<T[]> {
+  const results: T[] = [];
+  let idx = 0;
+
+  const workers = new Array(Math.min(limit, tasks.length)).fill(0).map(async () => {
+    while (idx < tasks.length) {
+      const my = idx++;
+      results[my] = await tasks[my]();
+    }
+  });
+
+  await Promise.all(workers);
+  return results;
 }
 
 /* ---------- Page ---------- */
@@ -484,9 +506,11 @@ export default function Home() {
   const [rsvpDetailBuckets, setRsvpDetailBuckets] = useState<EventRsvpBuckets | null>(null);
   const [rsvpDetailLoading, setRsvpDetailLoading] = useState(false);
   const [rsvpDetailError, setRsvpDetailError] = useState<string | null>(null);
-  const [rsvpDetailInline, setRsvpDetailInline] = useState<EventRsvpState | null>(null);
 
-  const refreshHomeEvents = async () => {
+  // prevent stale RSVP hydration overwriting newer local state
+  const rsvpHydrateEpoch = useRef(0);
+
+  const refreshHomeEvents = async (): Promise<Post[]> => {
     const events = await fetchEvents();
 
     // ✅ hide canceled events if backend returns them
@@ -504,7 +528,49 @@ export default function Home() {
     for (const p of backendPosts) merged.set(p.id, p);
     for (const p of localPosts) merged.set(p.id, p);
 
-    setPosts(Array.from(merged.values()));
+    const mergedArr = Array.from(merged.values());
+    setPosts(mergedArr);
+    return mergedArr;
+  };
+
+  const hydrateRsvpCountsFromBackend = async (postsToHydrate: Post[]) => {
+    const epoch = ++rsvpHydrateEpoch.current;
+
+    const candidates = postsToHydrate
+      .filter((p) => isBackendRsvpEligible(p))
+      .map((p) => getRsvpStateKey(p))
+      .filter(Boolean);
+
+    // de-dupe keys
+    const unique = Array.from(new Set(candidates));
+
+    // don’t spam backend for tons of events
+    const keys = unique.slice(0, 20);
+
+    const tasks = keys.map((key) => async () => {
+      try {
+        const buckets = await getEventRsvps(key);
+        return { key, counts: bucketsToCounts(buckets as any) };
+      } catch {
+        return { key, counts: null as EventRsvpCounts | null };
+      }
+    });
+
+    const results = await runWithLimit(6, tasks);
+
+    // if a newer hydration started, drop this one
+    if (epoch !== rsvpHydrateEpoch.current) return;
+
+    setEventRsvps((prev) => {
+      const next: EventRsvpMap = { ...prev };
+      for (const r of results) {
+        if (!r.counts) continue;
+        const prior = next[r.key] ?? { choice: null, counts: { going: 0, maybe: 0, cant: 0 } };
+        next[r.key] = { ...prior, counts: r.counts };
+      }
+      saveRsvps(next);
+      return next;
+    });
   };
 
   const replyCounts = useMemo(() => {
@@ -515,13 +581,11 @@ export default function Home() {
     return map;
   }, [replies]);
 
-  const activeReplies = useMemo(
-    () =>
-      activeHappening
-        ? replies.filter((r) => r.postId === activeHappening.id).sort((a, b) => a.ts - b.ts)
-        : [],
-    [activeHappening, replies]
-  );
+  const activeReplies = useMemo(() => {
+    return activeHappening
+      ? replies.filter((r) => r.postId === activeHappening.id).sort((a, b) => a.ts - b.ts)
+      : [];
+  }, [activeHappening, replies]);
 
   const openReplies = (post: Post) => {
     setActiveHappening(post);
@@ -572,17 +636,16 @@ export default function Home() {
     setRsvpDetailEvent(post);
     setRsvpDetailBuckets(null);
     setRsvpDetailError(null);
+    setRsvpDetailLoading(true);
 
     const key = getRsvpStateKey(post);
-    setRsvpDetailInline(eventRsvps[key] ?? null);
 
-    // ✅ Happening Now RSVPs are LOCAL ONLY (no backend calls)
-    if (post.kind === "happening") {
+    // local-only events: just show local counts and empty buckets
+    if (!isBackendRsvpEligible(post)) {
+      setRsvpDetailBuckets({ going: [], maybe: [], cant: [] } as any);
       setRsvpDetailLoading(false);
       return;
     }
-
-    setRsvpDetailLoading(true);
 
     void (async () => {
       try {
@@ -612,16 +675,19 @@ export default function Home() {
     setRsvpDetailBuckets(null);
     setRsvpDetailError(null);
     setRsvpDetailLoading(false);
-    setRsvpDetailInline(null);
   };
 
   useEffect(() => {
     void (async () => {
       try {
-        await refreshHomeEvents();
         const existing = loadRsvps();
         setEventRsvps(existing);
         saveRsvps(existing);
+
+        const mergedArr = await refreshHomeEvents();
+
+        // ✅ hydrate counts from backend truth (so chrome/safari match)
+        void hydrateRsvpCountsFromBackend(mergedArr);
       } catch (err) {
         console.error("Failed to fetch events for Home", err);
         setPosts(loadLocalPosts());
@@ -808,8 +874,8 @@ export default function Home() {
     setEventRsvps(nextMap);
     saveRsvps(nextMap);
 
-    // ✅ Happening Now: local only (no backend call)
-    if (post.kind === "happening") return;
+    // local-only posts: no backend calls
+    if (!isBackendRsvpEligible(post)) return;
 
     void (async () => {
       try {
@@ -1293,7 +1359,7 @@ export default function Home() {
 
             {recentNeighbors.slice(0, 5).map((n) => {
               const joinedLabel = formatJoinedRelative(n.joinedAt, now);
-              const neighborhoodLabel = n.neighborhood || "New household";
+              const neighborhoodLabel = neighborhoodDisplayLabel(n.neighborhood) || "New household";
               const metaLabel = joinedLabel ? `${neighborhoodLabel} · ${joinedLabel}` : neighborhoodLabel;
 
               const isNew = typeof n.joinedAt === "number" && now - n.joinedAt >= 0 && now - n.joinedAt <= 7 * DAY_MS;
@@ -1517,9 +1583,7 @@ export default function Home() {
               ))}
             </div>
 
-            {filteredUpcomingEvents.length === 0 && (
-              <div className="empty">No {currentFilterLabel} that include you yet.</div>
-            )}
+            {filteredUpcomingEvents.length === 0 && <div className="empty">No {currentFilterLabel} that include you yet.</div>}
 
             {filteredUpcomingEvents.map((p) => {
               const keyId = getRsvpStateKey(p);
@@ -1608,7 +1672,6 @@ export default function Home() {
         buckets={rsvpDetailBuckets}
         loading={rsvpDetailLoading}
         error={rsvpDetailError}
-        inlineRsvp={rsvpDetailInline}
         onClose={closeRsvpDetails}
       />
 
@@ -1636,44 +1699,20 @@ type RsvpDetailsSheetProps = {
   buckets: EventRsvpBuckets | null;
   loading: boolean;
   error: string | null;
-  inlineRsvp: EventRsvpState | null;
   onClose: () => void;
 };
 
-function RsvpDetailsSheet({ open, post, buckets, loading, error, inlineRsvp, onClose }: RsvpDetailsSheetProps) {
+function RsvpDetailsSheet({ open, post, buckets, loading, error, onClose }: RsvpDetailsSheetProps) {
   if (!open || !post) return null;
 
   // ✅ tolerate different backend naming: cant vs declined
   const anyBuckets = buckets as any;
-  let going = (anyBuckets?.going ?? []) as any[];
-  let maybe = (anyBuckets?.maybe ?? []) as any[];
-  let cant = (anyBuckets?.cant ?? anyBuckets?.declined ?? anyBuckets?.["can't"] ?? []) as any[];
+  const going = (anyBuckets?.going ?? []) as any[];
+  const maybe = (anyBuckets?.maybe ?? []) as any[];
+  const cant = (anyBuckets?.cant ?? anyBuckets?.declined ?? anyBuckets?.["can't"] ?? []) as any[];
 
-  // For Happening Now, backend buckets are usually empty because we’re local-only
-  // We'll compute "responded" from local inline counts.
-  const inlineCounts = inlineRsvp?.counts ?? { going: 0, maybe: 0, cant: 0 };
-  const inlineResponded = inlineCounts.going + inlineCounts.maybe + inlineCounts.cant;
-
-  let total = (going?.length || 0) + (maybe?.length || 0) + (cant?.length || 0);
-
-  // If backend returns no households but local RSVP state exists, show "Your household"
-  if (total === 0 && inlineResponded > 0) {
-    const selfRow: any = {
-      uid: "self",
-      householdId: "self",
-      lastName: "Your household",
-      neighborhood: null,
-      householdType: null,
-      childAges: [] as number[],
-      childSexes: [] as (string | null)[],
-    };
-
-    if (inlineCounts.going > 0) going = [selfRow];
-    if (inlineCounts.maybe > 0) maybe = [selfRow];
-    if (inlineCounts.cant > 0) cant = [selfRow];
-
-    total = (going?.length || 0) + (maybe?.length || 0) + (cant?.length || 0);
-  }
+  // ✅ total from backend buckets only (no fake local "selfRow" injection)
+  const total = going.length + maybe.length + cant.length;
 
   const subtitle =
     post.kind === "event" ? (post.when ? new Date(post.when).toLocaleString() : "Time TBA") : "Happening now";
@@ -1727,12 +1766,6 @@ function RsvpDetailsSheet({ open, post, buckets, loading, error, inlineRsvp, onC
           </div>
           {post.title && <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0f172a" }}>{post.title}</h3>}
           <div style={{ fontSize: 13, color: "#4b5563", marginTop: 4 }}>{subtitle}</div>
-
-          {post.kind === "happening" && (
-            <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
-              Local RSVP preview (Happening Now RSVPs aren’t synced across browsers yet).
-            </div>
-          )}
 
           <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
             {total > 0 ? `${total} household${total === 1 ? "" : "s"} responded` : "No RSVPs yet."}
@@ -1823,7 +1856,11 @@ function RsvpBucketSection({ label, emoji, items }: RsvpBucketSectionProps) {
         {items.map((h) => {
           const lastName = (h as any).lastName ?? (h as any).last_name ?? "Household";
           const householdType = (h as any).householdType ?? (h as any).household_type ?? null;
-          const neighborhood = (h as any).neighborhood ?? null;
+
+          const rawNeighborhood =
+            (h as any).neighborhood ?? (h as any).neighborhood_name ?? (h as any).neighborhoodLabel ?? null;
+
+          const neighborhood = neighborhoodDisplayLabel(rawNeighborhood);
 
           const childAges = (h as any).childAges ?? (h as any).child_ages ?? [];
           const childSexes = (h as any).childSexes ?? (h as any).child_sexes ?? [];

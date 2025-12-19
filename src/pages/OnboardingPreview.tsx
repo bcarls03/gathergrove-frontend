@@ -5,24 +5,8 @@ import { OnboardingLayout } from "../components/OnboardingLayout";
 import { getOnboardingState } from "../lib/onboarding";
 import { upsertUser, upsertMyHousehold } from "../lib/api";
 
-/* ---------- Neighborhood lookup (same codes as Access step) ---------- */
-
-type NeighborhoodInfo = { label: string };
-
-const NEIGHBORHOOD_CODES: Record<string, NeighborhoodInfo> = {
-  "BH26-GK4": { label: "Bayhill at the Oasis" },
-  "EP26-QM7": { label: "Eagles Pointe" },
-};
-
-function normalizeNeighborhoodCode(code?: string | null) {
-  return (code || "").toString().trim().toUpperCase().replace(/\s+/g, "");
-}
-
-function neighborhoodLabelFromCode(code?: string | null) {
-  const c = normalizeNeighborhoodCode(code);
-  if (!c) return "Your neighborhood";
-  return NEIGHBORHOOD_CODES[c]?.label ?? c; // fall back to showing the code
-}
+// ✅ Canonical neighborhood helpers (single source of truth)
+import { normalizeNeighborhoodCode, neighborhoodLabelFromCode } from "../lib/neighborhood";
 
 // --- helpers copied from People.tsx so chips look identical ---
 type Kid = {
@@ -40,8 +24,7 @@ function ageFromMY(m?: number | null, y?: number | null): number | null {
   const d = new Date(y, month - 1, 15);
   let a = now.getFullYear() - d.getFullYear();
   const hadBday =
-    now.getMonth() > d.getMonth() ||
-    (now.getMonth() === d.getMonth() && now.getDate() >= d.getDate());
+    now.getMonth() > d.getMonth() || (now.getMonth() === d.getMonth() && now.getDate() >= d.getDate());
   if (!hadBday) a -= 1;
   return a < 0 ? 0 : a;
 }
@@ -91,15 +74,17 @@ function OnboardingPreviewInner() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // ✅ canonical neighborhood code (stored)
   const neighborhoodCode = useMemo(
     () => normalizeNeighborhoodCode(state.neighborhoodCode ?? null),
     [state.neighborhoodCode]
   );
 
-  const neighborhoodLabel = useMemo(
-    () => neighborhoodLabelFromCode(state.neighborhoodCode ?? null),
-    [state.neighborhoodCode]
-  );
+  // ✅ full label (displayed)
+  const neighborhoodLabel = useMemo(() => {
+    const label = neighborhoodLabelFromCode(state.neighborhoodCode ?? null);
+    return label || "Your neighborhood";
+  }, [state.neighborhoodCode]);
 
   // If we somehow got here without basic info, send them back
   useEffect(() => {
@@ -180,7 +165,7 @@ function OnboardingPreviewInner() {
         adultNames,
         householdType: householdType || undefined,
         kids: normalizedKids,
-        // ✅ canonical field to store
+        // ✅ canonical: store the CODE (BH26-GK4 / EP26-QM7)
         neighborhood: neighborhoodCode || undefined,
       });
 
@@ -289,9 +274,7 @@ function OnboardingPreviewInner() {
         }
       `}</style>
 
-      <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
-        Household Preview
-      </h1>
+      <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Household Preview</h1>
       <p style={{ fontSize: 14, color: "#4b5563", marginBottom: 16 }}>
         This is how your household will appear to others in GatherGrove.
       </p>
@@ -324,7 +307,14 @@ function OnboardingPreviewInner() {
 
           {isFamily && (
             <>
-              <div style={{ fontSize: 13, color: "#374151", marginTop: adultsLabel ? 6 : 2, marginBottom: kidsAtHome.length || kidsAway.length ? 4 : 8 }}>
+              <div
+                style={{
+                  fontSize: 13,
+                  color: "#374151",
+                  marginTop: adultsLabel ? 6 : 2,
+                  marginBottom: kidsAtHome.length || kidsAway.length ? 4 : 8,
+                }}
+              >
                 <span style={{ fontWeight: 600 }}>Children:&nbsp;</span>
                 {kidsLabel}
               </div>
@@ -461,7 +451,13 @@ function OnboardingPreviewInner() {
           <div className="gg-star" aria-hidden>
             ★
           </div>
-          <button type="button" className="gg-btn" style={{ cursor: "default", pointerEvents: "none" }} aria-hidden="true" tabIndex={-1}>
+          <button
+            type="button"
+            className="gg-btn"
+            style={{ cursor: "default", pointerEvents: "none" }}
+            aria-hidden="true"
+            tabIndex={-1}
+          >
             <span role="img" aria-label="message">
               💬
             </span>

@@ -3,18 +3,11 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { OnboardingLayout } from "../components/OnboardingLayout";
 import { getOnboardingState, setOnboardingState } from "../lib/onboarding";
-
-/* -------- Neighborhood codes -------- */
-
-type NeighborhoodInfo = {
-  id: string; // internal id if you ever want it later
-  label: string; // human label
-};
-
-const NEIGHBORHOOD_CODES: Record<string, NeighborhoodInfo> = {
-  "BH26-GK4": { id: "bayhill", label: "Bayhill at the Oasis" },
-  "EP26-QM7": { id: "eagles-pointe", label: "Eagles Pointe" },
-};
+import {
+  NEIGHBORHOOD_CODES,
+  normalizeNeighborhoodCode,
+  neighborhoodLabelFromCode,
+} from "../lib/neighborhood";
 
 const NEIGHBORHOOD_PLACEHOLDER = "Enter your neighborhood code…";
 
@@ -84,12 +77,6 @@ const successTitleStyle: React.CSSProperties = {
   fontWeight: 600,
 };
 
-/* -------- Helpers -------- */
-
-function normalizeCode(input: string) {
-  return input.toUpperCase().replace(/\s+/g, "").trim();
-}
-
 /* -------- Component -------- */
 
 export default function OnboardingAccess() {
@@ -104,7 +91,9 @@ export default function OnboardingAccess() {
   const [validated, setValidated] = useState(false);
   const [hasValidatedSuccess, setHasValidatedSuccess] = useState(false);
 
-  const normalized = normalizeCode(neighborhoodCode);
+  const normalized = normalizeNeighborhoodCode(neighborhoodCode);
+
+  // ✅ single source of truth: mapping + label resolver from lib/neighborhood
   const match = NEIGHBORHOOD_CODES[normalized] ?? null;
   const isValidCode = !!match;
 
@@ -112,7 +101,8 @@ export default function OnboardingAccess() {
   const canContinue = normalized.length > 0;
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const value = normalizeCode(e.target.value);
+    // keep hyphens; strip spaces; uppercase
+    const value = normalizeNeighborhoodCode(e.target.value);
     setNeighborhoodCode(value);
     setValidated(false);
     setHasValidatedSuccess(false);
@@ -127,8 +117,7 @@ export default function OnboardingAccess() {
     setTouched(true);
     setValidated(true);
 
-    const code = normalizeCode(neighborhoodCode);
-    const currentMatch = NEIGHBORHOOD_CODES[code] ?? null;
+    const code = normalizeNeighborhoodCode(neighborhoodCode);
 
     // Empty → show required error
     if (code.length === 0) {
@@ -137,7 +126,7 @@ export default function OnboardingAccess() {
     }
 
     // Invalid → show error
-    if (!currentMatch) {
+    if (!NEIGHBORHOOD_CODES[code]) {
       setHasValidatedSuccess(false);
       return;
     }
@@ -161,7 +150,10 @@ export default function OnboardingAccess() {
 
   const showRequiredError = validated && normalized.length === 0;
   const showCodeError = validated && normalized.length > 0 && !isValidCode;
-  const showSuccess = validated && isValidCode && !!match;
+
+  // Show the success box only after validate
+  const displayLabel = neighborhoodLabelFromCode(normalized) || "";
+  const showSuccess = validated && isValidCode && !!displayLabel;
 
   return (
     <OnboardingLayout currentStep="access">
@@ -198,7 +190,7 @@ export default function OnboardingAccess() {
             style={{
               ...inputStyle,
               borderColor:
-                (touched && (showRequiredError || showCodeError)) ? "#f97373" : "#d1d5db",
+                touched && (showRequiredError || showCodeError) ? "#f97373" : "#d1d5db",
             }}
           />
 
@@ -210,19 +202,18 @@ export default function OnboardingAccess() {
 
           {showCodeError && (
             <div style={{ ...helperStyle, color: "#b91c1c", marginTop: 6 }}>
-              That code doesn’t match any neighborhood. Double-check the code or
-              reach out to the person who shared it with you.
+              That code doesn’t match any neighborhood. Double-check the code or reach out to
+              the person who shared it with you.
             </div>
           )}
 
-          {showSuccess && match && (
+          {showSuccess && (
             <div style={successBoxStyle}>
               <span aria-hidden="true">🌿</span>
               <div>
-                <div style={successTitleStyle}>Welcome to {match.label}!</div>
+                <div style={successTitleStyle}>Welcome to {displayLabel}!</div>
                 <div>
-                  You’re joining the <strong>{match.label}</strong> neighborhood
-                  community.
+                  You’re joining the <strong>{displayLabel}</strong> neighborhood community.
                 </div>
               </div>
             </div>
@@ -231,8 +222,8 @@ export default function OnboardingAccess() {
           <p style={helperStyle}>
             <span aria-hidden="true">🔒</span>
             <span>
-              Private and secure. Only households in your neighborhood can join
-              with this code. No addresses or child names are ever shown.
+              Private and secure. Only households in your neighborhood can join with this
+              code. No addresses or child names are ever shown.
             </span>
           </p>
 
