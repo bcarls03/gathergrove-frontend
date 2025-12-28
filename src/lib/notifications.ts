@@ -13,7 +13,7 @@ let hasInitialized = false;
 /**
  * Call this once (e.g., in App.tsx) after the user is onboarded/logged in.
  * - Web: no-op
- * - iOS/Android: requests permission, registers, and (optionally) sends token to backend
+ * - iOS/Android: requests permission, registers, and sends token to backend (if VITE_API_BASE_URL is set)
  */
 export async function initPushNotifications() {
   if (hasInitialized) return;
@@ -84,8 +84,8 @@ export async function initPushNotifications() {
  * Sends the device token to backend (optional).
  * If you don't have the endpoint yet, it safely no-ops.
  *
- * Backend endpoint suggestion:
- *   POST {VITE_API_BASE}/push/register
+ * Backend endpoint:
+ *   POST {VITE_API_BASE_URL}/push/register
  * body: { uid, token, platform }
  */
 async function sendPushTokenToBackend(token: string): Promise<void> {
@@ -94,13 +94,15 @@ async function sendPushTokenToBackend(token: string): Promise<void> {
     return;
   }
 
-  // If you don't have a backend push endpoint yet, just skip.
-  // Set VITE_API_BASE in .env when ready, e.g. VITE_API_BASE=http://127.0.0.1:8000
+  // Align with src/lib/api.ts (VITE_API_BASE_URL)
+  // Set in .env when ready, e.g. VITE_API_BASE_URL=http://127.0.0.1:8000
   const base =
-    (import.meta as any)?.env?.VITE_API_BASE?.toString()?.trim() || "";
+    (import.meta as any)?.env?.VITE_API_BASE_URL?.toString()?.trim() || "";
 
   if (!base) {
-    console.log("[push] No VITE_API_BASE set — skipping backend token registration");
+    console.log(
+      "[push] No VITE_API_BASE_URL set — skipping backend token registration"
+    );
     return;
   }
 

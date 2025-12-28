@@ -22,7 +22,9 @@ const cardStyle: React.CSSProperties = {
   marginTop: 16,
   padding: 24,
   borderRadius: 24,
-  border: "1px solid #e5e7eb",
+  borderWidth: 1,
+  borderStyle: "solid",
+  borderColor: "#e5e7eb",
   background: "#ffffff",
 };
 
@@ -38,7 +40,9 @@ const inputStyle: React.CSSProperties = {
   width: "100%",
   padding: "11px 14px",
   borderRadius: 12,
-  border: "1px solid #d1d5db",
+  borderWidth: 1,
+  borderStyle: "solid",
+  borderColor: "#d1d5db",
   fontSize: 14,
   outline: "none",
   boxSizing: "border-box",
@@ -175,11 +179,15 @@ function buildChildPreview(kid: KidForm): string {
 }
 
 // Base select style for kid fields (we'll layer guidance/error styles on top)
+// IMPORTANT: don't use `border: "..."` shorthand if we also set `borderColor` later.
+// Use borderWidth/borderStyle/borderColor to avoid the React warning.
 const kidSelectBaseStyle: React.CSSProperties = {
   width: "100%",
   padding: "10px 12px",
   borderRadius: 10,
-  border: "1px solid #d1d5db",
+  borderWidth: 1,
+  borderStyle: "solid",
+  borderColor: "#d1d5db",
   fontSize: 13,
   boxSizing: "border-box",
   background: "#ffffff",
@@ -342,10 +350,7 @@ export default function OnboardingHousehold() {
               onBlur={() => setTouched(true)}
               style={{
                 ...inputStyle,
-                borderColor:
-                  !lastNameValid && touched
-                    ? "#f97373"
-                    : (inputStyle as any).borderColor,
+                borderColor: !lastNameValid && touched ? "#f97373" : inputStyle.borderColor,
               }}
             />
           </div>
@@ -406,13 +411,7 @@ export default function OnboardingHousehold() {
                     }}
                     {...chipMotionProps}
                   >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 12,
-                      }}
-                    >
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                       <div
                         style={{
                           width: 32,
@@ -427,22 +426,10 @@ export default function OnboardingHousehold() {
                         <Icon size={18} />
                       </div>
                       <div>
-                        <div
-                          style={{
-                            fontSize: 14,
-                            fontWeight: 600,
-                            color: "#111827",
-                          }}
-                        >
+                        <div style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>
                           {opt.title}
                         </div>
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: "#6b7280",
-                            marginTop: 2,
-                          }}
-                        >
+                        <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
                           {opt.subtitle}
                         </div>
                       </div>
@@ -473,13 +460,10 @@ export default function OnboardingHousehold() {
 
                 // Guidance states for this child
                 const hasAnyField =
-                  kid.birthMonth !== "" ||
-                  kid.birthYear !== "" ||
-                  kid.gender !== "";
+                  kid.birthMonth !== "" || kid.birthYear !== "" || kid.gender !== "";
                 const needsMonth = !kid.birthMonth && hasAnyField;
                 const needsYear = !!kid.birthMonth && !kid.birthYear;
-                const needsGender =
-                  !!kid.birthMonth && !!kid.birthYear && !kid.gender;
+                const needsGender = !!kid.birthMonth && !!kid.birthYear && !kid.gender;
 
                 const showFieldError = touched && !kidsValid;
 
@@ -567,9 +551,7 @@ export default function OnboardingHousehold() {
                     >
                       <select
                         value={kid.birthMonth}
-                        onChange={(e) =>
-                          updateKid(kid.id, "birthMonth", e.target.value)
-                        }
+                        onChange={(e) => updateKid(kid.id, "birthMonth", e.target.value)}
                         style={monthStyle}
                       >
                         <option value="">Month</option>
@@ -582,9 +564,7 @@ export default function OnboardingHousehold() {
 
                       <select
                         value={kid.birthYear}
-                        onChange={(e) =>
-                          updateKid(kid.id, "birthYear", e.target.value)
-                        }
+                        onChange={(e) => updateKid(kid.id, "birthYear", e.target.value)}
                         style={yearStyle}
                       >
                         <option value="">Year</option>
@@ -597,28 +577,18 @@ export default function OnboardingHousehold() {
 
                       <select
                         value={kid.gender}
-                        onChange={(e) =>
-                          updateKid(kid.id, "gender", e.target.value)
-                        }
+                        onChange={(e) => updateKid(kid.id, "gender", e.target.value)}
                         style={genderStyle}
                       >
                         <option value="">Gender</option>
                         <option value="Male">Male</option>
                         <option value="Female">Female</option>
-                        <option value="Prefer not to say">
-                          Prefer not to say
-                        </option>
+                        <option value="Prefer not to say">Prefer not to say</option>
                       </select>
                     </div>
 
                     {preview && (
-                      <div
-                        style={{
-                          marginTop: 6,
-                          fontSize: 11,
-                          color: "#6b7280",
-                        }}
-                      >
+                      <div style={{ marginTop: 6, fontSize: 11, color: "#6b7280" }}>
                         Preview: {preview}
                       </div>
                     )}
@@ -639,26 +609,14 @@ export default function OnboardingHousehold() {
                             type="checkbox"
                             checked={kid.awayAtCollege}
                             onChange={(e) =>
-                              updateKid(
-                                kid.id,
-                                "awayAtCollege",
-                                e.target.checked
-                              )
+                              updateKid(kid.id, "awayAtCollege", e.target.checked)
                             }
                           />
-                          <span>
-                            Lives away from home (college, work, etc.)
-                          </span>
+                          <span>Lives away from home (college, work, etc.)</span>
                         </label>
-                        <div
-                          style={{
-                            marginTop: 2,
-                            fontSize: 11,
-                            color: "#6b7280",
-                          }}
-                        >
-                          Use this if they&apos;re usually away for school or
-                          work, not just visiting.
+                        <div style={{ marginTop: 2, fontSize: 11, color: "#6b7280" }}>
+                          Use this if they&apos;re usually away for school or work, not
+                          just visiting.
                         </div>
                       </>
                     )}
@@ -677,13 +635,9 @@ export default function OnboardingHousehold() {
                         <input
                           type="checkbox"
                           checked={kid.canBabysit}
-                          onChange={(e) =>
-                            updateKid(kid.id, "canBabysit", e.target.checked)
-                          }
+                          onChange={(e) => updateKid(kid.id, "canBabysit", e.target.checked)}
                         />
-                        <span>
-                          Can help with babysitting / parent helper
-                        </span>
+                        <span>Can help with babysitting / parent helper</span>
                       </label>
                     )}
                   </div>
@@ -710,23 +664,17 @@ export default function OnboardingHousehold() {
               </button>
 
               {!kidsValid && touched && (
-                <div
-                  style={{
-                    ...helperStyle,
-                    color: "#b91c1c",
-                    marginTop: 6,
-                  }}
-                >
-                  Please add at least one child and make sure each listed child
-                  has a month, year, and gender — or leave the extra rows blank.
+                <div style={{ ...helperStyle, color: "#b91c1c", marginTop: 6 }}>
+                  Please add at least one child and make sure each listed child has
+                  a month, year, and gender — or leave the extra rows blank.
                 </div>
               )}
             </div>
           )}
 
           <p style={{ ...helperStyle, marginTop: 16 }}>
-            Neighbors will only see adult first names and child ages/gender —
-            never birthdays or full personal details.
+            Neighbors will only see adult first names and child ages/gender — never
+            birthdays or full personal details.
           </p>
 
           <button

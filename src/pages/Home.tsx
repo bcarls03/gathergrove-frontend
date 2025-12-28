@@ -98,6 +98,9 @@ type HomeCollapseState = {
   events: boolean;
   newNeighbors?: boolean;
   activity?: boolean;
+  // ✅ new keys (we keep old ones too for backward compatibility)
+  invited?: boolean;
+  hosted?: boolean;
 };
 
 const HIDE_WELCOME_KEY = "gg:homeHideWelcome";
@@ -380,10 +383,10 @@ function pickPreferredEvent(a: Post, b: Post, viewerId: string | null): Post {
 /* ---------- Small animation helpers ---------- */
 
 const cardMotionProps = {
-  initial: { opacity: 0, y: 8, scale: 0.98 },
+  initial: { opacity: 0, y: 8, scale: 0.985 },
   animate: { opacity: 1, y: 0, scale: 1 },
-  transition: { duration: 0.2, ease: "easeOut" as const },
-  whileTap: { scale: 0.97 },
+  transition: { duration: 0.18, ease: "easeOut" as const },
+  whileTap: { scale: 0.985 },
 };
 
 const rsvpMotionProps = {
@@ -392,8 +395,8 @@ const rsvpMotionProps = {
 };
 
 const chipMotionProps = {
-  whileTap: { scale: 0.95 },
-  whileHover: { scale: 1.03 },
+  whileTap: { scale: 0.96 },
+  whileHover: { scale: 1.02 },
   transition: { duration: 0.12, ease: "easeOut" as const },
 };
 
@@ -488,12 +491,11 @@ export default function Home() {
   const [eventRsvps, setEventRsvps] = useState<EventRsvpMap>({});
   const [now, setNow] = useState(() => Date.now());
 
-  // ✅ default open
-  const [showActivity, setShowActivity] = useState(true);
-  const [showNewNeighbors, setShowNewNeighbors] = useState(true);
+  // ✅ new section collapse states (default open)
+  const [showInvited, setShowInvited] = useState(true);
+  const [showHosted, setShowHosted] = useState(true);
   const [showDM, setShowDM] = useState(true);
-  const [showHappening, setShowHappening] = useState(true);
-  const [showEvents, setShowEvents] = useState(true);
+  const [showNewNeighbors, setShowNewNeighbors] = useState(true);
 
   const [eventCategoryFilter, setEventCategoryFilter] = useState<EventFilter>("all");
 
@@ -712,11 +714,13 @@ export default function Home() {
 
     const stored = loadCollapse();
     if (stored) {
+      const invitedFallback = (stored.happening ?? true) || (stored.events ?? true);
+      const hostedFallback = stored.activity ?? true;
+
+      setShowInvited(stored.invited ?? invitedFallback ?? true);
+      setShowHosted(stored.hosted ?? hostedFallback ?? true);
       setShowDM(stored.dm ?? true);
-      setShowHappening(stored.happening ?? true);
-      setShowEvents(stored.events ?? true);
       setShowNewNeighbors(stored.newNeighbors ?? true);
-      setShowActivity(stored.activity ?? true);
     }
 
     const id = window.setInterval(() => setNow(Date.now()), 60_000);
@@ -724,14 +728,17 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    // ✅ Persist both old + new keys (safe migration)
     saveCollapse({
       dm: showDM,
-      happening: showHappening,
-      events: showEvents,
+      happening: showInvited, // legacy mapping
+      events: showInvited, // legacy mapping
       newNeighbors: showNewNeighbors,
-      activity: showActivity,
+      activity: showHosted, // legacy mapping
+      invited: showInvited,
+      hosted: showHosted,
     });
-  }, [showDM, showHappening, showEvents, showNewNeighbors, showActivity]);
+  }, [showDM, showInvited, showHosted, showNewNeighbors]);
 
   const { happeningNow, upcomingEvents } = useMemo(() => {
     const relevant = posts.filter((p) => isPostRelevantToViewer(p, viewer));
@@ -795,7 +802,7 @@ export default function Home() {
     return upcomingEvents.filter((p) => p.category === eventCategoryFilter);
   }, [upcomingEvents, eventCategoryFilter]);
 
-  // ✅ one canonical "is host" helper used for hiding hosted items in lower sections
+  // ✅ one canonical "is host" helper
   const isHostPost = (p: Post) => {
     const viewerLabel = viewer?.label ?? viewer?.name ?? viewer?.lastName ?? viewer?.email ?? null;
 
@@ -809,36 +816,22 @@ export default function Home() {
     return false;
   };
 
-  // ✅ These are ONLY for the lower "Happening Now" + "Future Events" sections
-  //    (so hosted items show in Your Activity but don’t duplicate below)
-  const displayHappeningNow = useMemo(() => {
-    return happeningNow.filter((p) => !isHostPost(p));
-  }, [happeningNow, viewerId, viewer]);
+  // ✅ Invited events (exclude hosted)
+  const invitedHappeningNow = useMemo(() => happeningNow.filter((p) => !isHostPost(p)), [happeningNow, viewerId, viewer]);
 
-  const displayUpcomingEvents = useMemo(() => {
-    return filteredUpcomingEvents.filter((p) => !isHostPost(p));
-  }, [filteredUpcomingEvents, viewerId, viewer]);
+  const invitedFutureEvents = useMemo(
+    () => filteredUpcomingEvents.filter((p) => !isHostPost(p)),
+    [filteredUpcomingEvents, viewerId, viewer],
+  );
 
+  // ✅ Hosted events (only host)
   const { myHappeningNow, myFutureEvents } = useMemo(() => {
     if (!viewer || !viewerId) {
       return { myHappeningNow: [] as Post[], myFutureEvents: [] as Post[] };
     }
-
-    const viewerLabel = viewer.label ?? viewer.name ?? viewer.lastName ?? viewer.email ?? null;
-
-    const isHost = (p: Post) => {
-      const hostUid = p._hostUid;
-      if (hostUid && viewerId && hostUid === viewerId) return true;
-
-      if (!p.createdBy) return false;
-      if (p.createdBy.id && p.createdBy.id === viewerId) return true;
-      if (viewerLabel && p.createdBy.label === viewerLabel) return true;
-      return false;
-    };
-
     return {
-      myHappeningNow: happeningNow.filter(isHost),
-      myFutureEvents: upcomingEvents.filter(isHost),
+      myHappeningNow: happeningNow.filter(isHostPost),
+      myFutureEvents: upcomingEvents.filter(isHostPost),
     };
   }, [happeningNow, upcomingEvents, viewer, viewerId]);
 
@@ -863,13 +856,10 @@ export default function Home() {
       .sort((a, b) => b.joinedAt! - a.joinedAt!);
   }, [newNeighbors, now]);
 
-  const activityCount = myHappeningNow.length + myFutureEvents.length;
-  const newNeighborCount = recentNeighbors.length;
+  const invitedCount = invitedHappeningNow.length + invitedFutureEvents.length;
+  const hostedCount = myHappeningNow.length + myFutureEvents.length;
   const dmCount = sortedThreads.length;
-
-  // ✅ counts for the lower sections (exclude hosted so they don’t duplicate)
-  const happeningCount = displayHappeningNow.length;
-  const futureEventsCount = displayUpcomingEvents.length;
+  const newNeighborCount = recentNeighbors.length;
 
   const hasMessages = dmCount > 0;
 
@@ -947,143 +937,280 @@ export default function Home() {
     return `${responded} household${responded === 1 ? "" : "s"} responded`;
   };
 
+  // ✅ 10/10 polish helpers (microcopy + hierarchy)
+  const isTruthy = (v: any) => !!v && String(v).trim().length > 0;
+
+  const getHappeningPrimaryTitle = (p: Post) => {
+    // Prefer a real title if present, else fall back to the detail (truncated)
+    if (isTruthy(p.title)) return String(p.title).trim();
+    return truncate(p.details || "Happening Now", 72);
+  };
+
+  const getHappeningSubtitle = (p: Post) => {
+    // Show a short timestamp line, optionally “from X”
+    const from = p.createdBy?.label ? ` · from ${p.createdBy.label}` : "";
+    return `${formatTimeShort(p.ts)}${from}`;
+  };
+
+  const getHappeningBody = (p: Post) => {
+    // If title is missing, don’t duplicate body with same content
+    if (!isTruthy(p.title)) return "";
+    return p.details || "";
+  };
+
   return (
     <div className="gg-page" style={{ padding: 16, maxWidth: 760, margin: "0 auto" }}>
       <style>{`
         @keyframes gg-page-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-        .gg-page { animation: gg-page-in .32s ease-out; }
+        .gg-page { animation: gg-page-in .28s ease-out; }
 
-        .home-title { font-size: 30px; font-weight: 800; letter-spacing: .02em; color: #0f172a; margin: 0; }
-        .home-sub { font-size: 14px; color: #6b7280; margin: 2px 0 6px; }
+        .home-title { font-size: 30px; font-weight: 800; letter-spacing: .01em; color: #0f172a; margin: 0; }
+        .home-sub { font-size: 14px; color: #64748b; margin: 2px 0 10px; }
+
+        .helper-link {
+          font-size: 12px;
+          color: #4f46e5;
+          border: none;
+          background: transparent;
+          padding: 0;
+          cursor: pointer;
+          font-weight: 600;
+          opacity: .9;
+        }
+        .helper-link:hover { opacity: 1; text-decoration: underline; }
 
         .welcome-card {
-          border-radius: 16px; border: 1px solid #A7F3D0; background: #ffffff;
-          padding: 14px 16px; margin-bottom: 18px;
-          box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
+          border-radius: 16px;
+          border: 1px solid rgba(16,185,129,.35);
+          background: linear-gradient(180deg, rgba(236,253,245,0.65), #ffffff);
+          padding: 14px 16px;
+          margin-bottom: 16px;
+          box-shadow: 0 10px 20px rgba(15, 23, 42, 0.06);
           display:flex; justify-content:space-between; align-items:flex-start; gap:10px;
         }
         .welcome-main { flex:1; min-width:0; }
-        .welcome-title { font-weight: 700; margin-bottom: 4px; font-size: 15px; display:flex; align-items:center; gap:6px; color:#065F46; }
-        .welcome-body { font-size: 14px; color:#374151; }
+        .welcome-title { font-weight: 800; margin-bottom: 4px; font-size: 15px; display:flex; align-items:center; gap:6px; color:#065F46; }
+        .welcome-body { font-size: 14px; color:#334155; line-height: 1.35; }
         .welcome-pill {
-          font-size: 11px; padding: 4px 10px; border-radius: 999px;
-          border: 1px solid #BBF7D0; background: #F0FDF4; color:#047857;
-          white-space:nowrap; cursor:pointer;
+          font-size: 11px; padding: 6px 10px; border-radius: 999px;
+          border: 1px solid rgba(16,185,129,.28);
+          background: rgba(240,253,244,.8);
+          color:#047857;
+          white-space:nowrap;
+          cursor:pointer;
+          font-weight: 700;
         }
-
-        .home-section-title { font-size: 18px; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 8px; }
-        .section-icon {
-          width: 26px; height: 26px; border-radius: 999px;
-          display: inline-flex; align-items: center; justify-content: center;
-          font-size: 14px; background: #eef2ff; color: #1d4ed8;
-        }
-        .section-icon.activity { background: #ecfdf5; color: #047857; }
-        .section-icon.neighbors { background: #fefce8; color: #a16207; }
-        .section-icon.messages { background: #eff6ff; color: #1d4ed8; }
-        .section-icon.happening { background: #f5f3ff; color: #7c3aed; }
-        .section-icon.events { background: #f0f9ff; color: #0369a1; }
-
-        .section-count { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #f3f4f6; color: #374151; }
 
         .home-section { margin-bottom: 18px; }
+
+        .section-header-row { display:flex; justify-content:space-between; align-items:center; gap:10px; margin: 16px 0 10px; }
+        .section-toggle { display:inline-flex; align-items:center; gap:10px; border:0; padding:0; background:transparent; cursor:pointer; text-align:left; }
+
+        .home-section-title { font-size: 18px; font-weight: 800; margin: 0; display: flex; align-items: center; gap: 10px; color: #0f172a; }
+
+        /* ✅ 10/10: soften header icon emphasis slightly */
+        .section-icon {
+          width: 28px; height: 28px; border-radius: 10px;
+          display: inline-flex; align-items: center; justify-content: center;
+          font-size: 14px;
+          box-shadow: inset 0 0 0 1px rgba(15,23,42,.06);
+          opacity: .92;
+        }
+        .section-icon.invited { background: #f5f3ff; color: #7c3aed; }
+        .section-icon.hosted { background: #ecfdf5; color: #047857; }
+        .section-icon.neighbors { background: #fefce8; color: #a16207; }
+        .section-icon.messages { background: #eff6ff; color: #1d4ed8; }
+
+        .section-count {
+          font-size: 11px;
+          padding: 2px 8px;
+          border-radius: 999px;
+          background: #f1f5f9;
+          color: #334155;
+          border: 1px solid rgba(15,23,42,.06);
+        }
+
+        .chevron {
+          font-size: 12px;
+          color:#64748b;
+          width: 26px;
+          height: 26px;
+          border-radius: 999px;
+          display:flex; align-items:center; justify-content:center;
+          border: 1px solid rgba(15,23,42,.08);
+          background: #ffffff;
+          transition: transform .15s ease;
+        }
+        .chevron.closed { transform: rotate(180deg); }
+
+        /* grouping panels for subsections */
+        .subpanel {
+          border-radius: 16px;
+          border: 1px solid rgba(15,23,42,.06);
+          background: #f8fafc;
+          padding: 12px;
+          box-shadow: 0 10px 22px rgba(15,23,42,.04);
+          margin-bottom: 10px;
+        }
+
+        .subpanel-head {
+          display:flex;
+          align-items:center;
+          justify-content:space-between;
+          gap:10px;
+          margin-bottom: 10px;
+        }
+
+        .subpanel-left {
+          display:flex;
+          align-items:center;
+          gap:10px;
+          min-width: 0;
+        }
+
+        .subpill {
+          font-size: 12px;
+          padding: 6px 10px;
+          border-radius: 999px;
+          border: 1px solid rgba(148,163,184,0.55);
+          background: rgba(255,255,255,0.75);
+          color: #0f172a;
+          display:inline-flex;
+          align-items:center;
+          gap:8px;
+          font-weight: 800;
+          line-height: 1;
+          white-space: nowrap;
+        }
+
+        .subpill .muted { font-weight: 700; color: #64748b; }
+
+        /* ✅ 10/10: “now” should visually win; “future” slightly calmer */
+        .subpill.now { border-color: rgba(56,189,248,.55); }
+        .subpill.future { border-color: rgba(250,204,21,.50); opacity: .94; }
+
+        /* ✅ 10/10: helper text a touch lighter */
+        .subhint {
+          font-size: 12px;
+          color: #94a3b8;
+          line-height: 1.2;
+        }
+
         .home-card {
           border-radius: 14px;
           border: 1px solid rgba(15,23,42,.08);
-          background: rgba(255,255,255,0.96);
+          background: rgba(255,255,255,0.98);
           padding: 12px 14px;
           margin-bottom: 8px;
-          box-shadow: 0 4px 12px rgba(15,23,42,.04);
+          box-shadow: 0 8px 18px rgba(15,23,42,.05);
           display: flex;
           justify-content: space-between;
           align-items: flex-start;
           gap: 10px;
-          transition: box-shadow .15s ease;
+          transition: box-shadow .14s ease, transform .14s ease, border-color .14s ease;
         }
-        .home-card:hover { box-shadow: 0 8px 18px rgba(15,23,42,.10); }
+        .home-card:hover { box-shadow: 0 14px 26px rgba(15,23,42,.09); border-color: rgba(15,23,42,.10); transform: translateY(-1px); }
 
         .home-card-main { flex: 1; min-width: 0; }
-        .home-card-title { font-weight: 600; margin-bottom: 2px; font-size: 15px; }
-        .home-card-meta { font-size: 12px; color: #64748b; margin-bottom: 4px; }
-        .home-card-body { font-size: 14px; color: #0f172a; }
-        .home-card-body--neighbor { font-size: 13px; color: #4b5563; }
+        .home-card-title { font-weight: 800; margin-bottom: 2px; font-size: 15px; color:#0f172a; }
+        .home-card-meta { font-size: 12px; color: #64748b; margin-bottom: 5px; }
+        .home-card-body { font-size: 14px; color: #0f172a; line-height: 1.35; }
+        .home-card-body--neighbor { font-size: 13px; color: #475569; }
 
-        .pill { font-size: 11px; padding: 4px 8px; border-radius: 999px; border: 1px solid rgba(148,163,184,.6); color: #0f172a; white-space: nowrap; }
-        .pill.happening { background: #ecfeff; border-color: #a5f3fc; }
-        .pill.event { background: #fefce8; border-color: #facc15; }
+        .pill { font-size: 11px; padding: 5px 9px; border-radius: 999px; border: 1px solid rgba(148,163,184,.55); color: #0f172a; white-space: nowrap; background:#fff; }
+        .pill.happening { background: rgba(236,254,255,.9); border-color: rgba(165,243,252,.9); }
+        .pill.event { background: rgba(254,252,232,.9); border-color: rgba(250,204,21,.9); }
         .pill.host {
-          background:#ecfdf5; border-color:#6ee7b7; color:#047857;
-          font-size: 11px; padding: 3px 8px; border-radius:999px;
-          display:inline-flex; align-items:center; gap:4px;
+          background: rgba(236,253,245,.92);
+          border-color: rgba(110,231,183,.9);
+          color: #047857;
+          font-size: 11px; padding: 4px 9px;
+          display:inline-flex; align-items:center; gap:6px; font-weight: 800;
         }
 
-        .empty { font-size: 14px; color: #6b7280; padding: 8px 2px; }
+        .empty { font-size: 14px; color: #64748b; padding: 6px 2px; }
 
         .view-all {
-          font-size: 12px; color: #4f46e5; cursor: pointer; font-weight: 600;
+          font-size: 12px; color: #4338ca; cursor: pointer; font-weight: 800;
           background: #eef2ff; border-radius: 999px;
-          border: 1px solid rgba(129,140,248,0.7);
-          padding: 4px 10px;
-          display: inline-flex; align-items: center; gap: 4px;
-          transition: background .12s ease, box-shadow .12s ease, transform .12s ease, opacity .12s ease;
+          border: 1px solid rgba(129,140,248,0.75);
+          padding: 6px 10px;
+          display: inline-flex; align-items: center; gap: 6px;
+          transition: box-shadow .12s ease, transform .12s ease, opacity .12s ease;
+          white-space: nowrap;
         }
-        .view-all:hover { background: #e0e7ff; box-shadow: 0 6px 14px rgba(79,70,229,0.20); transform: translateY(-1px); }
-        .view-all.is-disabled { opacity: 0.4; cursor: default; box-shadow: none; transform: none; background: #eef2ff; }
-
-        .section-header-row { display:flex; justify-content:space-between; align-items:center; gap:8px; margin: 18px 0 8px; }
-        .section-toggle { display:inline-flex; align-items:center; gap:6px; border:0; padding:0; background:transparent; cursor:pointer; }
-
-        .chevron { font-size: 13px; color:#64748b; transition: transform .15s ease; }
-        .chevron.closed { transform: rotate(180deg); }
+        .view-all:hover { box-shadow: 0 10px 18px rgba(79,70,229,0.18); transform: translateY(-1px); }
+        .view-all.is-disabled { opacity: 0.4; cursor: default; box-shadow: none; transform: none; }
 
         .rsvp-row {
-          display:flex; flex-wrap:wrap; gap:6px; align-items:center;
-          margin-top:8px; justify-content:space-between;
+          display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+          margin-top:10px; justify-content:space-between;
         }
-        .rsvp-buttons { display:flex; flex-wrap:wrap; gap:6px; }
+        .rsvp-buttons { display:flex; flex-wrap:wrap; gap:8px; }
 
         .rsvp-btn {
-          font-size: 11px; padding: 5px 11px; border-radius: 999px;
-          border: 1px solid rgba(148,163,184,0.6);
-          background:#ffffff; color:#0f172a; cursor:pointer;
-          display:inline-flex; align-items:center; gap:4px;
+          font-size: 11px;
+          padding: 6px 12px;
+          border-radius: 999px;
+          border: 1px solid rgba(148,163,184,0.55);
+          background: rgba(255,255,255,0.92);
+          color:#0f172a;
+          cursor:pointer;
+          display:inline-flex; align-items:center; gap:6px;
+          font-weight: 800;
           transition: box-shadow .12s ease, transform .12s ease, border-color .12s ease, background-color .12s ease;
         }
-        .rsvp-btn:hover { box-shadow: 0 6px 14px rgba(15,23,42,.06); background:#f9fafb; transform: translateY(-1px); }
+        .rsvp-btn:hover { box-shadow: 0 10px 18px rgba(15,23,42,.06); transform: translateY(-1px); }
         .rsvp-btn.is-on {
-          background:#ffffff; border-color:#2563eb; border-width:2px; color:#0f172a;
-          box-shadow:none; transform: translateY(-1px);
+          border-color:#2563eb;
+          border-width:2px;
+          background:#ffffff;
+          box-shadow:none;
         }
 
-        .rsvp-summary { font-size: 12px; color:#6b7280; }
-        .rsvp-meta-right { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+        .rsvp-summary { font-size: 12px; color:#64748b; font-weight: 700; }
+        .rsvp-meta-right { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 
         .rsvp-view-btn {
-          font-size: 11px; padding: 5px 10px; border-radius: 999px;
-          border: 1px solid #e5e7eb;
-          background:#ffffff; color:#111827; cursor:pointer;
-          display:inline-flex; align-items:center; gap:4px;
+          font-size: 11px;
+          padding: 6px 10px;
+          border-radius: 999px;
+          border: 1px solid rgba(15,23,42,.08);
+          background: rgba(255,255,255,0.92);
+          color:#0f172a;
+          cursor:pointer;
+          display:inline-flex; align-items:center; gap:6px;
+          font-weight: 800;
         }
+        .rsvp-view-btn:hover { box-shadow: 0 10px 18px rgba(15,23,42,.06); transform: translateY(-1px); transition: .12s ease; }
 
-        .manage-row { display:flex; flex-wrap:wrap; gap:12px; margin-top:10px; }
+        .manage-row { display:flex; flex-wrap:wrap; gap:12px; margin-top:12px; padding-top: 10px; border-top: 1px solid rgba(15,23,42,.07); }
         .manage-link {
-          font-size:12px; color:#4b5563; display:inline-flex; align-items:center; gap:4px;
+          font-size:12px; color:#334155; display:inline-flex; align-items:center; gap:6px;
           cursor:pointer; background:transparent; border:0; padding:0;
+          font-weight: 800;
         }
         .manage-link .icon { font-size:14px; }
 
-        .event-filter-row { display:flex; flex-wrap:wrap; gap:8px; margin: 4px 0 10px; }
+        .event-filter-row { display:flex; flex-wrap:wrap; gap:8px; margin: 8px 0 10px; }
         .event-filter-chip {
-          padding: 6px 12px; border-radius: 999px;
-          border: 1px solid rgba(148,163,184,0.6);
-          font-size: 12px; display: inline-flex; align-items: center; gap: 6px;
-          background: #ffffff; color: #0f172a; cursor: pointer;
-          transition: box-shadow .12s ease, transform .12s ease, border-color .12s ease, background-color .12s ease;
+          padding: 7px 12px;
+          border-radius: 999px;
+          border: 1px solid rgba(148,163,184,0.55);
+          font-size: 12px;
+          display: inline-flex; align-items: center; gap: 8px;
+          background: rgba(255,255,255,0.9);
+          color: #0f172a;
+          cursor: pointer;
+          font-weight: 800;
+          transition: box-shadow .12s ease, transform .12s ease, border-color .12s ease;
         }
-        .event-filter-chip:focus, .event-filter-chip:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(148,163,184,0.55); }
-        .event-filter-chip:hover { box-shadow: 0 6px 14px rgba(15,23,42,.06); transform: translateY(-1px); }
+        .event-filter-chip:hover { box-shadow: 0 10px 18px rgba(15,23,42,.06); transform: translateY(-1px); }
         .event-filter-chip.is-active {
-          background: #ffffff; border-color: #2563eb; border-width: 2px;
-          color: #0f172a; box-shadow: none; transform: translateY(-1px);
+          border-color: #2563eb;
+          border-width: 2px;
+          background: #ffffff;
+          box-shadow: none;
         }
 
         @media (max-width: 520px) {
@@ -1094,27 +1221,14 @@ export default function Home() {
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
-        <img src={Logo} alt="GatherGrove logo" style={{ width: 28, height: 28, borderRadius: 6 }} />
+        <img src={Logo} alt="GatherGrove logo" style={{ width: 28, height: 28, borderRadius: 8 }} />
         <h2 className="home-title">Home</h2>
       </div>
       <p className="home-sub">
-        Home shows your activity, new neighbors, your messages, and any Happening Now posts or Future Events that include
-        your household.
+        Home shows events you’re invited to, anything you’re hosting, your messages, and new neighbors.
       </p>
 
-      <button
-        type="button"
-        onClick={() => setShowWelcome(true)}
-        style={{
-          fontSize: 12,
-          color: "#4f46e5",
-          border: "none",
-          background: "transparent",
-          padding: 0,
-          marginBottom: 10,
-          cursor: "pointer",
-        }}
-      >
+      <button type="button" onClick={() => setShowWelcome(true)} className="helper-link">
         How does Home work?
       </button>
 
@@ -1126,15 +1240,13 @@ export default function Home() {
             <div className="welcome-body">
               Home is your personal feed. You’ll see:
               <br />
-              🌿 <strong>Your Activity</strong> for anything you’re hosting with live RSVP counts
+              📅 <strong>Invited Events</strong> (Happening Now + Future Events)
               <br />
-              👋 new neighbors
+              🌿 <strong>Your Hosted Events</strong> with live RSVP counts
               <br />
-              💬 messages
+              💬 Messages from neighbors
               <br />
-              ⚡ Happening Now posts
-              <br />
-              📅 Future Events you’re invited to
+              👋 New neighbors that recently joined
             </div>
           </div>
           <button type="button" className="welcome-pill" onClick={handleDismissWelcome}>
@@ -1143,20 +1255,269 @@ export default function Home() {
         </div>
       )}
 
-      {/* -------- 2) Your Activity -------- */}
+      {/* -------- 2) Invited Events -------- */}
       <section className="home-section">
         <div className="section-header-row">
-          <button type="button" className="section-toggle" onClick={() => setShowActivity((v) => !v)}>
+          <button type="button" className="section-toggle" onClick={() => setShowInvited((v) => !v)}>
             <div className="home-section-title">
-              <span className="section-icon activity">🌿</span>
-              <span>Your Activity</span>
-              <span className="section-count">{activityCount}</span>
+              <span className="section-icon invited">📅</span>
+              <span>Invited Events</span>
+              <span className="section-count">{invitedCount}</span>
             </div>
-            <span className={"chevron " + (showActivity ? "" : "closed")}>{showActivity ? "⌃" : "⌄"}</span>
+            <span className={"chevron " + (showInvited ? "" : "closed")}>{showInvited ? "⌃" : "⌄"}</span>
           </button>
         </div>
 
-        {showActivity && (
+        {showInvited && (
+          <>
+            {invitedHappeningNow.length === 0 && invitedFutureEvents.length === 0 && (
+              <div className="empty">No invited events yet.</div>
+            )}
+
+            {/* ✨ Subpanel: Happening now */}
+            <div className="subpanel">
+              <div className="subpanel-head">
+                <div className="subpanel-left">
+                  <span className="subpill now">
+                    <span aria-hidden>⚡</span>
+                    <span>Happening now</span>
+                    <span className="muted">· {invitedHappeningNow.length}</span>
+                  </span>
+                  <div className="subhint">Live posts expire after 24h.</div>
+                </div>
+              </div>
+
+              {invitedHappeningNow.length === 0 && (
+                <div className="empty" style={{ paddingTop: 0 }}>
+                  No live invites right now.
+                </div>
+              )}
+
+              {invitedHappeningNow.map((p) => {
+                const keyId = getRsvpStateKey(p);
+                const rsvpState: EventRsvpState = eventRsvps[keyId] ?? {
+                  choice: null,
+                  counts: { going: 0, maybe: 0, cant: 0 },
+                };
+                const summary = formatHappeningSummary(rsvpState.counts);
+                const replyCount = replyCounts[p.id] || 0;
+
+                // ✅ 10/10: remove redundant "Happening Now" title inside card (use the actual title)
+                const primaryTitle = getHappeningPrimaryTitle(p);
+                const subtitle = getHappeningSubtitle(p);
+                const body = getHappeningBody(p);
+
+                return (
+                  <motion.div key={p.id} className="home-card" {...cardMotionProps}>
+                    <div className="home-card-main">
+                      <div className="home-card-title">{primaryTitle}</div>
+                      <div className="home-card-meta">{subtitle}</div>
+                      {body ? <div className="home-card-body">{body}</div> : null}
+
+                      <div className="rsvp-row">
+                        <div className="rsvp-buttons">
+                          <motion.button
+                            type="button"
+                            className={"rsvp-btn" + (rsvpState.choice === "going" ? " is-on" : "")}
+                            onClick={() => handleRsvp(p, "going")}
+                            {...rsvpMotionProps}
+                          >
+                            <span>👍</span>
+                            <span>Going</span>
+                          </motion.button>
+
+                          <motion.button
+                            type="button"
+                            className={"rsvp-btn" + (rsvpState.choice === "cant" ? " is-on" : "")}
+                            onClick={() => handleRsvp(p, "cant")}
+                            {...rsvpMotionProps}
+                          >
+                            <span>❌</span>
+                            <span>Can't go</span>
+                          </motion.button>
+                        </div>
+
+                        <div className="rsvp-meta-right">
+                          {summary && <div className="rsvp-summary">{summary}</div>}
+                          <button type="button" className="rsvp-view-btn" onClick={() => openRsvpDetails(p)}>
+                            <span aria-hidden>👀</span>
+                            <span>View RSVPs</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="manage-row" style={{ borderTop: "none", paddingTop: 0, marginTop: 12 }}>
+                        <button
+                          type="button"
+                          onClick={() => openReplies(p)}
+                          style={{
+                            borderRadius: 999,
+                            border: "1px solid rgba(15,23,42,.08)",
+                            padding: "7px 12px",
+                            background: "rgba(255,255,255,0.92)",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 8,
+                            cursor: "pointer",
+                            fontSize: 12,
+                            fontWeight: 800,
+                            color: "#0f172a",
+                          }}
+                        >
+                          <span aria-hidden>💬</span>
+                          <span>
+                            {replyCount > 0 ? `${replyCount} repl${replyCount === 1 ? "y" : "ies"}` : "Join chat"}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <span className="pill happening">Now</span>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+
+            {/* ✨ Subpanel: Future events */}
+            <div className="subpanel">
+              <div className="subpanel-head">
+                <div className="subpanel-left">
+                  <span className="subpill future">
+                    <span aria-hidden>📅</span>
+                    {/* ✅ 10/10: consistent naming: “Future events” */}
+                    <span>Future events</span>
+                    <span className="muted">· {invitedFutureEvents.length}</span>
+                  </span>
+                  <div className="subhint">Use filters to find the right kind of invite.</div>
+                </div>
+              </div>
+
+              <div className="event-filter-row">
+                <motion.button
+                  type="button"
+                  className={"event-filter-chip" + (eventCategoryFilter === "all" ? " is-active" : "")}
+                  onClick={() => setEventCategoryFilter("all")}
+                  {...chipMotionProps}
+                >
+                  <span>All</span>
+                </motion.button>
+
+                {(Object.entries(CATEGORY_META) as [EventCategory, CategoryMeta][]).map(([id, meta]) => (
+                  <motion.button
+                    key={id}
+                    type="button"
+                    className={"event-filter-chip" + (eventCategoryFilter === id ? " is-active" : "")}
+                    onClick={() => setEventCategoryFilter(id)}
+                    {...chipMotionProps}
+                  >
+                    <span>{meta.emoji}</span>
+                    <span>{meta.label}</span>
+                  </motion.button>
+                ))}
+              </div>
+
+              {/* ✅ 10/10: align empty state to section language */}
+              {invitedFutureEvents.length === 0 && (
+                <div className="empty">No upcoming invites yet.</div>
+              )}
+
+              {invitedFutureEvents.map((p) => {
+                const keyId = getRsvpStateKey(p);
+                const rsvpState: EventRsvpState = eventRsvps[keyId] ?? {
+                  choice: null,
+                  counts: { going: 0, maybe: 0, cant: 0 },
+                };
+                const summary = formatRsvpSummary(rsvpState.counts);
+                const categoryMeta = p.category && CATEGORY_META[p.category] ? CATEGORY_META[p.category] : null;
+
+                return (
+                  <motion.div key={p.id} className="home-card" {...cardMotionProps}>
+                    <div className="home-card-main">
+                      <div className="home-card-title">{p.title || "Event"}</div>
+
+                      <div className="home-card-meta">
+                        {p.when ? formatEventWhen(p.when) : "Time TBA"}
+                        {p.createdBy?.label ? ` · from ${p.createdBy.label}` : ""}
+                      </div>
+
+                      {categoryMeta && (
+                        <div className="home-card-meta">
+                          {categoryMeta.emoji} {categoryMeta.label}
+                        </div>
+                      )}
+
+                      <div className="home-card-body">{p.details}</div>
+
+                      <div className="rsvp-row">
+                        <div className="rsvp-buttons">
+                          <motion.button
+                            type="button"
+                            className={"rsvp-btn" + (rsvpState.choice === "going" ? " is-on" : "")}
+                            onClick={() => handleRsvp(p, "going")}
+                            {...rsvpMotionProps}
+                          >
+                            <span>👍</span>
+                            <span>Going</span>
+                          </motion.button>
+
+                          <motion.button
+                            type="button"
+                            className={"rsvp-btn" + (rsvpState.choice === "maybe" ? " is-on" : "")}
+                            onClick={() => handleRsvp(p, "maybe")}
+                            {...rsvpMotionProps}
+                          >
+                            <span>❓</span>
+                            <span>Maybe</span>
+                          </motion.button>
+
+                          <motion.button
+                            type="button"
+                            className={"rsvp-btn" + (rsvpState.choice === "cant" ? " is-on" : "")}
+                            onClick={() => handleRsvp(p, "cant")}
+                            {...rsvpMotionProps}
+                          >
+                            <span>❌</span>
+                            <span>Can't go</span>
+                          </motion.button>
+                        </div>
+
+                        <div className="rsvp-meta-right">
+                          {summary && <div className="rsvp-summary">{summary}</div>}
+                          <button type="button" className="rsvp-view-btn" onClick={() => openRsvpDetails(p)}>
+                            <span aria-hidden>👀</span>
+                            <span>View RSVPs</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <span className="pill event">Future</span>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </section>
+
+      {/* -------- 3) Your Hosted Events -------- */}
+      <section className="home-section">
+        <div className="section-header-row">
+          <button type="button" className="section-toggle" onClick={() => setShowHosted((v) => !v)}>
+            <div className="home-section-title">
+              <span className="section-icon hosted">🌿</span>
+              <span>Your Hosted Events</span>
+              <span className="section-count">{hostedCount}</span>
+            </div>
+            <span className={"chevron " + (showHosted ? "" : "closed")}>{showHosted ? "⌃" : "⌄"}</span>
+          </button>
+        </div>
+
+        {showHosted && (
           <>
             {myHappeningNow.length === 0 && myFutureEvents.length === 0 && (
               <div className="empty">
@@ -1165,244 +1526,222 @@ export default function Home() {
               </div>
             )}
 
-            {/* Your Happening Now */}
-            {myHappeningNow.map((p) => {
-              const keyId = getRsvpStateKey(p);
-              const rsvpState: EventRsvpState = eventRsvps[keyId] ?? {
-                choice: null,
-                counts: { going: 0, maybe: 0, cant: 0 },
-              };
-              const summary = formatHappeningSummary(rsvpState.counts);
-              const replyCount = replyCounts[p.id] || 0;
-
-              return (
-                <motion.div key={p.id} className="home-card" {...cardMotionProps}>
-                  <div className="home-card-main">
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                      {p.title && <div className="home-card-title">{p.title}</div>}
-                      <span className="pill host">
-                        <span>🌿</span>
-                        <span>You’re hosting</span>
-                      </span>
-                    </div>
-                    <div className="home-card-meta">
-                      {formatTimeShort(p.ts)}
-                      {p.createdBy?.label ? ` · from ${p.createdBy.label}` : ""}
-                    </div>
-                    <div className="home-card-body">{p.details}</div>
-
-                    <div className="rsvp-row">
-                      <div className="rsvp-buttons">
-                        <motion.button
-                          type="button"
-                          className={"rsvp-btn" + (rsvpState.choice === "going" ? " is-on" : "")}
-                          onClick={() => handleRsvp(p, "going")}
-                          {...rsvpMotionProps}
-                        >
-                          <span>👍</span>
-                          <span>Going</span>
-                        </motion.button>
-
-                        <motion.button
-                          type="button"
-                          className={"rsvp-btn" + (rsvpState.choice === "cant" ? " is-on" : "")}
-                          onClick={() => handleRsvp(p, "cant")}
-                          {...rsvpMotionProps}
-                        >
-                          <span>❌</span>
-                          <span>Can't go</span>
-                        </motion.button>
-                      </div>
-
-                      <div className="rsvp-meta-right">
-                        {summary && <div className="rsvp-summary">{summary}</div>}
-                        <button type="button" className="rsvp-view-btn" onClick={() => openRsvpDetails(p)}>
-                          <span aria-hidden>👀</span>
-                          <span>View RSVPs</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        marginTop: 10,
-                        paddingTop: 8,
-                        borderTop: "1px solid #e5e7eb",
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: 12,
-                        alignItems: "center",
-                      }}
-                    >
-                      <button type="button" className="manage-link" onClick={() => handleEditPost(p)}>
-                        <span className="icon">✏️</span>
-                        <span>Edit</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => openReplies(p)}
-                        style={{
-                          borderRadius: 999,
-                          border: "1px solid #e5e7eb",
-                          padding: "6px 10px",
-                          background: "#fff",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 6,
-                          cursor: "pointer",
-                          fontSize: 13,
-                        }}
-                      >
-                        <span aria-hidden>💬</span>
-                        <span>
-                          {replyCount > 0 ? `${replyCount} repl${replyCount === 1 ? "y" : "ies"}` : "Open replies"}
-                        </span>
-                      </button>
-                    </div>
+            {myHappeningNow.length > 0 && (
+              <div className="subpanel">
+                <div className="subpanel-head">
+                  <div className="subpanel-left">
+                    <span className="subpill now">
+                      <span aria-hidden>⚡</span>
+                      <span>Happening now</span>
+                      <span className="muted">· {myHappeningNow.length}</span>
+                    </span>
+                    <div className="subhint">Your live posts with responses.</div>
                   </div>
-                  <div>
-                    <span className="pill happening">Now</span>
-                  </div>
-                </motion.div>
-              );
-            })}
+                </div>
 
-            {/* Your Future Events */}
-            {myFutureEvents.map((p) => {
-              const keyId = getRsvpStateKey(p);
-              const rsvpState: EventRsvpState = eventRsvps[keyId] ?? {
-                choice: null,
-                counts: { going: 0, maybe: 0, cant: 0 },
-              };
-              const summary = formatRsvpSummary(rsvpState.counts);
-              const categoryMeta = p.category && CATEGORY_META[p.category] ? CATEGORY_META[p.category] : null;
+                {myHappeningNow.map((p) => {
+                  const keyId = getRsvpStateKey(p);
+                  const rsvpState: EventRsvpState = eventRsvps[keyId] ?? {
+                    choice: null,
+                    counts: { going: 0, maybe: 0, cant: 0 },
+                  };
+                  const summary = formatHappeningSummary(rsvpState.counts);
+                  const replyCount = replyCounts[p.id] || 0;
 
-              return (
-                <motion.div key={p.id} className="home-card" {...cardMotionProps}>
-                  <div className="home-card-main">
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                      <div className="home-card-title">{p.title || "Event"}</div>
-                      <span className="pill host">
-                        <span>🌿</span>
-                        <span>You’re hosting</span>
-                      </span>
-                    </div>
+                  const primaryTitle = getHappeningPrimaryTitle(p);
+                  const subtitle = getHappeningSubtitle(p);
+                  const body = getHappeningBody(p);
 
-                    <div className="home-card-meta">
-                      {p.when ? formatEventWhen(p.when) : "Time TBA"}
-                      {p.createdBy?.label ? ` · from ${p.createdBy.label}` : ""}
-                    </div>
+                  return (
+                    <motion.div key={p.id} className="home-card" {...cardMotionProps}>
+                      <div className="home-card-main">
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                          <div className="home-card-title">{primaryTitle}</div>
+                          <span className="pill host">
+                            <span>🌿</span>
+                            <span>You’re hosting</span>
+                          </span>
+                        </div>
 
-                    {categoryMeta && (
-                      <div className="home-card-meta">
-                        {categoryMeta.emoji} {categoryMeta.label}
+                        <div className="home-card-meta">{subtitle}</div>
+                        {body ? <div className="home-card-body">{body}</div> : null}
+
+                        <div className="rsvp-row">
+                          <div className="rsvp-buttons">
+                            <motion.button
+                              type="button"
+                              className={"rsvp-btn" + (rsvpState.choice === "going" ? " is-on" : "")}
+                              onClick={() => handleRsvp(p, "going")}
+                              {...rsvpMotionProps}
+                            >
+                              <span>👍</span>
+                              <span>Going</span>
+                            </motion.button>
+
+                            <motion.button
+                              type="button"
+                              className={"rsvp-btn" + (rsvpState.choice === "cant" ? " is-on" : "")}
+                              onClick={() => handleRsvp(p, "cant")}
+                              {...rsvpMotionProps}
+                            >
+                              <span>❌</span>
+                              <span>Can't go</span>
+                            </motion.button>
+                          </div>
+
+                          <div className="rsvp-meta-right">
+                            {summary && <div className="rsvp-summary">{summary}</div>}
+                            <button type="button" className="rsvp-view-btn" onClick={() => openRsvpDetails(p)}>
+                              <span aria-hidden>👀</span>
+                              <span>View RSVPs</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="manage-row">
+                          <button type="button" className="manage-link" onClick={() => handleEditPost(p)}>
+                            <span className="icon">✏️</span>
+                            <span>Edit</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => openReplies(p)}
+                            style={{
+                              borderRadius: 999,
+                              border: "1px solid rgba(15,23,42,.08)",
+                              padding: "7px 12px",
+                              background: "rgba(255,255,255,0.92)",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 8,
+                              cursor: "pointer",
+                              fontSize: 12,
+                              fontWeight: 800,
+                              color: "#0f172a",
+                            }}
+                          >
+                            <span aria-hidden>💬</span>
+                            <span>
+                              {replyCount > 0 ? `${replyCount} repl${replyCount === 1 ? "y" : "ies"}` : "Open replies"}
+                            </span>
+                          </button>
+                        </div>
                       </div>
-                    )}
 
-                    <div className="home-card-body">{p.details}</div>
-
-                    <div className="rsvp-row">
-                      <div className="rsvp-buttons">
-                        <motion.button
-                          type="button"
-                          className={"rsvp-btn" + (rsvpState.choice === "going" ? " is-on" : "")}
-                          onClick={() => handleRsvp(p, "going")}
-                          {...rsvpMotionProps}
-                        >
-                          <span>👍</span>
-                          <span>Going</span>
-                        </motion.button>
-
-                        <motion.button
-                          type="button"
-                          className={"rsvp-btn" + (rsvpState.choice === "maybe" ? " is-on" : "")}
-                          onClick={() => handleRsvp(p, "maybe")}
-                          {...rsvpMotionProps}
-                        >
-                          <span>❓</span>
-                          <span>Maybe</span>
-                        </motion.button>
-
-                        <motion.button
-                          type="button"
-                          className={"rsvp-btn" + (rsvpState.choice === "cant" ? " is-on" : "")}
-                          onClick={() => handleRsvp(p, "cant")}
-                          {...rsvpMotionProps}
-                        >
-                          <span>❌</span>
-                          <span>Can't go</span>
-                        </motion.button>
+                      <div>
+                        <span className="pill happening">Now</span>
                       </div>
-
-                      <div className="rsvp-meta-right">
-                        {summary && <div className="rsvp-summary">{summary}</div>}
-                        <button type="button" className="rsvp-view-btn" onClick={() => openRsvpDetails(p)}>
-                          <span aria-hidden>👀</span>
-                          <span>View RSVPs</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="manage-row">
-                      <button type="button" className="manage-link" onClick={() => handleEditPost(p)}>
-                        <span className="icon">✏️</span>
-                        <span>Edit</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <span className="pill event">Future</span>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </>
-        )}
-      </section>
-
-      {/* -------- 3) New neighbors -------- */}
-      <section className="home-section">
-        <div className="section-header-row">
-          <button type="button" className="section-toggle" onClick={() => setShowNewNeighbors((v) => !v)}>
-            <div className="home-section-title">
-              <span className="section-icon neighbors">👋</span>
-              <span>New neighbors</span>
-              <span className="section-count">{newNeighborCount}</span>
-            </div>
-            <span className={"chevron " + (showNewNeighbors ? "" : "closed")}>{showNewNeighbors ? "⌃" : "⌄"}</span>
-          </button>
-        </div>
-
-        {showNewNeighbors && (
-          <>
-            {recentNeighbors.length === 0 && (
-              <div className="empty">
-                No neighbors have joined in the last couple weeks. When a new household signs up, you’ll see them here.
+                    </motion.div>
+                  );
+                })}
               </div>
             )}
 
-            {recentNeighbors.slice(0, 5).map((n) => {
-              const joinedLabel = formatJoinedRelative(n.joinedAt, now);
-              const neighborhoodLabel = neighborhoodDisplayLabel(n.neighborhood) || "New household";
-              const metaLabel = joinedLabel ? `${neighborhoodLabel} · ${joinedLabel}` : neighborhoodLabel;
-
-              const isNew = typeof n.joinedAt === "number" && now - n.joinedAt >= 0 && now - n.joinedAt <= 7 * DAY_MS;
-
-              return (
-                <motion.div key={n.id} className="home-card" {...cardMotionProps}>
-                  <div className="home-card-main">
-                    <div className="home-card-title">{n.label}</div>
-                    <div className="home-card-meta">{metaLabel}</div>
-                    <div className="home-card-body home-card-body--neighbor">
-                      Just joined GatherGrove. Say hello in person or send a quick message from the People tab.
-                    </div>
+            {myFutureEvents.length > 0 && (
+              <div className="subpanel">
+                <div className="subpanel-head">
+                  <div className="subpanel-left">
+                    <span className="subpill future">
+                      <span aria-hidden>📅</span>
+                      <span>Future events</span>
+                      <span className="muted">· {myFutureEvents.length}</span>
+                    </span>
+                    <div className="subhint">Your scheduled events with RSVP counts.</div>
                   </div>
-                  <div>{isNew && <span className="pill">New</span>}</div>
-                </motion.div>
-              );
-            })}
+                </div>
+
+                {myFutureEvents.map((p) => {
+                  const keyId = getRsvpStateKey(p);
+                  const rsvpState: EventRsvpState = eventRsvps[keyId] ?? {
+                    choice: null,
+                    counts: { going: 0, maybe: 0, cant: 0 },
+                  };
+                  const summary = formatRsvpSummary(rsvpState.counts);
+                  const categoryMeta = p.category && CATEGORY_META[p.category] ? CATEGORY_META[p.category] : null;
+
+                  return (
+                    <motion.div key={p.id} className="home-card" {...cardMotionProps}>
+                      <div className="home-card-main">
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                          <div className="home-card-title">{p.title || "Event"}</div>
+                          <span className="pill host">
+                            <span>🌿</span>
+                            <span>You’re hosting</span>
+                          </span>
+                        </div>
+
+                        <div className="home-card-meta">
+                          {p.when ? formatEventWhen(p.when) : "Time TBA"}
+                          {p.createdBy?.label ? ` · from ${p.createdBy.label}` : ""}
+                        </div>
+
+                        {categoryMeta && (
+                          <div className="home-card-meta">
+                            {categoryMeta.emoji} {categoryMeta.label}
+                          </div>
+                        )}
+
+                        <div className="home-card-body">{p.details}</div>
+
+                        <div className="rsvp-row">
+                          <div className="rsvp-buttons">
+                            <motion.button
+                              type="button"
+                              className={"rsvp-btn" + (rsvpState.choice === "going" ? " is-on" : "")}
+                              onClick={() => handleRsvp(p, "going")}
+                              {...rsvpMotionProps}
+                            >
+                              <span>👍</span>
+                              <span>Going</span>
+                            </motion.button>
+
+                            <motion.button
+                              type="button"
+                              className={"rsvp-btn" + (rsvpState.choice === "maybe" ? " is-on" : "")}
+                              onClick={() => handleRsvp(p, "maybe")}
+                              {...rsvpMotionProps}
+                            >
+                              <span>❓</span>
+                              <span>Maybe</span>
+                            </motion.button>
+
+                            <motion.button
+                              type="button"
+                              className={"rsvp-btn" + (rsvpState.choice === "cant" ? " is-on" : "")}
+                              onClick={() => handleRsvp(p, "cant")}
+                              {...rsvpMotionProps}
+                            >
+                              <span>❌</span>
+                              <span>Can't go</span>
+                            </motion.button>
+                          </div>
+
+                          <div className="rsvp-meta-right">
+                            {summary && <div className="rsvp-summary">{summary}</div>}
+                            <button type="button" className="rsvp-view-btn" onClick={() => openRsvpDetails(p)}>
+                              <span aria-hidden>👀</span>
+                              <span>View RSVPs</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="manage-row">
+                          <button type="button" className="manage-link" onClick={() => handleEditPost(p)}>
+                            <span className="icon">✏️</span>
+                            <span>Edit</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <span className="pill event">Future</span>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
           </>
         )}
       </section>
@@ -1460,232 +1799,44 @@ export default function Home() {
         )}
       </section>
 
-      {/* -------- 5) Happening Now -------- */}
-      <section className="home-section">
-        <div className="section-header-row">
-          <button type="button" className="section-toggle" onClick={() => setShowHappening((v) => !v)}>
-            <div className="home-section-title">
-              <span className="section-icon happening">⚡</span>
-              <span>Happening Now</span>
-              <span className="section-count">{happeningCount}</span>
-            </div>
-            <span className={"chevron " + (showHappening ? "" : "closed")}>{showHappening ? "⌃" : "⌄"}</span>
-          </button>
-        </div>
-
-        {showHappening && (
-          <>
-            {displayHappeningNow.length === 0 && <div className="empty">No live happenings that involve you right now.</div>}
-
-            {displayHappeningNow.map((p) => {
-              const keyId = getRsvpStateKey(p);
-              const rsvpState: EventRsvpState = eventRsvps[keyId] ?? {
-                choice: null,
-                counts: { going: 0, maybe: 0, cant: 0 },
-              };
-              const summary = formatHappeningSummary(rsvpState.counts);
-              const replyCount = replyCounts[p.id] || 0;
-
-              return (
-                <motion.div key={p.id} className="home-card" {...cardMotionProps}>
-                  <div className="home-card-main">
-                    {p.title && <div className="home-card-title">{p.title}</div>}
-
-                    <div className="home-card-meta">
-                      {formatTimeShort(p.ts)}
-                      {p.createdBy?.label ? ` · from ${p.createdBy.label}` : ""}
-                    </div>
-
-                    <div className="home-card-body">{p.details}</div>
-
-                    <div className="rsvp-row">
-                      <div className="rsvp-buttons">
-                        <motion.button
-                          type="button"
-                          className={"rsvp-btn" + (rsvpState.choice === "going" ? " is-on" : "")}
-                          onClick={() => handleRsvp(p, "going")}
-                          {...rsvpMotionProps}
-                        >
-                          <span>👍</span>
-                          <span>Going</span>
-                        </motion.button>
-
-                        <motion.button
-                          type="button"
-                          className={"rsvp-btn" + (rsvpState.choice === "cant" ? " is-on" : "")}
-                          onClick={() => handleRsvp(p, "cant")}
-                          {...rsvpMotionProps}
-                        >
-                          <span>❌</span>
-                          <span>Can't go</span>
-                        </motion.button>
-                      </div>
-
-                      <div className="rsvp-meta-right">
-                        {summary && <div className="rsvp-summary">{summary}</div>}
-                        <button type="button" className="rsvp-view-btn" onClick={() => openRsvpDetails(p)}>
-                          <span aria-hidden>👀</span>
-                          <span>View RSVPs</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        marginTop: 10,
-                        paddingTop: 8,
-                        borderTop: "1px solid #e5e7eb",
-                        display: "flex",
-                        justifyContent: "flex-start",
-                      }}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => openReplies(p)}
-                        style={{
-                          borderRadius: 999,
-                          border: "1px solid #e5e7eb",
-                          padding: "6px 10px",
-                          background: "#fff",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 6,
-                          cursor: "pointer",
-                          fontSize: 13,
-                        }}
-                      >
-                        <span aria-hidden>💬</span>
-                        <span>{replyCount > 0 ? `${replyCount} repl${replyCount === 1 ? "y" : "ies"}` : "Join chat"}</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <span className="pill happening">Now</span>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </>
-        )}
-      </section>
-
-      {/* -------- 6) Future Events -------- */}
+      {/* -------- 5) New neighbors -------- */}
       <section className="home-section" style={{ marginBottom: 24 }}>
         <div className="section-header-row">
-          <button type="button" className="section-toggle" onClick={() => setShowEvents((v) => !v)}>
+          <button type="button" className="section-toggle" onClick={() => setShowNewNeighbors((v) => !v)}>
             <div className="home-section-title">
-              <span className="section-icon events">📅</span>
-              <span>Future Events</span>
-              <span className="section-count">{futureEventsCount}</span>
+              <span className="section-icon neighbors">👋</span>
+              <span>New neighbors</span>
+              <span className="section-count">{newNeighborCount}</span>
             </div>
-            <span className={"chevron " + (showEvents ? "" : "closed")}>{showEvents ? "⌃" : "⌄"}</span>
+            <span className={"chevron " + (showNewNeighbors ? "" : "closed")}>{showNewNeighbors ? "⌃" : "⌄"}</span>
           </button>
         </div>
 
-        {showEvents && (
+        {showNewNeighbors && (
           <>
-            <div className="event-filter-row">
-              <motion.button
-                type="button"
-                className={"event-filter-chip" + (eventCategoryFilter === "all" ? " is-active" : "")}
-                onClick={() => setEventCategoryFilter("all")}
-                {...chipMotionProps}
-              >
-                <span>All</span>
-              </motion.button>
-
-              {(Object.entries(CATEGORY_META) as [EventCategory, CategoryMeta][]).map(([id, meta]) => (
-                <motion.button
-                  key={id}
-                  type="button"
-                  className={"event-filter-chip" + (eventCategoryFilter === id ? " is-active" : "")}
-                  onClick={() => setEventCategoryFilter(id)}
-                  {...chipMotionProps}
-                >
-                  <span>{meta.emoji}</span>
-                  <span>{meta.label}</span>
-                </motion.button>
-              ))}
-            </div>
-
-            {displayUpcomingEvents.length === 0 && (
-              <div className="empty">No {currentFilterLabel} that include you yet.</div>
+            {recentNeighbors.length === 0 && (
+              <div className="empty">
+                No neighbors have joined in the last couple weeks. When a new household signs up, you’ll see them here.
+              </div>
             )}
 
-            {displayUpcomingEvents.map((p) => {
-              const keyId = getRsvpStateKey(p);
-              const rsvpState: EventRsvpState = eventRsvps[keyId] ?? {
-                choice: null,
-                counts: { going: 0, maybe: 0, cant: 0 },
-              };
-              const summary = formatRsvpSummary(rsvpState.counts);
-              const categoryMeta = p.category && CATEGORY_META[p.category] ? CATEGORY_META[p.category] : null;
+            {recentNeighbors.slice(0, 5).map((n) => {
+              const joinedLabel = formatJoinedRelative(n.joinedAt, now);
+              const neighborhoodLabel = neighborhoodDisplayLabel(n.neighborhood) || "New household";
+              const metaLabel = joinedLabel ? `${neighborhoodLabel} · ${joinedLabel}` : neighborhoodLabel;
+
+              const isNew = typeof n.joinedAt === "number" && now - n.joinedAt >= 0 && now - n.joinedAt <= 7 * DAY_MS;
 
               return (
-                <motion.div key={p.id} className="home-card" {...cardMotionProps}>
+                <motion.div key={n.id} className="home-card" {...cardMotionProps}>
                   <div className="home-card-main">
-                    <div className="home-card-title">{p.title || "Event"}</div>
-
-                    <div className="home-card-meta">
-                      {p.when ? formatEventWhen(p.when) : "Time TBA"}
-                      {p.createdBy?.label ? ` · from ${p.createdBy.label}` : ""}
-                    </div>
-
-                    {categoryMeta && (
-                      <div className="home-card-meta">
-                        {categoryMeta.emoji} {categoryMeta.label}
-                      </div>
-                    )}
-
-                    <div className="home-card-body">{p.details}</div>
-
-                    <div className="rsvp-row">
-                      <div className="rsvp-buttons">
-                        <motion.button
-                          type="button"
-                          className={"rsvp-btn" + (rsvpState.choice === "going" ? " is-on" : "")}
-                          onClick={() => handleRsvp(p, "going")}
-                          {...rsvpMotionProps}
-                        >
-                          <span>👍</span>
-                          <span>Going</span>
-                        </motion.button>
-
-                        <motion.button
-                          type="button"
-                          className={"rsvp-btn" + (rsvpState.choice === "maybe" ? " is-on" : "")}
-                          onClick={() => handleRsvp(p, "maybe")}
-                          {...rsvpMotionProps}
-                        >
-                          <span>❓</span>
-                          <span>Maybe</span>
-                        </motion.button>
-
-                        <motion.button
-                          type="button"
-                          className={"rsvp-btn" + (rsvpState.choice === "cant" ? " is-on" : "")}
-                          onClick={() => handleRsvp(p, "cant")}
-                          {...rsvpMotionProps}
-                        >
-                          <span>❌</span>
-                          <span>Can't go</span>
-                        </motion.button>
-                      </div>
-
-                      <div className="rsvp-meta-right">
-                        {summary && <div className="rsvp-summary">{summary}</div>}
-                        <button type="button" className="rsvp-view-btn" onClick={() => openRsvpDetails(p)}>
-                          <span aria-hidden>👀</span>
-                          <span>View RSVPs</span>
-                        </button>
-                      </div>
+                    <div className="home-card-title">{n.label}</div>
+                    <div className="home-card-meta">{metaLabel}</div>
+                    <div className="home-card-body home-card-body--neighbor">
+                      Just joined GatherGrove. Say hello in person or send a quick message from the People tab.
                     </div>
                   </div>
-
-                  <div>
-                    <span className="pill event">Future</span>
-                  </div>
+                  <div>{isNew && <span className="pill">New</span>}</div>
                 </motion.div>
               );
             })}
@@ -1792,7 +1943,7 @@ function RsvpDetailsSheet({ open, post, buckets, loading, error, onClose }: Rsvp
           >
             RSVPs
           </div>
-          {post.title && <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0f172a" }}>{post.title}</h3>}
+          {post.title && <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#0f172a" }}>{post.title}</h3>}
           <div style={{ fontSize: 13, color: "#4b5563", marginTop: 4 }}>{subtitle}</div>
 
           <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
@@ -1841,7 +1992,7 @@ function RsvpDetailsSheet({ open, post, buckets, loading, error, onClose }: Rsvp
               border: "1px solid #e5e7eb",
               background: "#ffffff",
               fontSize: 13,
-              fontWeight: 500,
+              fontWeight: 700,
               color: "#374151",
               cursor: "pointer",
             }}
@@ -1866,17 +2017,17 @@ function RsvpBucketSection({ label, emoji, items }: RsvpBucketSectionProps) {
   if (!items || items.length === 0) {
     return (
       <div>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: "#334155", marginBottom: 4 }}>
           {emoji} {label} (0)
         </div>
-        <div style={{ fontSize: 12, color: "#9ca3af" }}>No households yet.</div>
+        <div style={{ fontSize: 12, color: "#94a3b8" }}>No households yet.</div>
       </div>
     );
   }
 
   return (
     <div>
-      <div style={{ fontSize: 13, fontWeight: 600, color: "#4b5563", marginBottom: 8 }}>
+      <div style={{ fontSize: 13, fontWeight: 800, color: "#334155", marginBottom: 8 }}>
         {emoji} {label} ({items.length})
       </div>
 
@@ -1988,7 +2139,7 @@ function HappeningRepliesSheet({
           >
             Happening now
           </div>
-          {post.title && <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0f172a" }}>{post.title}</h3>}
+          {post.title && <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#0f172a" }}>{post.title}</h3>}
           <div style={{ fontSize: 13, color: "#4b5563", marginTop: 4 }}>{post.details}</div>
         </div>
 
@@ -2011,9 +2162,9 @@ function HappeningRepliesSheet({
           ) : (
             <div style={{ display: "grid", gap: 8 }}>
               {replies.map((r) => (
-                <div key={r.id} style={{ padding: 8, borderRadius: 12, background: "#f9fafb" }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: "#111827", marginBottom: 2 }}>{r.authorLabel}</div>
-                  <div style={{ fontSize: 13, color: "#374151" }}>{r.body}</div>
+                <div key={r.id} style={{ padding: 10, borderRadius: 14, background: "#f8fafc" }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#0f172a", marginBottom: 2 }}>{r.authorLabel}</div>
+                  <div style={{ fontSize: 13, color: "#334155", lineHeight: 1.35 }}>{r.body}</div>
                 </div>
               ))}
             </div>
@@ -2031,25 +2182,27 @@ function HappeningRepliesSheet({
               maxWidth: "100%",
               boxSizing: "border-box",
               fontSize: 14,
-              padding: 10,
-              borderRadius: 12,
-              border: "1px solid #e5e7eb",
+              padding: 12,
+              borderRadius: 14,
+              border: "1px solid rgba(15,23,42,.10)",
               resize: "none",
             }}
           />
-          <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6 }}>
+          <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 8 }}>
             {quickOptions.map((q) => (
               <button
                 key={q}
                 type="button"
                 onClick={() => onQuickReply(q)}
                 style={{
-                  padding: "6px 10px",
+                  padding: "7px 12px",
                   borderRadius: 999,
-                  border: "1px solid #e5e7eb",
-                  background: "#fff",
+                  border: "1px solid rgba(15,23,42,.08)",
+                  background: "rgba(255,255,255,0.92)",
                   fontSize: 12,
                   cursor: "pointer",
+                  fontWeight: 800,
+                  color: "#0f172a",
                 }}
               >
                 {q}
@@ -2063,20 +2216,20 @@ function HappeningRepliesSheet({
               borderTop: "1px solid #e5e7eb",
               display: "flex",
               justifyContent: "flex-end",
-              gap: 8,
+              gap: 10,
             }}
           >
             <button
               type="button"
               onClick={onClose}
               style={{
-                padding: 8,
+                padding: "8px 14px",
                 borderRadius: 999,
                 border: "1px solid #e5e7eb",
                 background: "#ffffff",
                 fontSize: 13,
-                fontWeight: 500,
-                color: "#374151",
+                fontWeight: 700,
+                color: "#334155",
                 cursor: "pointer",
               }}
             >
@@ -2093,9 +2246,9 @@ function HappeningRepliesSheet({
                 background: draft.trim() ? "#10b981" : "#9ca3af",
                 color: "#ffffff",
                 fontSize: 13,
-                fontWeight: 600,
+                fontWeight: 900,
                 cursor: draft.trim() ? "pointer" : "default",
-                boxShadow: draft.trim() ? "0 8px 16px rgba(16,185,129,0.24)" : "none",
+                boxShadow: draft.trim() ? "0 10px 18px rgba(16,185,129,0.24)" : "none",
               }}
             >
               Send
