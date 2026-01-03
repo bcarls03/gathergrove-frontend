@@ -1,20 +1,31 @@
 // src/lib/onboarding.ts
 
-// Keep kid shape consistent with the rest of the app
-export type OnboardingKid = {
-  birthMonth?: number | null;
-  birthYear?: number | null;
-  sex?: string | null;
-};
+// ============================================================================
+// NEW: Individual-first onboarding state
+// ============================================================================
 
 export type OnboardingState = {
-  neighborhoodCode?: string | null;
+  // Step 1: User Profile (REQUIRED)
+  firstName?: string | null;
   lastName?: string | null;
-  adults: string[]; // e.g. ["Brian", "Katelyn"]
-  householdType?: "Family w/ Kids" | "Singles/Couples" | "Empty Nesters" | null;
-  kids: OnboardingKid[];
   email?: string | null;
-  password?: string | null;
+  visibility?: "private" | "neighbors" | "public" | null;
+  
+  // Step 2: Household (OPTIONAL)
+  skipHousehold?: boolean;
+  householdName?: string | null;
+  householdType?: "family_with_kids" | "empty_nesters" | "singles_couples" | null;
+  kids?: OnboardingKid[];
+  
+  // Legacy fields (for backward compatibility during migration)
+  neighborhoodCode?: string | null;
+  adults?: string[];
+};
+
+export type OnboardingKid = {
+  age_range: "0-2" | "3-5" | "6-8" | "9-12" | "13-17" | "18+";
+  gender?: "male" | "female" | "prefer_not_to_say" | null;
+  available_for_babysitting?: boolean;
 };
 
 const KEY = "gg:onboarding";
@@ -26,15 +37,19 @@ function readStorage(): OnboardingState | null {
     const raw = window.localStorage.getItem(KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    // Ensure required array fields exist
+    // Return new state shape
     return {
-      adults: Array.isArray(parsed.adults) ? parsed.adults : [],
-      kids: Array.isArray(parsed.kids) ? parsed.kids : [],
-      neighborhoodCode: parsed.neighborhoodCode ?? null,
+      firstName: parsed.firstName ?? null,
       lastName: parsed.lastName ?? null,
-      householdType: parsed.householdType ?? null,
       email: parsed.email ?? null,
-      password: parsed.password ?? null,
+      visibility: parsed.visibility ?? null,
+      skipHousehold: parsed.skipHousehold ?? false,
+      householdName: parsed.householdName ?? null,
+      householdType: parsed.householdType ?? null,
+      kids: Array.isArray(parsed.kids) ? parsed.kids : [],
+      // Legacy fields
+      neighborhoodCode: parsed.neighborhoodCode ?? null,
+      adults: Array.isArray(parsed.adults) ? parsed.adults : [],
     };
   } catch {
     return null;
@@ -51,13 +66,16 @@ function writeStorage(state: OnboardingState) {
 }
 
 const DEFAULT_STATE: OnboardingState = {
-  neighborhoodCode: null,
+  firstName: null,
   lastName: null,
-  adults: [],
+  email: null,
+  visibility: "neighbors",
+  skipHousehold: false,
+  householdName: null,
   householdType: null,
   kids: [],
-  email: null,
-  password: null,
+  neighborhoodCode: null,
+  adults: [],
 };
 
 /**
@@ -69,8 +87,8 @@ export function getOnboardingState(): OnboardingState {
   return {
     ...DEFAULT_STATE,
     ...fromStorage,
-    adults: Array.isArray(fromStorage.adults) ? fromStorage.adults : [],
     kids: Array.isArray(fromStorage.kids) ? fromStorage.kids : [],
+    adults: Array.isArray(fromStorage.adults) ? fromStorage.adults : [],
   };
 }
 

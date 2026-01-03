@@ -16,8 +16,8 @@ import ComposePost from "./pages/ComposePost.tsx";
 import Settings from "./pages/Settings.tsx";
 
 // ⬇️ NOTE: all default imports, no curly braces
-import OnboardingAccess from "./pages/OnboardingAccess.tsx";
-import OnboardingHousehold from "./pages/OnboardingHousehold.tsx";
+import OnboardingProfile from "./pages/OnboardingProfile.tsx";
+import OnboardingHouseholdNew from "./pages/OnboardingHouseholdNew.tsx";
 import OnboardingPreview from "./pages/OnboardingPreview.tsx";
 import OnboardingSave from "./pages/OnboardingSave.tsx";
 
@@ -66,16 +66,19 @@ function AppShell() {
 
       <main style={{ padding: isOnboarding ? 0 : 16 }}>
         <Routes>
-          {/* Onboarding flow */}
-          <Route path="/onboarding/access" element={<OnboardingAccess />} />
+          {/* Onboarding flow - NEW: Individual-first */}
+          <Route path="/onboarding/profile" element={<OnboardingProfile />} />
           <Route
             path="/onboarding/household"
-            element={<OnboardingHousehold />}
+            element={<OnboardingHouseholdNew />}
           />
           <Route path="/onboarding/preview" element={<OnboardingPreview />} />
           <Route path="/onboarding/save" element={<OnboardingSave />} />
+          
+          {/* Redirect old onboarding access route */}
+          <Route path="/onboarding/access" element={<Navigate to="/onboarding/profile" replace />} />
 
-          {/* Main tabs */}
+          {/* Main tabs */
           <Route path="/" element={<Home />} />
           <Route path="/people" element={<People />} />
           <Route path="/settings" element={<Settings />} />
