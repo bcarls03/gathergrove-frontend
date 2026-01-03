@@ -13,7 +13,7 @@ import Home from "./pages/Home.tsx";
 import People from "./pages/People.tsx";
 import Messages from "./pages/Messages.tsx";
 import ComposePost from "./pages/ComposePost.tsx";
-import Settings from "./pages/Settings.tsx";
+import SettingsNew from "./pages/SettingsNew.tsx";
 
 // ⬇️ NOTE: all default imports, no curly braces
 import OnboardingProfile from "./pages/OnboardingProfile.tsx";
@@ -81,7 +81,7 @@ function AppShell() {
           {/* Main tabs */
           <Route path="/" element={<Home />} />
           <Route path="/people" element={<People />} />
-          <Route path="/settings" element={<Settings />} />
+          <Route path="/settings" element={<SettingsNew />} />
 
           {/* Hidden-from-nav routes */}
           <Route path="/messages" element={<Messages />} />
