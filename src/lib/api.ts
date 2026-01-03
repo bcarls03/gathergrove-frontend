@@ -83,6 +83,97 @@ function unwrapAxiosError(err: unknown) {
 
 /* --------------------------------- Types ----------------------------------- */
 
+// ============================================================================
+// USER PROFILE - Individual-first architecture
+// ============================================================================
+
+export type UserVisibility = "private" | "neighbors" | "public";
+
+export type UserProfile = {
+  uid: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  profile_photo_url?: string | null;
+  bio?: string | null;
+  address?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  discovery_opt_in?: boolean;
+  visibility?: UserVisibility;
+  household_id?: string | null;
+  interests?: string[] | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type UserProfileUpdate = {
+  email?: string;
+  first_name?: string;
+  last_name?: string;
+  profile_photo_url?: string | null;
+  bio?: string | null;
+  address?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  discovery_opt_in?: boolean;
+  visibility?: UserVisibility;
+  interests?: string[] | null;
+};
+
+export type UserSignupRequest = {
+  uid: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  profile_photo_url?: string | null;
+  bio?: string | null;
+  address?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  visibility?: UserVisibility;
+  interests?: string[] | null;
+};
+
+// ============================================================================
+// HOUSEHOLD - Optional grouping for multiple users
+// ============================================================================
+
+export type HouseholdType = "family_with_kids" | "empty_nesters" | "singles_couples";
+
+export type Kid = {
+  age_range: "0-2" | "3-5" | "6-8" | "9-12" | "13-17" | "18+";
+  gender?: "male" | "female" | "prefer_not_to_say" | null;
+  interests?: string[] | null;
+  available_for_babysitting?: boolean;
+};
+
+export type Household = {
+  id: string;
+  name: string;
+  member_uids?: string[];
+  household_type?: HouseholdType | null;
+  kids?: Kid[] | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type HouseholdCreate = {
+  name: string;
+  household_type?: HouseholdType | null;
+  kids?: Kid[] | null;
+};
+
+export type HouseholdUpdate = {
+  name?: string;
+  household_type?: HouseholdType | null;
+  kids?: Kid[] | null;
+};
+
+// ============================================================================
+// LEGACY TYPES (for backward compatibility during migration)
+// ============================================================================
+
 export type GGUser = {
   id?: string;
   uid: string;
@@ -93,14 +184,6 @@ export type GGUser = {
   updatedAt?: string;
 };
 
-export type Kid = {
-  birthMonth?: number | null;
-  birthYear?: number | null;
-  sex?: string | null;
-  awayAtCollege?: boolean | null;
-  canBabysit?: boolean | null;
-};
-
 export type GGHousehold = {
   id?: string;
   uid?: string;
@@ -109,13 +192,33 @@ export type GGHousehold = {
   adultNames?: string[];
   neighborhood?: string;
   householdType?: string;
-  kids?: Kid[];
+  kids?: {
+    birthMonth?: number | null;
+    birthYear?: number | null;
+    sex?: string | null;
+    awayAtCollege?: boolean | null;
+    canBabysit?: boolean | null;
+  }[];
   createdAt?: string;
   updatedAt?: string;
 };
 
-/** MUST match ComposePost CATEGORY_OPTIONS */
-export type EventCategory = "neighborhood" | "playdate" | "help" | "pet" | "other";
+// ============================================================================
+// EVENTS
+// ============================================================================
+
+/** Event categories matching backend */
+export type EventCategory = 
+  | "neighborhood" 
+  | "playdate" 
+  | "help" 
+  | "pet" 
+  | "food" 
+  | "celebrations" 
+  | "sports" 
+  | "other";
+
+export type EventVisibility = "private" | "link_only" | "public";
 
 export type RSVPStatus = "going" | "maybe" | "cant";
 
@@ -139,6 +242,14 @@ export type GGEvent = {
 
   neighborhoods?: string[];
 
+  // NEW: Individual host (not household)
+  host_user_id?: string | null;
+  hostUid?: string | null; // Legacy field for backward compatibility
+  
+  // NEW: Visibility and shareable link
+  visibility?: EventVisibility;
+  shareable_link?: string | null;
+
   createdBy?: { id: string; label: string };
 
   attendeeCount?: number;
@@ -149,7 +260,6 @@ export type GGEvent = {
   maybeCount?: number;
   cantCount?: number;
 
-  hostUid?: string | null;
   status?: string | null; // e.g. "active" | "canceled"
 };
 
@@ -183,7 +293,144 @@ export type EventRsvpBuckets = {
 
 /* ------------------------------ Users endpoints ----------------------------- */
 
+// ============================================================================
+// USER PROFILE API - Individual-first architecture
+// ============================================================================
+
+/**
+ * Sign up a new user (create UserProfile).
+ * This is the entry point - creates a user WITHOUT requiring a household.
+ */
+export async function signupUser(payload: UserSignupRequest): Promise<UserProfile> {
+  try {
+    const res = await api.post("/api/users/signup", payload, {
+      headers: { "Content-Type": "application/json" },
+    });
+    return res.data as UserProfile;
+  } catch (e) {
+    throw unwrapAxiosError(e);
+  }
+}
+
+/**
+ * Get current user's profile.
+ */
+export async function getMyProfile(): Promise<UserProfile> {
+  try {
+    const res = await api.get("/api/users/profile");
+    return res.data as UserProfile;
+  } catch (e) {
+    throw unwrapAxiosError(e);
+  }
+}
+
+/**
+ * Update current user's profile.
+ */
+export async function updateMyProfile(payload: UserProfileUpdate): Promise<UserProfile> {
+  try {
+    const res = await api.put("/api/users/profile", payload, {
+      headers: { "Content-Type": "application/json" },
+    });
+    return res.data as UserProfile;
+  } catch (e) {
+    throw unwrapAxiosError(e);
+  }
+}
+
+/**
+ * Delete current user's profile.
+ */
+export async function deleteMyProfile(): Promise<{ message: string }> {
+  try {
+    const res = await api.delete("/api/users/profile");
+    return res.data;
+  } catch (e) {
+    throw unwrapAxiosError(e);
+  }
+}
+
+// ============================================================================
+// HOUSEHOLD API - Optional grouping
+// ============================================================================
+
+/**
+ * Create a new household and link current user to it.
+ */
+export async function createHousehold(payload: HouseholdCreate): Promise<Household> {
+  try {
+    const res = await api.post("/api/users/household", payload, {
+      headers: { "Content-Type": "application/json" },
+    });
+    return res.data as Household;
+  } catch (e) {
+    throw unwrapAxiosError(e);
+  }
+}
+
+/**
+ * Get current user's household (if they have one).
+ */
+export async function getMyHousehold(): Promise<Household | null> {
+  try {
+    const res = await api.get("/api/users/household");
+    return res.data as Household;
+  } catch (e) {
+    const ax = e as AxiosError;
+    if (ax?.response?.status === 404) {
+      return null; // User doesn't have a household
+    }
+    throw unwrapAxiosError(e);
+  }
+}
+
+/**
+ * Update current user's household.
+ */
+export async function updateMyHousehold(payload: HouseholdUpdate): Promise<Household> {
+  try {
+    const res = await api.put("/api/users/household", payload, {
+      headers: { "Content-Type": "application/json" },
+    });
+    return res.data as Household;
+  } catch (e) {
+    throw unwrapAxiosError(e);
+  }
+}
+
+/**
+ * Link current user to an existing household.
+ */
+export async function linkToHousehold(householdId: string): Promise<UserProfile> {
+  try {
+    const res = await api.post("/api/users/household/link", 
+      { household_id: householdId },
+      { headers: { "Content-Type": "application/json" } }
+    );
+    return res.data as UserProfile;
+  } catch (e) {
+    throw unwrapAxiosError(e);
+  }
+}
+
+/**
+ * Unlink current user from their household.
+ */
+export async function unlinkFromHousehold(): Promise<UserProfile> {
+  try {
+    const res = await api.post("/api/users/household/unlink");
+    return res.data as UserProfile;
+  } catch (e) {
+    throw unwrapAxiosError(e);
+  }
+}
+
+// ============================================================================
+// LEGACY USER/HOUSEHOLD FUNCTIONS (for backward compatibility)
+// ============================================================================
+
 export async function upsertUser(payload?: Partial<GGUser>): Promise<GGUser> {
+  console.warn("upsertUser is deprecated - use signupUser instead");
   try {
     const isSafari =
       typeof navigator !== "undefined" &&
@@ -211,12 +458,11 @@ export async function upsertUser(payload?: Partial<GGUser>): Promise<GGUser> {
   }
 }
 
-/* ---------------------------- Households endpoints --------------------------- */
-
 export async function fetchHouseholds(params?: {
   neighborhood?: string;
   household_type?: string;
 }): Promise<GGHousehold[]> {
+  console.warn("fetchHouseholds is deprecated - use people discovery instead");
   try {
     const res = await api.get("/households", { params: params || {} });
     const data = res.data;
@@ -227,6 +473,7 @@ export async function fetchHouseholds(params?: {
 }
 
 export async function upsertMyHousehold(payload: Partial<GGHousehold>): Promise<GGHousehold> {
+  console.warn("upsertMyHousehold is deprecated - use createHousehold/updateMyHousehold instead");
   try {
     const res = await api.post("/households", payload, {
       headers: { "Content-Type": "application/json" },
@@ -241,7 +488,7 @@ export async function upsertMyHousehold(payload: Partial<GGHousehold>): Promise<
 
 export async function fetchEvents(): Promise<GGEvent[]> {
   try {
-    const res = await api.get("/events");
+    const res = await api.get("/api/events");
     const data = res.data;
     return (Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []) as GGEvent[];
   } catch (e) {
@@ -250,26 +497,28 @@ export async function fetchEvents(): Promise<GGEvent[]> {
 }
 
 /**
- * KEEP BACKWARD COMPATIBILITY:
- * return AxiosResponse like the original version (so other pages don't crash).
+ * Create a new event with individual host and visibility.
+ * Returns AxiosResponse for backward compatibility.
  */
 export async function createEvent(input: {
   type: "now" | "future";
   title: string;
   details: string;
-  category?: string;
+  category?: EventCategory;
+  visibility?: EventVisibility;
   startAt?: string | null;
   endAt?: string | null;
   expiresAt?: string | null;
   neighborhoods?: string[];
 }) {
   return api.post(
-    "/events",
+    "/api/events",
     {
       type: input.type,
       title: input.title,
       details: input.details,
       category: input.category ?? "neighborhood",
+      visibility: input.visibility ?? "public", // Default to public for viral loop
       startAt: input.startAt ?? null,
       endAt: input.endAt ?? null,
       expiresAt: input.expiresAt ?? null,
@@ -281,11 +530,11 @@ export async function createEvent(input: {
 
 /* ------------------------ Cancel / Delete event endpoints -------------------- */
 /**
- * Soft cancel (host-only): PATCH /events/{event_id}/cancel
+ * Soft cancel (host-only): PATCH /api/events/{event_id}/cancel
  */
 export async function cancelEvent(eventId: string): Promise<GGEvent> {
   try {
-    const res = await api.patch(`/events/${eventId}/cancel`);
+    const res = await api.patch(`/api/events/${eventId}/cancel`);
     return res.data as GGEvent;
   } catch (e) {
     throw unwrapAxiosError(e);
@@ -293,11 +542,11 @@ export async function cancelEvent(eventId: string): Promise<GGEvent> {
 }
 
 /**
- * Hard delete (host or admin): DELETE /events/{event_id}
+ * Hard delete (host or admin): DELETE /api/events/{event_id}
  */
 export async function deleteEvent(eventId: string): Promise<any> {
   try {
-    const res = await api.delete(`/events/${eventId}`);
+    const res = await api.delete(`/api/events/${eventId}`);
     return res.data;
   } catch (e) {
     throw unwrapAxiosError(e);
@@ -329,7 +578,7 @@ function toBackendStatus(s: RSVPStatus): "going" | "maybe" | "declined" {
 /** Legacy names some pages may import */
 export async function setEventRsvp(eventId: string, status: RSVPStatus): Promise<any> {
   try {
-    const res = await api.post(`/events/${eventId}/rsvp`, { status: toBackendStatus(status) });
+    const res = await api.post(`/api/events/${eventId}/rsvp`, { status: toBackendStatus(status) });
     return res.data;
   } catch (e) {
     throw unwrapAxiosError(e);
@@ -346,7 +595,7 @@ export async function rsvpToEvent(eventId: string, status: RSVPStatus): Promise<
 
 export async function leaveEventRsvp(eventId: string): Promise<any> {
   try {
-    const res = await api.delete(`/events/${eventId}/rsvp`);
+    const res = await api.delete(`/api/events/${eventId}/rsvp`);
     return res.data;
   } catch (e) {
     throw unwrapAxiosError(e);
@@ -357,7 +606,7 @@ export async function fetchMyRsvp(
   eventId: string
 ): Promise<{ userStatus: "going" | "maybe" | "declined" | null; counts?: any }> {
   try {
-    const res = await api.get(`/events/${eventId}/rsvp`);
+    const res = await api.get(`/api/events/${eventId}/rsvp`);
     return res.data as any;
   } catch (e) {
     throw unwrapAxiosError(e);
@@ -366,7 +615,7 @@ export async function fetchMyRsvp(
 
 export async function fetchEventRsvps(eventId: string): Promise<EventRsvpBuckets> {
   try {
-    const res = await api.get(`/events/${eventId}/rsvps`);
+    const res = await api.get(`/api/events/${eventId}/rsvps`);
     const d = res.data || {};
 
     // ✅ Tolerate backend naming differences
