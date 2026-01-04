@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { getViewer } from "../lib/viewer";
 import { loadNeighbors } from "../lib/profile";
 import * as Api from "../lib/api";
-import type { EventCategory } from "../lib/api";
+import type { EventCategory, EventVisibility } from "../lib/api";
 
 /* ---------- Types ---------- */
 
@@ -84,6 +84,9 @@ const CATEGORY_OPTIONS: CategoryMeta[] = [
   { id: "playdate", emoji: "🤸", label: "Playdate", description: "Kids playing together, park meetups, family fun" },
   { id: "help", emoji: "🤝", label: "Help & favors", description: "Borrow tools, give a hand, share rides" },
   { id: "pet", emoji: "🐶", label: "Pets", description: "Dog playtimes, lost/found pets, pet sitting" },
+  { id: "food", emoji: "🍕", label: "Food & Dining", description: "Potlucks, BBQs, restaurant meetups, cooking together" },
+  { id: "celebrations", emoji: "🎉", label: "Celebrations", description: "Birthdays, holidays, milestones, parties" },
+  { id: "sports", emoji: "⚽", label: "Sports & Fitness", description: "Pickup games, group runs, workout buddies" },
   { id: "other", emoji: "✨", label: "Other", description: "Anything that doesn’t fit above" },
 ];
 
@@ -191,6 +194,7 @@ export default function ComposePost() {
   const [endTime, setEndTime] = useState<string>(() => isoToTimeInputLocal(existingPost?.end));
 
   const [categoryId, setCategoryId] = useState<EventCategory>(existingPost?.category ?? DEFAULT_CATEGORY_ID);
+  const [visibility, setVisibility] = useState<EventVisibility>("public");
 
   const categoryMeta = CATEGORY_OPTIONS.find((c) => c.id === categoryId) ?? CATEGORY_OPTIONS[0];
 
@@ -254,6 +258,7 @@ export default function ComposePost() {
             title: "Happening Now",
             details: localPayload.details,
             category: localPayload.category ?? "neighborhood",
+            visibility: visibility,
             startAt: new Date().toISOString(),
             endAt: null,
           });
@@ -301,6 +306,7 @@ export default function ComposePost() {
           title: localPayload.title || "Future Event",
           details: localPayload.details,
           category: localPayload.category ?? DEFAULT_CATEGORY_ID,
+          visibility: visibility,
           startAt: localPayload.when ?? null,
           endAt: localPayload.end ?? null,
         });
@@ -631,6 +637,19 @@ export default function ComposePost() {
                       value={details}
                       onChange={(e) => setDetails(e.target.value)}
                     />
+                  </div>
+
+                  <div style={{ marginBottom: 10 }}>
+                    <label className="gg-label">Who can see this event?</label>
+                    <select 
+                      className="gg-input" 
+                      value={visibility} 
+                      onChange={(e) => setVisibility(e.target.value as EventVisibility)}
+                    >
+                      <option value="private">Private (neighbors only)</option>
+                      <option value="link_only">Shareable link (anyone with link)</option>
+                      <option value="public">Public (discoverable by all)</option>
+                    </select>
                   </div>
                 </div>
               )}

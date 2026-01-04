@@ -66,19 +66,18 @@ function AppShell() {
 
       <main style={{ padding: isOnboarding ? 0 : 16 }}>
         <Routes>
-          {/* Onboarding flow - NEW: Individual-first */}
+          {/* Onboarding flow */}
           <Route path="/onboarding/profile" element={<OnboardingProfile />} />
           <Route
             path="/onboarding/household"
             element={<OnboardingHouseholdNew />}
           />
-          <Route path="/onboarding/preview" element={<OnboardingPreview />} />
-          <Route path="/onboarding/save" element={<OnboardingSave />} />
-          
-          {/* Redirect old onboarding access route */}
           <Route path="/onboarding/access" element={<Navigate to="/onboarding/profile" replace />} />
 
-          {/* Main tabs */
+          <Route path="/onboarding/preview" element={<OnboardingPreview />} />
+          <Route path="/onboarding/save" element={<OnboardingSave />} />
+
+          {/* Main tabs */}
           <Route path="/" element={<Home />} />
           <Route path="/people" element={<People />} />
           <Route path="/settings" element={<SettingsNew />} />
