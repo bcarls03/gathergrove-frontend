@@ -88,19 +88,35 @@ function OnboardingPreviewInner() {
 
   // If we somehow got here without basic info, send them back
   useEffect(() => {
-    if (!state.lastName) {
+    if (!state.lastName && !state.householdName) {
       navigate("/onboarding/household", { replace: true });
     }
-  }, [state.lastName, navigate]);
+    
+    // Debug: Log the state to see what we have
+    console.log("🔍 OnboardingPreview state:", {
+      firstName: state.firstName,
+      lastName: state.lastName,
+      householdName: state.householdName,
+      adults: state.adults,
+      householdType: state.householdType,
+      kids: state.kids,
+    });
+  }, [state, navigate]);
 
   const adultsLabel = useMemo(() => {
     const adults: string[] = Array.isArray(state.adults) ? state.adults : [];
     const cleaned = adults.map((a) => (a || "").trim()).filter(Boolean);
+    
+    // If no adults listed, fall back to firstName from OAuth
+    if (cleaned.length === 0 && state.firstName) {
+      return state.firstName;
+    }
+    
     if (cleaned.length === 0) return "";
     if (cleaned.length === 1) return cleaned[0];
     if (cleaned.length === 2) return `${cleaned[0]} & ${cleaned[1]}`;
     return `${cleaned[0]} + ${cleaned.length - 1} more`;
-  }, [state.adults]);
+  }, [state.adults, state.firstName]);
 
   /* ---------- Kids: always oldest → youngest ---------- */
   const kidsRaw = (state.kids ?? []) as Kid[];
@@ -127,10 +143,39 @@ function OnboardingPreviewInner() {
   );
 
   const householdType = state.householdType ?? "";
-  const isFamily = householdType === "Family w/ Kids";
+  const isFamily = 
+    householdType === "family_with_kids" || 
+    householdType.toLowerCase().includes("family") || 
+    householdType.toLowerCase().includes("kids");
 
-  const householdTypeChip = state.householdType ?? "Household";
-  const label = state.lastName || "Household";
+  // Map household type to display label (matching your prototype)
+  const householdTypeLabel = useMemo(() => {
+    const type = (state.householdType ?? "").toLowerCase();
+    if (type.includes("family") || type.includes("kids")) return "Family w/ Kids";
+    if (type.includes("empty") || type.includes("nester")) return "Empty Nesters";
+    if (type.includes("single") || type.includes("couple")) return "Singles/Couples";
+    return "Household";
+  }, [state.householdType]);
+  
+  // Build the household name display
+  // Priority: householdName > "firstName lastName" (from OAuth) > lastName alone
+  let householdDisplayName = "";
+  
+  if (state.householdName?.trim()) {
+    // User entered a specific household name in the form
+    householdDisplayName = state.householdName.trim();
+  } else if (state.firstName?.trim() && state.lastName?.trim()) {
+    // Use OAuth full name (e.g., "Test Google User" → show as "Google User" household)
+    // Just use lastName for cleaner display
+    householdDisplayName = state.lastName.trim();
+  } else if (state.lastName?.trim()) {
+    // Just the last name
+    householdDisplayName = state.lastName.trim();
+  } else {
+    householdDisplayName = "Household";
+  }
+  
+  const label = householdDisplayName;
   const initial = label.charAt(0).toUpperCase();
 
   const handleEdit = () => navigate("/onboarding/household");
@@ -149,16 +194,15 @@ function OnboardingPreviewInner() {
       // ---------- 2) Upsert HOUSEHOLD (household fields only) ----------
       const adultNames = adults.map((a) => (a || "").trim()).filter(Boolean);
 
-      const normalizedKids: Kid[] =
-        householdType === "Family w/ Kids"
-          ? (kidsRaw || []).map((k) => ({
-              birthMonth: k.birthMonth ?? null,
-              birthYear: k.birthYear ?? null,
-              sex: k.sex ?? null,
-              awayAtCollege: Boolean(k.awayAtCollege),
-              canBabysit: Boolean(k.canBabysit),
-            }))
-          : [];
+      const normalizedKids: Kid[] = isFamily
+        ? (kidsRaw || []).map((k) => ({
+            birthMonth: k.birthMonth ?? null,
+            birthYear: k.birthYear ?? null,
+            sex: k.sex ?? null,
+            awayAtCollege: Boolean(k.awayAtCollege),
+            canBabysit: Boolean(k.canBabysit),
+          }))
+        : [];
 
       await upsertMyHousehold({
         lastName: (state.lastName || "").trim(),
@@ -443,7 +487,7 @@ function OnboardingPreviewInner() {
           )}
 
           <span className="gg-pill type" style={{ marginTop: 10, display: "inline-block" }}>
-            {householdTypeChip}
+            {householdTypeLabel}
           </span>
         </div>
 

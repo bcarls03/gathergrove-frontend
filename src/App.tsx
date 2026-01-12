@@ -14,10 +14,21 @@ import People from "./pages/People.tsx";
 import Messages from "./pages/Messages.tsx";
 import ComposePost from "./pages/ComposePost.tsx";
 import SettingsNew from "./pages/SettingsNew.tsx";
+import ProfileSettings from "./pages/ProfileSettings.tsx";
+import Discovery from "./pages/Discovery.tsx";
+import TestAutoJoin from "./pages/TestAutoJoin.tsx";
 
 // ⬇️ NOTE: all default imports, no curly braces
+import OnboardingAccess from "./pages/OnboardingAccess.tsx";
+import OnboardingAccessSimple from "./pages/OnboardingAccessSimple.tsx";
 import OnboardingProfile from "./pages/OnboardingProfile.tsx";
-import OnboardingHouseholdNew from "./pages/OnboardingHouseholdNew.tsx";
+import OnboardingAddressSimple from "./pages/OnboardingAddressSimple.tsx";
+import OnboardingMagicalMoment from "./pages/OnboardingMagicalMoment.tsx";
+import OnboardingMagicMoment from "./pages/OnboardingMagicMoment.tsx";
+import OnboardingHousehold from "./pages/OnboardingHousehold";
+import { OnboardingHouseholdType } from "./pages/OnboardingHouseholdType.tsx";
+import { OnboardingKids } from "./pages/OnboardingKids.tsx";
+import { OnboardingPrivacy } from "./pages/OnboardingPrivacy.tsx";
 import OnboardingPreview from "./pages/OnboardingPreview.tsx";
 import OnboardingSave from "./pages/OnboardingSave.tsx";
 
@@ -50,6 +61,11 @@ function AppShell() {
             padding: 16,
             borderBottom: "1px solid #eee",
             flexWrap: "wrap",
+            position: "sticky",
+            top: 0,
+            backgroundColor: "#ffffff",
+            zIndex: 100,
+            boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
           }}
         >
           <NavLink to="/" className={linkClass} end>
@@ -58,7 +74,10 @@ function AppShell() {
           <NavLink to="/people" className={linkClass}>
             People
           </NavLink>
-          <NavLink to="/settings" className={linkClass}>
+          <NavLink to="/discovery" className={linkClass}>
+            Discover
+          </NavLink>
+          <NavLink to="/profile" className={linkClass}>
             Settings
           </NavLink>
         </nav>
@@ -66,13 +85,22 @@ function AppShell() {
 
       <main style={{ padding: isOnboarding ? 0 : 16 }}>
         <Routes>
-          {/* Onboarding flow */}
+          {/* Onboarding flow - V15: OAuth → Location → Household Type → Kids (if family) → Privacy → Magic Moment → Save */}
+          <Route path="/onboarding/access" element={<OnboardingAccess />} />
+          <Route path="/onboarding/access-simple" element={<OnboardingAccessSimple />} />
           <Route path="/onboarding/profile" element={<OnboardingProfile />} />
+          <Route path="/onboarding/address" element={<OnboardingAddressSimple />} />
+          <Route path="/onboarding/magical-moment" element={<OnboardingMagicalMoment />} />
+          <Route path="/onboarding/magic-moment" element={<OnboardingMagicMoment />} />
           <Route
             path="/onboarding/household"
-            element={<OnboardingHouseholdNew />}
+            element={<OnboardingHousehold />}
           />
-          <Route path="/onboarding/access" element={<Navigate to="/onboarding/profile" replace />} />
+          <Route path="/onboarding/household-type" element={<OnboardingHouseholdType />} />
+          <Route path="/onboarding/kids" element={<OnboardingKids />} />
+          <Route path="/onboarding/privacy" element={<OnboardingPrivacy />} />
+          {/* Redirect old profile route to new OAuth access route */}
+          <Route path="/onboarding/profile-old" element={<OnboardingProfile />} />
 
           <Route path="/onboarding/preview" element={<OnboardingPreview />} />
           <Route path="/onboarding/save" element={<OnboardingSave />} />
@@ -80,12 +108,15 @@ function AppShell() {
           {/* Main tabs */}
           <Route path="/" element={<Home />} />
           <Route path="/people" element={<People />} />
+          <Route path="/discovery" element={<Discovery />} />
+          <Route path="/profile" element={<ProfileSettings />} />
           <Route path="/settings" element={<SettingsNew />} />
 
           {/* Hidden-from-nav routes */}
           <Route path="/messages" element={<Messages />} />
           <Route path="/compose/:kind" element={<ComposePost />} />
           <Route path="/compose/:kind/:id" element={<ComposePost />} />
+          <Route path="/test-autojoin" element={<TestAutoJoin />} />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />

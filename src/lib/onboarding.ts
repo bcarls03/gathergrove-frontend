@@ -17,6 +17,9 @@ export type OnboardingState = {
   householdType?: "family_with_kids" | "empty_nesters" | "singles_couples" | null;
   kids?: OnboardingKid[];
   
+  // Step 5: Privacy (NEW)
+  visibleToNeighbors?: boolean; // Default true
+  
   // Legacy fields (for backward compatibility during migration)
   neighborhoodCode?: string | null;
   adults?: string[];
@@ -25,6 +28,8 @@ export type OnboardingState = {
 export type OnboardingKid = {
   age_range: "0-2" | "3-5" | "6-8" | "9-12" | "13-17" | "18+";
   gender?: "male" | "female" | "prefer_not_to_say" | null;
+  birthYear?: number;  // Store birth year for auto-updating age
+  birthMonth?: number; // Store birth month (1-12) for auto-updating age
   available_for_babysitting?: boolean;
 };
 

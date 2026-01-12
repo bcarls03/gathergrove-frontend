@@ -1,0 +1,47 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "🚀 Start All Dev Servers",
+      "type": "shell",
+      "command": "./start-dev.sh",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new",
+        "focus": true
+      },
+      "runOptions": {
+        "runOn": "default"
+      }
+    },
+    {
+      "label": "🛑 Stop All Dev Servers",
+      "type": "shell",
+      "command": "./stop-dev.sh",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "🎨 Start Frontend Only",
+      "type": "npm",
+      "script": "dev",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "🔍 Check Server Status",
+      "type": "shell",
+      "command": "curl -s http://localhost:5173 >/dev/null && echo '✅ Frontend running' || echo '❌ Frontend not running'; curl -s http://localhost:8000/health >/dev/null && echo '✅ Backend running' || echo '❌ Backend not running'",
+      "problemMatcher": []
+    }
+  ]
+}

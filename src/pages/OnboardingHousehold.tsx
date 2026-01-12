@@ -1,13 +1,13 @@
 // src/pages/OnboardingHousehold.tsx
-import type React from "react";
-import { useEffect, useState } from "react";
+// V15 Step 3: Simple household type selection (required for discovery quality)
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Users, Home, Heart } from "lucide-react";
 import { motion } from "framer-motion";
 import { OnboardingLayout } from "../components/OnboardingLayout";
-import { getOnboardingState, setOnboardingState } from "../lib/onboarding";
+import { setOnboardingState, getOnboardingState } from "../lib/onboarding";
 
-type HouseholdType = "Family w/ Kids" | "Empty Nesters" | "Singles/Couples";
+type HouseholdType = "family_with_kids" | "empty_nesters" | "singles_couples";
 
 type KidForm = {
   id: string;
@@ -76,21 +76,21 @@ type HouseholdOption = {
 
 const householdOptions: HouseholdOption[] = [
   {
-    value: "Family w/ Kids",
+    value: "family_with_kids",
     title: "Family w/ Kids",
     subtitle: "Household with children at home.",
     Icon: Users,
     iconBg: "#DBEAFE",
   },
   {
-    value: "Empty Nesters",
+    value: "empty_nesters",
     title: "Empty Nesters",
     subtitle: "Children have moved out.",
     Icon: Home,
     iconBg: "#FEF3C7",
   },
   {
-    value: "Singles/Couples",
+    value: "singles_couples",
     title: "Singles/Couples",
     subtitle: "Household without children.",
     Icon: Heart,
@@ -197,8 +197,6 @@ export default function OnboardingHousehold() {
   const navigate = useNavigate();
 
   const [lastName, setLastName] = useState("");
-  const [adult1, setAdult1] = useState("");
-  const [adult2, setAdult2] = useState("");
   const [householdType, setHouseholdType] = useState<HouseholdType | "">("");
   const [kids, setKids] = useState<KidForm[]>([]);
   const [touched, setTouched] = useState(false);
@@ -207,11 +205,15 @@ export default function OnboardingHousehold() {
   // Load saved onboarding state
   useEffect(() => {
     const state = getOnboardingState();
-    if (state.lastName) setLastName(state.lastName);
-    if (state.adults && state.adults.length > 0) {
-      setAdult1(state.adults[0] || "");
-      setAdult2(state.adults[1] || "");
+    
+    // Auto-fill household last name from OAuth if not already set
+    if (state.householdName) {
+      setLastName(state.householdName);
+    } else if (state.lastName) {
+      // Use OAuth lastName as default household name
+      setLastName(state.lastName);
     }
+    
     if (state.householdType && typeof state.householdType === "string") {
       setHouseholdType(state.householdType as HouseholdType);
     }
@@ -229,7 +231,7 @@ export default function OnboardingHousehold() {
     }
   }, []);
 
-  const isFamily = householdType === "Family w/ Kids";
+  const isFamily = householdType === "family_with_kids";
 
   const lastNameValid = lastName.trim().length > 0;
   const householdTypeValid = !!householdType;
@@ -284,26 +286,44 @@ export default function OnboardingHousehold() {
 
     setSaving(true);
 
-    const adults = [adult1.trim(), adult2.trim()].filter(Boolean);
+    // Helper function to calculate age range from birth year
+    const calculateAgeRange = (birthYear: number): "0-2" | "3-5" | "6-8" | "9-12" | "13-17" | "18+" => {
+      const currentYear = new Date().getFullYear();
+      const age = currentYear - birthYear;
+      
+      if (age <= 2) return "0-2";
+      if (age <= 5) return "3-5";
+      if (age <= 8) return "6-8";
+      if (age <= 12) return "9-12";
+      if (age <= 17) return "13-17";
+      return "18+";
+    };
 
     // Only persist fully-filled kids
     const normalizedKids =
-      householdType === "Family w/ Kids"
+      householdType === "family_with_kids"
         ? kids
             .filter((k) => k.birthMonth && k.birthYear && k.gender)
-            .map((k) => ({
-              birthMonth: k.birthMonth ? Number(k.birthMonth) : null,
-              birthYear: k.birthYear ? Number(k.birthYear) : null,
-              sex: k.gender || null,
-              awayAtCollege: k.awayAtCollege || false,
-              canBabysit: k.canBabysit || false,
-            }))
+            .map((k) => {
+              let gender = (k.gender || "").toLowerCase().replace(/ /g, "_");
+              if (gender === "male" || gender === "m") gender = "male";
+              else if (gender === "female" || gender === "f") gender = "female";
+              else if (!gender) gender = null;
+              return {
+                age_range: calculateAgeRange(Number(k.birthYear)),
+                birthMonth: k.birthMonth ? Number(k.birthMonth) : undefined,
+                birthYear: k.birthYear ? Number(k.birthYear) : undefined,
+                sex: gender as "male" | "female" | "prefer_not_to_say" | null,
+                available_for_babysitting: k.canBabysit || false,
+              };
+            })
         : [];
 
     // Persist onboarding state for preview
+    // V15 Strategy: Individual profiles are source of truth
+    // Only collect household last name, not other adults' info
     setOnboardingState({
-      lastName: lastName.trim(),
-      adults,
+      householdName: lastName.trim(),
       householdType: householdType || undefined,
       kids: normalizedKids,
     });
@@ -337,10 +357,10 @@ export default function OnboardingHousehold() {
             Set up your household so neighbors know who’s in your home.
           </p>
 
-          {/* Last name & adults */}
-          <div style={{ marginBottom: 14 }}>
+          {/* Last name */}
+          <div style={{ marginBottom: 18 }}>
             <label style={labelStyle} htmlFor="lastName">
-              Last Name *
+              Household Last Name *
             </label>
             <input
               id="lastName"
@@ -348,37 +368,15 @@ export default function OnboardingHousehold() {
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
               onBlur={() => setTouched(true)}
+              placeholder="Smith"
               style={{
                 ...inputStyle,
                 borderColor: !lastNameValid && touched ? "#f97373" : inputStyle.borderColor,
               }}
             />
-          </div>
-
-          <div style={{ marginBottom: 14 }}>
-            <label style={labelStyle} htmlFor="adult1">
-              Adult 1 (optional)
-            </label>
-            <input
-              id="adult1"
-              type="text"
-              value={adult1}
-              onChange={(e) => setAdult1(e.target.value)}
-              style={inputStyle}
-            />
-          </div>
-
-          <div style={{ marginBottom: 18 }}>
-            <label style={labelStyle} htmlFor="adult2">
-              Adult 2 (optional)
-            </label>
-            <input
-              id="adult2"
-              type="text"
-              value={adult2}
-              onChange={(e) => setAdult2(e.target.value)}
-              style={inputStyle}
-            />
+            <p style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
+              Your household last name. Your individual name comes from your profile.
+            </p>
           </div>
 
           {/* Household type cards */}
@@ -588,58 +586,23 @@ export default function OnboardingHousehold() {
                     </div>
 
                     {preview && (
-                      <div style={{ marginTop: 6, fontSize: 11, color: "#6b7280" }}>
-                        Preview: {preview}
-                      </div>
-                    )}
-
-                    {age !== null && age >= 18 && (
-                      <>
-                        <label
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            marginTop: 8,
-                            fontSize: 12,
-                            color: "#374151",
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={kid.awayAtCollege}
-                            onChange={(e) =>
-                              updateKid(kid.id, "awayAtCollege", e.target.checked)
-                            }
-                          />
-                          <span>Lives away from home (college, work, etc.)</span>
-                        </label>
-                        <div style={{ marginTop: 2, fontSize: 11, color: "#6b7280" }}>
-                          Use this if they&apos;re usually away for school or work, not
-                          just visiting.
-                        </div>
-                      </>
-                    )}
-
-                    {age !== null && age >= 13 && age <= 25 && (
-                      <label
+                      <div
                         style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
                           marginTop: 8,
-                          fontSize: 12,
-                          color: "#374151",
+                          marginBottom: 4,
+                          padding: "6px 12px",
+                          background: "#ECFDF5",
+                          borderRadius: 8,
+                          fontSize: 15,
+                          fontWeight: 600,
+                          color: "#059669",
+                          display: "inline-block",
                         }}
                       >
-                        <input
-                          type="checkbox"
-                          checked={kid.canBabysit}
-                          onChange={(e) => updateKid(kid.id, "canBabysit", e.target.checked)}
-                        />
-                        <span>Can help with babysitting / parent helper</span>
-                      </label>
+                        {preview}
+                      </div>
                     )}
+                    {/* Removed 'Lives away from home' and 'babysitting' checkboxes for onboarding */}
                   </div>
                 );
               })}

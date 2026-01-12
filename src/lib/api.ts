@@ -1,5 +1,6 @@
 // src/lib/api.ts
 import axios, { AxiosError } from "axios";
+import { getIdToken } from "./firebase";
 
 /* ------------------------------- Dev UID helper ------------------------------ */
 /**
@@ -45,25 +46,41 @@ const api = axios.create({
 });
 
 /**
- * Headers your FastAPI dev auth expects.
- * IMPORTANT:
- * - We attach X-Uid/X-Email/X-Admin ALWAYS in dev
- * - We DO NOT clobber an existing Authorization header if caller already set one
+ * Headers for API requests.
+ * 
+ * V15 OAuth Flow:
+ * - If Firebase Auth token exists, use Authorization: Bearer <token>
+ * - Otherwise, fall back to dev headers (X-Uid/X-Email) for local testing
  */
-function devHeaders(extra?: Record<string, string>) {
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  try {
+    const token = await getIdToken();
+    if (token) {
+      // Production OAuth flow
+      return {
+        "Authorization": `Bearer ${token}`,
+      };
+    }
+  } catch (error) {
+    console.warn('Failed to get Firebase token, falling back to dev headers:', error);
+  }
+  
+  // Dev fallback
   return {
     "X-Uid": CURRENT_UID,
-    "X-Email": `${CURRENT_UID}@dev.local`,
+    "X-Email": `${CURRENT_UID}@example.com`,
     "X-Admin": "true",
-    ...(extra || {}),
   };
 }
 
 api.interceptors.request.use(
-  (config) => {
+  async (config) => {
+    // Get auth headers (OAuth token or dev headers)
+    const authHeaders = await getAuthHeaders();
+    
     config.headers = {
+      ...authHeaders,
       ...(config.headers as any),
-      ...devHeaders(),
     } as any;
     return config;
   },
@@ -303,8 +320,13 @@ export type EventRsvpBuckets = {
  */
 export async function signupUser(payload: UserSignupRequest): Promise<UserProfile> {
   try {
-    const res = await api.post("/api/users/signup", payload, {
-      headers: { "Content-Type": "application/json" },
+    // Override the default X-Uid header with the UID from the payload
+    const res = await api.post("/users/signup", payload, {
+      headers: { 
+        "Content-Type": "application/json",
+        "X-Uid": payload.uid,
+        "X-Email": payload.email,
+      },
     });
     return res.data as UserProfile;
   } catch (e) {
@@ -317,7 +339,7 @@ export async function signupUser(payload: UserSignupRequest): Promise<UserProfil
  */
 export async function getMyProfile(): Promise<UserProfile> {
   try {
-    const res = await api.get("/api/users/profile");
+    const res = await api.get("/users/me");
     return res.data as UserProfile;
   } catch (e) {
     throw unwrapAxiosError(e);
@@ -329,7 +351,7 @@ export async function getMyProfile(): Promise<UserProfile> {
  */
 export async function updateMyProfile(payload: UserProfileUpdate): Promise<UserProfile> {
   try {
-    const res = await api.put("/api/users/profile", payload, {
+    const res = await api.patch("/users/me", payload, {
       headers: { "Content-Type": "application/json" },
     });
     return res.data as UserProfile;
@@ -343,7 +365,7 @@ export async function updateMyProfile(payload: UserProfileUpdate): Promise<UserP
  */
 export async function deleteMyProfile(): Promise<{ message: string }> {
   try {
-    const res = await api.delete("/api/users/profile");
+    const res = await api.delete("/users/me");
     return res.data;
   } catch (e) {
     throw unwrapAxiosError(e);
@@ -359,7 +381,7 @@ export async function deleteMyProfile(): Promise<{ message: string }> {
  */
 export async function createHousehold(payload: HouseholdCreate): Promise<Household> {
   try {
-    const res = await api.post("/api/users/household", payload, {
+    const res = await api.post("/users/me/household/create", payload, {
       headers: { "Content-Type": "application/json" },
     });
     return res.data as Household;
@@ -373,7 +395,7 @@ export async function createHousehold(payload: HouseholdCreate): Promise<Househo
  */
 export async function getMyHousehold(): Promise<Household | null> {
   try {
-    const res = await api.get("/api/users/household");
+    const res = await api.get("/users/me/household");
     return res.data as Household;
   } catch (e) {
     const ax = e as AxiosError;
@@ -389,7 +411,7 @@ export async function getMyHousehold(): Promise<Household | null> {
  */
 export async function updateMyHousehold(payload: HouseholdUpdate): Promise<Household> {
   try {
-    const res = await api.put("/api/users/household", payload, {
+    const res = await api.put("/users/me/household", payload, {
       headers: { "Content-Type": "application/json" },
     });
     return res.data as Household;
@@ -403,7 +425,7 @@ export async function updateMyHousehold(payload: HouseholdUpdate): Promise<House
  */
 export async function linkToHousehold(householdId: string): Promise<UserProfile> {
   try {
-    const res = await api.post("/api/users/household/link", 
+    const res = await api.post("/users/me/household/link", 
       { household_id: householdId },
       { headers: { "Content-Type": "application/json" } }
     );
@@ -418,7 +440,7 @@ export async function linkToHousehold(householdId: string): Promise<UserProfile>
  */
 export async function unlinkFromHousehold(): Promise<UserProfile> {
   try {
-    const res = await api.post("/api/users/household/unlink");
+    const res = await api.delete("/users/me/household");
     return res.data as UserProfile;
   } catch (e) {
     throw unwrapAxiosError(e);
@@ -488,7 +510,7 @@ export async function upsertMyHousehold(payload: Partial<GGHousehold>): Promise<
 
 export async function fetchEvents(): Promise<GGEvent[]> {
   try {
-    const res = await api.get("/api/events");
+    const res = await api.get("/events");
     const data = res.data;
     return (Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []) as GGEvent[];
   } catch (e) {
@@ -512,7 +534,7 @@ export async function createEvent(input: {
   neighborhoods?: string[];
 }) {
   return api.post(
-    "/api/events",
+    "/events",
     {
       type: input.type,
       title: input.title,
@@ -534,7 +556,7 @@ export async function createEvent(input: {
  */
 export async function cancelEvent(eventId: string): Promise<GGEvent> {
   try {
-    const res = await api.patch(`/api/events/${eventId}/cancel`);
+    const res = await api.patch(`/events/${eventId}/cancel`);
     return res.data as GGEvent;
   } catch (e) {
     throw unwrapAxiosError(e);
@@ -546,7 +568,7 @@ export async function cancelEvent(eventId: string): Promise<GGEvent> {
  */
 export async function deleteEvent(eventId: string): Promise<any> {
   try {
-    const res = await api.delete(`/api/events/${eventId}`);
+    const res = await api.delete(`/events/${eventId}`);
     return res.data;
   } catch (e) {
     throw unwrapAxiosError(e);
@@ -578,7 +600,7 @@ function toBackendStatus(s: RSVPStatus): "going" | "maybe" | "declined" {
 /** Legacy names some pages may import */
 export async function setEventRsvp(eventId: string, status: RSVPStatus): Promise<any> {
   try {
-    const res = await api.post(`/api/events/${eventId}/rsvp`, { status: toBackendStatus(status) });
+    const res = await api.post(`/events/${eventId}/rsvp`, { status: toBackendStatus(status) });
     return res.data;
   } catch (e) {
     throw unwrapAxiosError(e);
@@ -595,7 +617,7 @@ export async function rsvpToEvent(eventId: string, status: RSVPStatus): Promise<
 
 export async function leaveEventRsvp(eventId: string): Promise<any> {
   try {
-    const res = await api.delete(`/api/events/${eventId}/rsvp`);
+    const res = await api.delete(`/events/${eventId}/rsvp`);
     return res.data;
   } catch (e) {
     throw unwrapAxiosError(e);
@@ -606,7 +628,7 @@ export async function fetchMyRsvp(
   eventId: string
 ): Promise<{ userStatus: "going" | "maybe" | "declined" | null; counts?: any }> {
   try {
-    const res = await api.get(`/api/events/${eventId}/rsvp`);
+    const res = await api.get(`/events/${eventId}/rsvp`);
     return res.data as any;
   } catch (e) {
     throw unwrapAxiosError(e);
@@ -615,7 +637,7 @@ export async function fetchMyRsvp(
 
 export async function fetchEventRsvps(eventId: string): Promise<EventRsvpBuckets> {
   try {
-    const res = await api.get(`/api/events/${eventId}/rsvps`);
+    const res = await api.get(`/events/${eventId}/rsvps`);
     const d = res.data || {};
 
     // ✅ Tolerate backend naming differences

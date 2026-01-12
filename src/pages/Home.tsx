@@ -1255,6 +1255,150 @@ export default function Home() {
         </div>
       )}
 
+      {/* -------- Profile Completion Prompts -------- */}
+      {/* TODO: Replace with actual user profile data from backend */}
+      {/* For now, checking localStorage for demo purposes */}
+      {(() => {
+        // Mock user profile check - replace with real data from backend
+        const hasHouseholdType = localStorage.getItem('user_household_type') !== null;
+        const householdType = localStorage.getItem('user_household_type');
+        const hasChildren = localStorage.getItem('user_has_children') === 'true';
+        
+        // Banner 1: No household type set
+        if (!hasHouseholdType) {
+          return (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+              style={{
+                borderRadius: 16,
+                border: '1px solid #bfdbfe',
+                background: 'linear-gradient(180deg, #eff6ff, #ffffff)',
+                padding: '14px 16px',
+                marginBottom: 16,
+                boxShadow: '0 10px 20px rgba(59, 130, 246, 0.08)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 12,
+              }}
+            >
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ 
+                  fontWeight: 800, 
+                  marginBottom: 4, 
+                  fontSize: 15, 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 6, 
+                  color: '#1e40af' 
+                }}>
+                  👋 Complete your profile
+                </div>
+                <div style={{ fontSize: 14, color: '#1e3a8a', lineHeight: 1.35 }}>
+                  Add your household type to discover families, events, and neighbors like you
+                </div>
+              </div>
+              <button
+                onClick={() => navigate('/profile?tab=household')}
+                style={{
+                  fontSize: 13,
+                  padding: '8px 16px',
+                  borderRadius: 999,
+                  border: 'none',
+                  background: '#3b82f6',
+                  color: '#ffffff',
+                  whiteSpace: 'nowrap',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                  boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25)',
+                  transition: 'all 0.2s',
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(59, 130, 246, 0.35)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.25)';
+                }}
+              >
+                Complete Profile →
+              </button>
+            </motion.div>
+          );
+        }
+        
+        // Banner 2: Family household but no children added
+        if (householdType === 'family' && !hasChildren) {
+          return (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+              style={{
+                borderRadius: 16,
+                border: '1px solid #d1fae5',
+                background: 'linear-gradient(180deg, #f0fdf4, #ffffff)',
+                padding: '14px 16px',
+                marginBottom: 16,
+                boxShadow: '0 10px 20px rgba(16, 185, 129, 0.08)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 12,
+              }}
+            >
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ 
+                  fontWeight: 800, 
+                  marginBottom: 4, 
+                  fontSize: 15, 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 6, 
+                  color: '#047857' 
+                }}>
+                  🎉 Add your kids' ages
+                </div>
+                <div style={{ fontSize: 14, color: '#065f46', lineHeight: 1.35 }}>
+                  Find playdates, carpools, and connect with families who have kids similar ages
+                </div>
+              </div>
+              <button
+                onClick={() => navigate('/profile?tab=household')}
+                style={{
+                  fontSize: 13,
+                  padding: '8px 16px',
+                  borderRadius: 999,
+                  border: 'none',
+                  background: '#10b981',
+                  color: '#ffffff',
+                  whiteSpace: 'nowrap',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)',
+                  transition: 'all 0.2s',
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(16, 185, 129, 0.35)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.25)';
+                }}
+              >
+                Add Children →
+              </button>
+            </motion.div>
+          );
+        }
+        
+        return null;
+      })()}
+
       {/* -------- 2) Invited Events -------- */}
       <section className="home-section">
         <div className="section-header-row">

@@ -200,10 +200,13 @@ export default function OnboardingHouseholdNew() {
     <OnboardingLayout currentStep="household">
       <div style={{ marginBottom: 32, textAlign: "center" }}>
         <h1 style={{ fontSize: 28, fontWeight: 700, color: "#111827", marginBottom: 8 }}>
-          Create Your Household
+          Create Your Household (Optional)
         </h1>
-        <p style={{ fontSize: 15, color: "#6b7280" }}>
-          Optional - you can skip this and add it later
+        <p style={{ fontSize: 15, color: "#6b7280", marginBottom: 8 }}>
+          You can skip this step—we collect only what's needed, when it's needed
+        </p>
+        <p style={{ fontSize: 13, color: "#9ca3af", fontStyle: "italic" }}>
+          Add household info later from Settings, or connect events to just your individual profile
         </p>
       </div>
 
@@ -501,13 +504,19 @@ export default function OnboardingHouseholdNew() {
               cursor: saving ? "not-allowed" : "pointer",
             }}
           >
-            Skip for now
+            Skip for now—start with just me
           </motion.button>
         </div>
 
-        <p style={{ marginTop: 16, fontSize: 12, color: "#6b7280", textAlign: "center" }}>
-          You can always add or edit your household later in settings
-        </p>
+        {/* Progressive Disclosure Message */}
+        <div style={{ marginTop: 16, textAlign: "center" }}>
+          <p style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
+            You can always add or edit your household later in Settings
+          </p>
+          <p style={{ fontSize: 11, color: "#9ca3af", fontStyle: "italic" }}>
+            Your identity is individual-first and independent of any household
+          </p>
+        </div>
       </div>
     </OnboardingLayout>
   );
