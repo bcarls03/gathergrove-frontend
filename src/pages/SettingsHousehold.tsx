@@ -14,10 +14,10 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
-  getMyProfile, 
   getMyHousehold, 
   linkToHousehold, 
   unlinkFromHousehold,
+  getUserProfiles,
   type Household as ApiHousehold
 } from "../lib/api";
 
@@ -51,22 +51,41 @@ export default function SettingsHousehold() {
     setError(null);
     
     try {
-      const profile = await getMyProfile();
-      
-      if (profile.household_id) {
+      // Try to load household directly first (more reliable than profile check)
+      try {
         const householdData = await getMyHousehold();
         
         if (householdData) {
           setHousehold(householdData);
           
-          // TODO: Fetch member details from backend
-          // For now, just show UIDs
-          const memberList: HouseholdMember[] = (householdData.member_uids || []).map((uid: string) => ({
-            uid,
-            isAdmin: false, // TODO: Add admin_uid to backend Household model
-          }));
-          setMembers(memberList);
+          // Fetch member details from backend
+          const memberUids = householdData.member_uids || [];
+          if (memberUids.length > 0) {
+            try {
+              const profiles = await getUserProfiles(memberUids);
+              const memberList: HouseholdMember[] = profiles.map(profile => ({
+                uid: profile.uid,
+                firstName: profile.first_name,
+                lastName: profile.last_name,
+                email: profile.email,
+                isAdmin: false, // TODO: Add admin_uid to backend Household model
+              }));
+              setMembers(memberList);
+            } catch (profileErr) {
+              console.warn("Failed to fetch member profiles, using UIDs:", profileErr);
+              // Fallback to just showing UIDs if profile fetch fails
+              const memberList: HouseholdMember[] = memberUids.map((uid: string) => ({
+                uid,
+                isAdmin: false,
+              }));
+              setMembers(memberList);
+            }
+          }
         }
+      } catch (householdErr: any) {
+        // If household fetch fails (404), user isn't part of a household
+        // This is expected and not an error
+        console.log("No household found (expected if user hasn't joined/created one)");
       }
     } catch (err: any) {
       console.error("Error loading household:", err);
@@ -137,13 +156,13 @@ export default function SettingsHousehold() {
         alignItems: 'center',
         justifyContent: 'center',
         minHeight: '100vh',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        background: '#f9fafb',
       }}>
         <div style={{
           background: 'white',
           borderRadius: 16,
           padding: 32,
-          boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+          boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
         }}>
           <div style={{ textAlign: 'center' }}>
             <div className="animate-spin" style={{
@@ -164,7 +183,7 @@ export default function SettingsHousehold() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      background: '#f9fafb',
       padding: '24px',
     }}>
       <div style={{
@@ -181,15 +200,18 @@ export default function SettingsHousehold() {
           <button
             onClick={() => navigate('/settings')}
             style={{
-              background: 'rgba(255,255,255,0.2)',
-              border: 'none',
-              borderRadius: 12,
-              padding: '12px 20px',
-              color: 'white',
+              background: 'white',
+              border: '1px solid #e5e7eb',
+              borderRadius: 8,
+              padding: '10px 16px',
+              color: '#374151',
               fontSize: 14,
               fontWeight: 600,
               cursor: 'pointer',
-              backdropFilter: 'blur(10px)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
             }}
           >
             ← Back to Settings
@@ -261,7 +283,7 @@ export default function SettingsHousehold() {
                   width: 64,
                   height: 64,
                   borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -307,13 +329,13 @@ export default function SettingsHousehold() {
                           width: 40,
                           height: 40,
                           borderRadius: '50%',
-                          background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)',
+                          background: 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           fontSize: 16,
                           fontWeight: 600,
-                          color: '#1e40af',
+                          color: '#065f46',
                         }}>
                           {member.firstName?.[0] || member.email?.[0] || '?'}
                         </div>
@@ -358,7 +380,7 @@ export default function SettingsHousehold() {
                   style={{
                     flex: 1,
                     minWidth: 200,
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    background: '#10b981',
                     border: 'none',
                     borderRadius: 12,
                     padding: '14px 24px',
@@ -370,7 +392,7 @@ export default function SettingsHousehold() {
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: 8,
-                    boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)',
+                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
                   }}
                 >
                   <UserPlus size={18} />
@@ -438,7 +460,7 @@ export default function SettingsHousehold() {
             <button
               onClick={() => setShowJoinModal(true)}
               style={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                background: '#10b981',
                 border: 'none',
                 borderRadius: 12,
                 padding: '16px 32px',
@@ -449,7 +471,7 @@ export default function SettingsHousehold() {
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 8,
-                boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)',
+                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
               }}
             >
               <UserPlus size={20} />
@@ -531,7 +553,7 @@ export default function SettingsHousehold() {
                   onClick={handleCopyInviteLink}
                   style={{
                     width: '100%',
-                    background: copied ? '#10b981' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    background: copied ? '#059669' : '#10b981',
                     border: 'none',
                     borderRadius: 12,
                     padding: '16px',
@@ -663,7 +685,7 @@ export default function SettingsHousehold() {
                     width: '100%',
                     background: !joinCode.trim() || joining 
                       ? '#e5e7eb' 
-                      : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      : '#10b981',
                     border: 'none',
                     borderRadius: 12,
                     padding: '16px',

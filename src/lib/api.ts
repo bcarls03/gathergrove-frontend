@@ -49,28 +49,36 @@ const api = axios.create({
  * Headers for API requests.
  * 
  * V15 OAuth Flow:
- * - If Firebase Auth token exists, use Authorization: Bearer <token>
- * - Otherwise, fall back to dev headers (X-Uid/X-Email) for local testing
+ * - In dev mode: ALWAYS send X-Uid (backend is in ALLOW_DEV_AUTH=1 mode)
+ * - In production: Use Authorization: Bearer <token>
  */
 async function getAuthHeaders(): Promise<Record<string, string>> {
+  // DEV MODE: Always use dev headers (backend is running with ALLOW_DEV_AUTH=1)
+  // The backend will use X-Uid/X-Email and ignore any Bearer token
+  const isDev = !import.meta.env.PROD;
+  
+  if (isDev) {
+    return {
+      "X-Uid": CURRENT_UID,
+      "X-Email": `${CURRENT_UID}@example.com`,
+      "X-Admin": "true",
+    };
+  }
+  
+  // PRODUCTION MODE: Use Firebase OAuth token
   try {
     const token = await getIdToken();
     if (token) {
-      // Production OAuth flow
       return {
         "Authorization": `Bearer ${token}`,
       };
     }
   } catch (error) {
-    console.warn('Failed to get Firebase token, falling back to dev headers:', error);
+    console.warn('Failed to get Firebase token in production:', error);
   }
   
-  // Dev fallback
-  return {
-    "X-Uid": CURRENT_UID,
-    "X-Email": `${CURRENT_UID}@example.com`,
-    "X-Admin": "true",
-  };
+  // Fallback (shouldn't happen in production)
+  throw new Error("Authentication required");
 }
 
 api.interceptors.request.use(
@@ -341,6 +349,20 @@ export async function getMyProfile(): Promise<UserProfile> {
   try {
     const res = await api.get("/users/me");
     return res.data as UserProfile;
+  } catch (e) {
+    throw unwrapAxiosError(e);
+  }
+}
+
+/**
+ * Get multiple user profiles by UIDs.
+ */
+export async function getUserProfiles(uids: string[]): Promise<UserProfile[]> {
+  try {
+    const res = await api.get("/users/profiles", {
+      params: { uids: uids.join(",") }
+    });
+    return res.data as UserProfile[];
   } catch (e) {
     throw unwrapAxiosError(e);
   }
