@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Plus, X } from "lucide-react";
 import { OnboardingLayout } from "../components/OnboardingLayout";
-import { setOnboardingState } from "../lib/onboarding";
+import { getOnboardingState, setOnboardingState } from "../lib/onboarding";
 
 type Kid = {
   id: string;
@@ -62,9 +62,19 @@ function getAgeRange(age: number): "0-2" | "3-5" | "6-8" | "9-12" | "13-17" | "1
 
 export function OnboardingKids() {
   const navigate = useNavigate();
-  const [kids, setKids] = useState<Kid[]>([
-    { id: "1", birthYear: "", birthMonth: "", gender: "" },
-  ]);
+  
+  // Load existing kids data from onboarding state, or start with one empty kid
+  const state = getOnboardingState();
+  const initialKids: Kid[] = state.kids && state.kids.length > 0
+    ? state.kids.map((k, index) => ({
+        id: `${index + 1}`,
+        birthYear: k.birthYear?.toString() || "",
+        birthMonth: k.birthMonth?.toString() || "",
+        gender: k.gender || "",
+      }))
+    : [{ id: "1", birthYear: "", birthMonth: "", gender: "" }];
+  
+  const [kids, setKids] = useState<Kid[]>(initialKids);
   const [saving, setSaving] = useState(false);
 
   const addKid = () => {
@@ -116,8 +126,12 @@ export function OnboardingKids() {
   const isValid = kids.some((k) => k.birthYear && k.birthMonth && k.gender);
 
   return (
-    <OnboardingLayout currentStep="household">
-      <div style={{ maxWidth: 480, margin: "0 auto", padding: "48px 24px" }}>
+    <OnboardingLayout 
+      currentStep="kids" 
+      customBackRoute="/onboarding/household"
+      customBackLabel="Household"
+    >
+      <div style={{ maxWidth: 480, margin: "0 auto", padding: "24px 24px 48px" }}>
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -134,10 +148,10 @@ export function OnboardingKids() {
               lineHeight: 1.2,
             }}
           >
-            Add kids' ages (no names)
+            Add kids' ages
           </h1>
-          <p style={{ fontSize: 16, color: "#6b7280", lineHeight: 1.5 }}>
-            This helps us suggest relevant playdates and families.
+          <p style={{ fontSize: 16, color: "#6b7280", lineHeight: 1.5, whiteSpace: "nowrap" }}>
+            No names or photos needed. Just ages to help find playmates.
           </p>
         </motion.div>
 
@@ -345,11 +359,42 @@ export function OnboardingKids() {
               justifyContent: "center",
               gap: 8,
               transition: "all 0.2s ease",
+              marginBottom: 16,
             }}
           >
             <Plus size={18} />
             Add another child
           </button>
+
+          {/* Privacy Reminder */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3, duration: 0.5 }}
+            style={{
+              background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
+              border: '2px solid #86efac',
+              borderRadius: 16,
+              padding: 16,
+              marginBottom: 0,
+              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.15)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+              <span style={{ fontSize: 20, flexShrink: 0 }}>ℹ️</span>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 14, fontWeight: 600, color: '#111827', marginBottom: 6, marginTop: 0 }}>
+                  Why ages and gender?
+                </p>
+                <p style={{ fontSize: 13, color: '#4b5563', lineHeight: 1.5, margin: 0, marginBottom: 6 }}>
+                  Used to help families find playmate matches. When parents filter for specific ages and genders, your household will appear in those results.
+                </p>
+                <p style={{ fontSize: 13, color: '#059669', lineHeight: 1.5, margin: 0, fontWeight: 500 }}>
+                  Gender is only shown in filtered searches, never on your public household card.
+                </p>
+              </div>
+            </div>
+          </motion.div>
         </motion.div>
 
         {/* Continue Button */}
@@ -391,13 +436,20 @@ export function OnboardingKids() {
             border: "none",
             background: "transparent",
             fontSize: 14,
-            fontWeight: 500,
+            fontWeight: 400,
             color: "#6b7280",
             cursor: "pointer",
-            textDecoration: "underline",
+            textDecoration: "none",
+            transition: "color 0.2s ease",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = "#111827";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = "#6b7280";
           }}
         >
-          Skip for now
+          Add later
         </button>
       </div>
     </OnboardingLayout>

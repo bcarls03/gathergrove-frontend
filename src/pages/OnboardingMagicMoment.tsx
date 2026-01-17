@@ -2,7 +2,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getOnboardingState } from "../lib/onboarding";
-import { Sparkles, Users, Calendar } from "lucide-react";
+import { Sparkles, Users } from "lucide-react";
+import { OnboardingLayout } from "../components/OnboardingLayout";
 
 // Mock blurred household for preview
 type BlurredHousehold = {
@@ -73,13 +74,8 @@ function OnboardingMagicMomentInner() {
   }, [state.householdType]);
 
   const handleBrowseNeighbors = () => {
-    // Primary CTA: Go to preview your household card (Step 7)
-    navigate("/onboarding/preview");
-  };
-
-  const handleHostEvent = () => {
-    // Secondary CTA: Skip preview and go to event creation
-    navigate("/compose/event");
+    // Primary CTA: Go to browse neighbors page
+    navigate("/people");
   };
 
   // Generate dynamic headline based on data
@@ -108,77 +104,84 @@ function OnboardingMagicMomentInner() {
 
   if (loading) {
     return (
-      <div style={{ textAlign: "center", padding: "80px 20px" }}>
-        <div
-          style={{
-            width: 64,
-            height: 64,
-            borderRadius: "50%",
-            background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            margin: "0 auto 24px",
-            animation: "pulse 1.5s ease-in-out infinite",
-          }}
-        >
-          <Sparkles size={32} color="#ffffff" />
-        </div>
-        <h2 style={{ fontSize: 24, fontWeight: 700, color: "#111827", marginBottom: 12 }}>
-          Finding neighbors near you...
-        </h2>
-        <p style={{ fontSize: 15, color: "#6b7280" }}>
-          This will just take a moment
-        </p>
+      <OnboardingLayout currentStep="magic">
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 24px 48px' }}>
+          <div style={{ width: '100%', maxWidth: 560, textAlign: "center" }}>
+            <div
+              style={{
+                width: 64,
+                height: 64,
+                borderRadius: "50%",
+                background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                margin: "0 auto 24px",
+                animation: "pulse 1.5s ease-in-out infinite",
+              }}
+            >
+              <Sparkles size={32} color="#ffffff" />
+            </div>
+            <h2 style={{ fontSize: 24, fontWeight: 700, color: "#111827", marginBottom: 12 }}>
+              Finding neighbors near you...
+            </h2>
+            <p style={{ fontSize: 15, color: "#6b7280" }}>
+              This will just take a moment
+            </p>
 
-        <style>{`
-          @keyframes pulse {
-            0%, 100% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.05); opacity: 0.8; }
-          }
-        `}</style>
-      </div>
+            <style>{`
+              @keyframes pulse {
+                0%, 100% { transform: scale(1); opacity: 1; }
+                50% { transform: scale(1.05); opacity: 0.8; }
+              }
+            `}</style>
+          </div>
+        </div>
+      </OnboardingLayout>
     );
   }
 
   return (
-    <div style={{ maxWidth: 560, margin: "0 auto" }}>
-      {/* Success Icon + Headline */}
-      <div style={{ textAlign: "center", marginBottom: 32 }}>
-        <div
-          style={{
-            width: 80,
-            height: 80,
-            borderRadius: "50%",
-            background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            margin: "0 auto 20px",
-            boxShadow: "0 12px 24px rgba(16, 185, 129, 0.3)",
-          }}
-        >
-          <Sparkles size={40} color="#ffffff" strokeWidth={2.5} />
-        </div>
-        
-        <h1
-          style={{
-            fontSize: 32,
-            fontWeight: 700,
-            color: "#111827",
-            marginBottom: 12,
-            lineHeight: 1.2,
-          }}
-        >
-          {headline}
-        </h1>
-        
-        {households.length > 0 && (
-          <p style={{ fontSize: 15, color: "#6b7280", marginBottom: 4 }}>
-            {households.length} {households.length === 1 ? 'household' : 'households'} within a 5-minute walk
-          </p>
-        )}
-      </div>
+    <OnboardingLayout currentStep="magic">
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 24px 48px' }}>
+        <div style={{ width: '100%', maxWidth: 560 }}>
+          {/* Success Icon + Headline */}
+          <div style={{ textAlign: "center", marginBottom: 32 }}>
+            <div
+              style={{
+                width: 80,
+                height: 80,
+                borderRadius: "50%",
+                background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                margin: "0 auto 20px",
+                boxShadow: "0 12px 24px rgba(16, 185, 129, 0.3)",
+              }}
+            >
+              <Sparkles size={40} color="#ffffff" strokeWidth={2.5} />
+            </div>
+            
+            <h1
+              style={{
+                fontSize: 32,
+                fontWeight: 700,
+                color: "#111827",
+                marginBottom: 12,
+                lineHeight: 1.2,
+                letterSpacing: '-0.025em',
+              }}
+            >
+              {headline}
+            </h1>
+            
+            {households.length > 0 && (
+              <p style={{ fontSize: 15, color: "#6b7280", marginBottom: 4 }}>
+                {households.length} {households.length === 1 ? 'household' : 'households'} within a 5-minute walk
+              </p>
+            )}
+          </div>
 
       {/* Blurred Household Cards */}
       <div style={{ marginBottom: 32 }}>
@@ -279,8 +282,7 @@ function OnboardingMagicMomentInner() {
       >
         <Sparkles size={20} color="#059669" style={{ marginTop: 2, flexShrink: 0 }} />
         <div style={{ fontSize: 13, color: "#065f46", lineHeight: 1.6 }}>
-          <strong style={{ color: "#047857" }}>You're all set!</strong> Browse neighbors to see
-          full profiles, send messages, or create your first event to connect.
+          <strong style={{ color: "#047857" }}>You're all set!</strong> Click 'Browse neighbors' below to see full profiles and start connecting.
         </div>
       </div>
 
@@ -299,7 +301,6 @@ function OnboardingMagicMomentInner() {
           fontSize: 16,
           cursor: "pointer",
           boxShadow: "0 10px 18px rgba(5, 150, 105, 0.35)",
-          marginBottom: 12,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -318,74 +319,15 @@ function OnboardingMagicMomentInner() {
         <Users size={20} />
         Browse neighbors
       </button>
-
-      {/* Secondary CTA: Host Event */}
-      <button
-        type="button"
-        onClick={handleHostEvent}
-        style={{
-          width: "100%",
-          padding: "14px 24px",
-          borderRadius: 999,
-          border: "2px solid #10b981",
-          background: "#ffffff",
-          color: "#10b981",
-          fontWeight: 600,
-          fontSize: 15,
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 8,
-          transition: "all 0.2s ease",
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = "#f0fdf4";
-          e.currentTarget.style.borderColor = "#059669";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = "#ffffff";
-          e.currentTarget.style.borderColor = "#10b981";
-        }}
-      >
-        <Calendar size={20} />
-        Host an event
-      </button>
-    </div>
+        </div>
+      </div>
+    </OnboardingLayout>
   );
 }
 
 // Named export used by App.tsx
 export function OnboardingMagicMoment() {
-  return (
-    <div
-      style={{
-        minHeight: "100vh",
-        width: "100vw",
-        boxSizing: "border-box",
-        overflowX: "hidden",
-        background: "#f3f4f6",
-        padding: 24,
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "flex-start",
-      }}
-    >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 920,
-          margin: "40px auto",
-          background: "#ffffff",
-          borderRadius: 32,
-          padding: "40px 56px 48px",
-          boxShadow: "0 24px 80px rgba(15,23,42,0.12)",
-        }}
-      >
-        <OnboardingMagicMomentInner />
-      </div>
-    </div>
-  );
+  return <OnboardingMagicMomentInner />;
 }
 
 // Default export

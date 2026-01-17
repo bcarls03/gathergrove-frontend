@@ -2,7 +2,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getOnboardingState, setOnboardingState } from "../lib/onboarding";
-import { Eye, EyeOff, Lock, MapPin, Shield } from "lucide-react";
+import { Eye, Lock, MapPin, Search } from "lucide-react";
+import { OnboardingLayout } from "../components/OnboardingLayout";
+import { createHousehold, updateMyProfile } from "../lib/api";
 
 function OnboardingPrivacyInner() {
   const navigate = useNavigate();
@@ -10,308 +12,492 @@ function OnboardingPrivacyInner() {
   
   // Default: visible to nearby neighbors (ON)
   const [isVisible, setIsVisible] = useState(state.visibleToNeighbors ?? true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleContinue = () => {
-    // Save visibility preference
-    setOnboardingState({
-      visibleToNeighbors: isVisible,
-    });
-    // Navigate to Step 6: Magic Moment (discovery reveal)
-    navigate("/onboarding/magic-moment");
+  const handleContinue = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Save visibility preference
+      setOnboardingState({
+        visibleToNeighbors: isVisible,
+      });
+
+      // Try to update user profile with discovery preference
+      // (non-blocking - continue even if this fails)
+      try {
+        await updateMyProfile({
+          discovery_opt_in: isVisible,
+          visibility: isVisible ? "neighbors" : "private",
+        });
+      } catch (profileErr) {
+        console.warn("Profile update failed, but continuing:", profileErr);
+        // Don't block - profile updates are nice-to-have
+      }
+
+      // Create household if user provided household type
+      // (THIS is the critical operation that must succeed)
+      if (state.householdType) {
+        // Generate household name with proper fallbacks
+        // Priority: lastName > firstName > email prefix > "Household"
+        let baseName = state.lastName;
+        if (!baseName && state.firstName) {
+          baseName = state.firstName;
+        }
+        if (!baseName && state.email) {
+          baseName = state.email.split("@")[0];
+        }
+        if (!baseName) {
+          baseName = "Household";
+        }
+        
+        const householdName = `The ${baseName} Family`;
+        
+        await createHousehold({
+          name: householdName,
+          household_type: state.householdType,
+          kids: state.kids || null,
+        });
+      }
+
+      // Navigate to Step 6: Magic Moment (discovery reveal)
+      navigate("/onboarding/magic-moment");
+    } catch (err: any) {
+      console.error("Error completing onboarding:", err);
+      setError(err?.message || "Failed to create your household. Please try again.");
+      setLoading(false);
+    }
   };
 
-  const handleBack = () => {
-    navigate("/onboarding/kids");
+  const handleBrowseFirst = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      // V16: Allow users to browse without creating a household
+      // Save as private profile (not discoverable without household)
+      try {
+        await updateMyProfile({
+          discovery_opt_in: false,
+          visibility: "private",
+        });
+      } catch (profileErr) {
+        console.warn("Profile update failed, but continuing to browse:", profileErr);
+      }
+
+      // Save state to indicate user chose to browse first
+      setOnboardingState({
+        visibleToNeighbors: false,
+        skipHousehold: true,
+      });
+
+      // Navigate directly to People directory (browse mode)
+      navigate("/people");
+    } catch (err: any) {
+      console.error("Error saving preferences:", err);
+      // Even if save fails, let them browse
+      navigate("/people");
+    }
+  };
+
+  const handleEdit = () => {
+    // Go back to kids screen if family, otherwise household selection
+    if (hasKids) {
+      navigate("/onboarding/kids");
+    } else {
+      navigate("/onboarding/household");
+    }
   };
 
   // Determine if user has kids based on household type
   const hasKids = state.householdType === "family_with_kids";
+  
+  // Get household display name (use last name or fallback)
+  // In production, OAuth providers will give us real names
+  // In dev (Firebase Auth Emulator), we'll see generic names like "Google User"
+  const householdName = state.lastName || (state.firstName ? state.firstName : "Your");
+  
+  // Format kids ages for display
+  const kidsAges = state.kids?.map(kid => {
+    if (kid.birthYear && kid.birthMonth) {
+      const currentDate = new Date();
+      const currentYear = currentDate.getFullYear();
+      const currentMonth = currentDate.getMonth() + 1; // getMonth() returns 0-11
+      
+      let age = currentYear - kid.birthYear;
+      
+      // If birthday hasn't happened yet this year, subtract 1
+      if (currentMonth < kid.birthMonth) {
+        age = age - 1;
+      }
+      
+      return age;
+    } else if (kid.birthYear) {
+      // If we only have birth year, assume mid-year birthday
+      const currentYear = new Date().getFullYear();
+      return currentYear - kid.birthYear;
+    }
+    // Fallback to age range midpoint
+    const ageRangeMap: Record<string, number> = {
+      "0-2": 1,
+      "3-5": 4,
+      "6-8": 7,
+      "9-12": 10,
+      "13-17": 15,
+      "18+": 18,
+    };
+    return ageRangeMap[kid.age_range] || 5;
+  }).filter(age => age > 0) || [];
+  
+  // Get household type display text
+  const getHouseholdTypeText = () => {
+    if (state.householdType === "family_with_kids") return "Family with kids";
+    if (state.householdType === "empty_nesters") return "Empty nesters";
+    if (state.householdType === "singles_couples") return "Couple";
+    return "Household";
+  };
 
   return (
-    <div style={{ maxWidth: 520, margin: "0 auto" }}>
-      {/* Header */}
-      <div style={{ textAlign: "center", marginBottom: 32 }}>
-        <div
-          style={{
-            width: 64,
-            height: 64,
-            borderRadius: "50%",
-            background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            margin: "0 auto 16px",
-            boxShadow: "0 8px 16px rgba(16, 185, 129, 0.3)",
-          }}
-        >
-          <Shield size={32} color="#ffffff" strokeWidth={2.5} />
-        </div>
-        <h1
-          style={{
-            fontSize: 28,
-            fontWeight: 700,
-            color: "#111827",
-            marginBottom: 8,
-          }}
-        >
-          Quick privacy check
-        </h1>
-        <p style={{ fontSize: 15, color: "#6b7280", lineHeight: 1.5 }}>
-          Here's what neighbors can and cannot see about you.
-        </p>
-      </div>
-
-      {/* What Neighbors CAN See */}
-      <div
-        style={{
-          marginBottom: 20,
-          padding: 20,
-          borderRadius: 16,
-          background: "#f0fdf4",
-          border: "2px solid #d1fae5",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-          <Eye size={20} color="#059669" />
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: "#065f46", margin: 0 }}>
-            Neighbors can see
-          </h3>
-        </div>
-        <ul style={{ margin: 0, paddingLeft: 20, color: "#047857", fontSize: 14, lineHeight: 1.8 }}>
-          <li>
-            <strong>Your name</strong> (first + last)
-          </li>
-          <li>
-            <strong>Approx distance</strong> (~X miles away)
-          </li>
-          <li>
-            <strong>Household type</strong>
-            {hasKids && " + kids ages"}
-          </li>
-        </ul>
-      </div>
-
-      {/* What's NEVER Shown */}
-      <div
-        style={{
-          marginBottom: 24,
-          padding: 20,
-          borderRadius: 16,
-          background: "#fef2f2",
-          border: "2px solid #fecaca",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-          <Lock size={20} color="#dc2626" />
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: "#991b1b", margin: 0 }}>
-            Never shown
-          </h3>
-        </div>
-        <ul style={{ margin: 0, paddingLeft: 20, color: "#b91c1c", fontSize: 14, lineHeight: 1.8 }}>
-          <li>
-            <strong>Exact address</strong>
-          </li>
-          <li>
-            <strong>Kids names, birthdays, schools, or photos</strong>
-          </li>
-          <li>
-            <strong>Phone number or email</strong>
-          </li>
-        </ul>
-      </div>
-
-      {/* Visibility Toggle */}
-      <div
-        style={{
-          marginBottom: 28,
-          padding: 20,
-          borderRadius: 16,
-          background: "#ffffff",
-          border: "2px solid #e5e7eb",
-          boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            cursor: "pointer",
-          }}
-          onClick={() => setIsVisible(!isVisible)}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div
+    <OnboardingLayout currentStep="privacy">
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 24px 48px' }}>
+        <div style={{ width: '100%', maxWidth: 560 }}>
+          {/* Header */}
+          <div style={{ textAlign: "center", marginBottom: 32 }}>
+            <h1
               style={{
-                width: 48,
-                height: 48,
-                borderRadius: 12,
-                background: isVisible ? "#f0fdf4" : "#f3f4f6",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                transition: "all 0.2s ease",
+                fontSize: 32,
+                fontWeight: 700,
+                color: "#111827",
+                marginBottom: 12,
+                letterSpacing: '-0.025em',
+                lineHeight: 1.2,
+                whiteSpace: "nowrap",
               }}
             >
-              {isVisible ? (
-                <MapPin size={24} color="#10b981" />
-              ) : (
-                <EyeOff size={24} color="#6b7280" />
-              )}
-            </div>
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 600, color: "#111827", marginBottom: 2 }}>
-                {isVisible ? "Visible to nearby neighbors" : "Hidden from discovery"}
+              Review how neighbors will see you
+            </h1>
+            <p style={{ fontSize: 16, color: "#6b7280", lineHeight: 1.5, whiteSpace: "nowrap" }}>
+              This is how your household will appear to others in GatherGrove.
+            </p>
+          </div>
+
+          {/* Household Preview Card - "Proof Sheet" */}
+          <div
+            style={{
+              marginBottom: 24,
+              padding: 20,
+              borderRadius: 16,
+              background: "#ffffff",
+              border: "2px solid #e5e7eb",
+              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
+              {/* Avatar Circle */}
+              <div
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: "50%",
+                  background: "linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  fontSize: 24,
+                  fontWeight: 700,
+                  color: "#1e40af",
+                }}
+              >
+                {householdName.charAt(0).toUpperCase()}
               </div>
-              <div style={{ fontSize: 13, color: "#6b7280" }}>
-                {isVisible
-                  ? "You'll appear in neighbor discovery"
-                  : "You won't appear in searches or discovery"}
+
+              {/* Card Content */}
+              <div style={{ flex: 1 }}>
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: "#111827", marginBottom: 8 }}>
+                  The {householdName} Household
+                </h3>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 8 }}>
+                  <span style={{ fontSize: 14, color: "#6b7280" }}>
+                    📍 ~0.4 miles away
+                  </span>
+                  <span style={{ fontSize: 14, color: "#6b7280" }}>
+                    👨‍👩‍👧‍👦 {getHouseholdTypeText()}
+                    {hasKids && kidsAges.length > 0 && ` (Ages ${kidsAges.join(', ')})`}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Toggle Switch */}
+          {/* Two-Column Summary */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
+            {/* Visible Column */}
+            <div
+              style={{
+                padding: 20,
+                borderRadius: 16,
+                background: "#f0fdf4",
+                border: "2px solid #d1fae5",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                <Eye size={20} color="#059669" />
+                <h3 style={{ fontSize: 15, fontWeight: 700, color: "#065f46", margin: 0 }}>
+                  Visible to Neighbors
+                </h3>
+              </div>
+              <ul style={{ margin: 0, paddingLeft: 20, color: "#047857", fontSize: 13, lineHeight: 1.8 }}>
+                <li>Name</li>
+                <li>Approx. Distance</li>
+                <li>Household Type</li>
+              </ul>
+            </div>
+
+            {/* Never Shared Column */}
+            <div
+              style={{
+                padding: 20,
+                borderRadius: 16,
+                background: "#fef2f2",
+                border: "2px solid #fecaca",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                <Lock size={20} color="#dc2626" />
+                <h3 style={{ fontSize: 15, fontWeight: 700, color: "#991b1b", margin: 0 }}>
+                  Never Shared
+                </h3>
+              </div>
+              <ul style={{ margin: 0, paddingLeft: 20, color: "#b91c1c", fontSize: 13, lineHeight: 1.8 }}>
+                <li>Exact Address</li>
+                <li>Kid's Names/Photos</li>
+                <li>Email/Phone</li>
+              </ul>
+            </div>
+          </div>
+
+          {/* Visibility Toggle */}
           <div
             style={{
-              width: 52,
-              height: 32,
+              marginBottom: 24,
+              padding: 20,
               borderRadius: 16,
-              background: isVisible ? "#10b981" : "#d1d5db",
-              position: "relative",
-              transition: "background 0.2s ease",
-              cursor: "pointer",
+              background: "#ffffff",
+              border: "2px solid #e5e7eb",
+              boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
             }}
           >
             <div
               style={{
-                position: "absolute",
-                top: 4,
-                left: isVisible ? 24 : 4,
-                width: 24,
-                height: 24,
-                borderRadius: "50%",
-                background: "#ffffff",
-                transition: "left 0.2s ease",
-                boxShadow: "0 2px 4px rgba(0, 0, 0, 0.2)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                cursor: "pointer",
               }}
-            />
+              onClick={() => setIsVisible(!isVisible)}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 12,
+                    background: isVisible ? "#f0fdf4" : "#f3f4f6",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    transition: "all 0.2s ease",
+                  }}
+                >
+                  <MapPin size={24} color={isVisible ? "#10b981" : "#6b7280"} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: "#111827", marginBottom: 2 }}>
+                    Visible in Discovery
+                  </div>
+                  <div style={{ fontSize: 13, color: "#6b7280" }}>
+                    {isVisible
+                      ? "Recommended to meet neighbors"
+                      : "You won't appear in discovery"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Toggle Switch */}
+              <div
+                style={{
+                  width: 52,
+                  height: 32,
+                  borderRadius: 16,
+                  background: isVisible ? "#10b981" : "#d1d5db",
+                  position: "relative",
+                  transition: "background 0.2s ease",
+                  cursor: "pointer",
+                }}
+              >
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 4,
+                    left: isVisible ? 24 : 4,
+                    width: 24,
+                    height: 24,
+                    borderRadius: "50%",
+                    background: "#ffffff",
+                    transition: "left 0.2s ease",
+                    boxShadow: "0 2px 4px rgba(0, 0, 0, 0.2)",
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Error Message */}
+          {error && (
+            <div
+              style={{
+                marginBottom: 16,
+                padding: 16,
+                borderRadius: 12,
+                background: "#fef2f2",
+                border: "2px solid #fecaca",
+                color: "#dc2626",
+                fontSize: 14,
+                fontWeight: 500,
+              }}
+            >
+              {error}
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <button
+              type="button"
+              onClick={handleContinue}
+              disabled={loading}
+              style={{
+                width: "100%",
+                padding: "14px 20px",
+                borderRadius: 999,
+                border: "none",
+                background: loading 
+                  ? "#d1d5db" 
+                  : "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                color: "#ffffff",
+                fontWeight: 700,
+                fontSize: 16,
+                cursor: loading ? "not-allowed" : "pointer",
+                boxShadow: loading 
+                  ? "none" 
+                  : "0 10px 18px rgba(5, 150, 105, 0.35)",
+                transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                opacity: loading ? 0.6 : 1,
+              }}
+              onMouseEnter={(e) => {
+                if (!loading) {
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.boxShadow = "0 12px 24px rgba(5, 150, 105, 0.4)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!loading) {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "0 10px 18px rgba(5, 150, 105, 0.35)";
+                }
+              }}
+            >
+              {loading ? "Creating your household..." : "Everything looks good"}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleEdit}
+              disabled={loading}
+              style={{
+                width: "100%",
+                padding: "12px 20px",
+                borderRadius: 999,
+                border: "1px solid #e5e7eb",
+                background: "#ffffff",
+                color: "#6b7280",
+                fontWeight: 600,
+                fontSize: 14,
+                cursor: loading ? "not-allowed" : "pointer",
+                transition: "all 0.2s ease",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                opacity: loading ? 0.5 : 1,
+              }}
+              onMouseEnter={(e) => {
+                if (!loading) {
+                  e.currentTarget.style.borderColor = "#d1d5db";
+                  e.currentTarget.style.background = "#f9fafb";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!loading) {
+                  e.currentTarget.style.borderColor = "#e5e7eb";
+                  e.currentTarget.style.background = "#ffffff";
+                }
+              }}
+            >
+              ✏️ Edit Profile
+            </button>
+
+            {/* V16: Browse First Option - Skip household creation */}
+            <button
+              type="button"
+              onClick={handleBrowseFirst}
+              disabled={loading}
+              style={{
+                width: "100%",
+                padding: "12px 20px",
+                borderRadius: 999,
+                border: "1px solid #e5e7eb",
+                background: "#ffffff",
+                color: "#6b7280",
+                fontWeight: 600,
+                fontSize: 14,
+                cursor: loading ? "not-allowed" : "pointer",
+                transition: "all 0.2s ease",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                opacity: loading ? 0.5 : 1,
+              }}
+              onMouseEnter={(e) => {
+                if (!loading) {
+                  e.currentTarget.style.borderColor = "#d1d5db";
+                  e.currentTarget.style.background = "#f9fafb";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!loading) {
+                  e.currentTarget.style.borderColor = "#e5e7eb";
+                  e.currentTarget.style.background = "#ffffff";
+                }
+              }}
+            >
+              <Search size={16} strokeWidth={2.5} />
+              <span>Browse without household (for now)</span>
+            </button>
           </div>
         </div>
       </div>
-
-      {/* Privacy Reassurance */}
-      <div
-        style={{
-          marginBottom: 24,
-          padding: 16,
-          borderRadius: 12,
-          background: "#f9fafb",
-          border: "1px solid #e5e7eb",
-          display: "flex",
-          alignItems: "start",
-          gap: 12,
-        }}
-      >
-        <Shield size={20} color="#6b7280" style={{ marginTop: 2, flexShrink: 0 }} />
-        <div style={{ fontSize: 13, color: "#4b5563", lineHeight: 1.6 }}>
-          <strong style={{ color: "#111827" }}>Your privacy is protected.</strong> You control what
-          you share, and you can change these settings anytime in your profile.
-        </div>
-      </div>
-
-      {/* Action Buttons */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <button
-          type="button"
-          onClick={handleContinue}
-          style={{
-            width: "100%",
-            padding: "14px 20px",
-            borderRadius: 999,
-            border: "none",
-            background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-            color: "#ffffff",
-            fontWeight: 700,
-            fontSize: 16,
-            cursor: "pointer",
-            boxShadow: "0 10px 18px rgba(5, 150, 105, 0.35)",
-            transition: "transform 0.2s ease, box-shadow 0.2s ease",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = "translateY(-2px)";
-            e.currentTarget.style.boxShadow = "0 12px 24px rgba(5, 150, 105, 0.4)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = "translateY(0)";
-            e.currentTarget.style.boxShadow = "0 10px 18px rgba(5, 150, 105, 0.35)";
-          }}
-        >
-          Looks good → Continue
-        </button>
-
-        <button
-          type="button"
-          onClick={handleBack}
-          style={{
-            width: "100%",
-            padding: "12px 20px",
-            borderRadius: 999,
-            border: "1px solid #e5e7eb",
-            background: "#ffffff",
-            color: "#6b7280",
-            fontWeight: 600,
-            fontSize: 14,
-            cursor: "pointer",
-            transition: "all 0.2s ease",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.borderColor = "#d1d5db";
-            e.currentTarget.style.background = "#f9fafb";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.borderColor = "#e5e7eb";
-            e.currentTarget.style.background = "#ffffff";
-          }}
-        >
-          ← Back
-        </button>
-      </div>
-    </div>
+    </OnboardingLayout>
   );
 }
 
 // Named export used by App.tsx
 export function OnboardingPrivacy() {
-  return (
-    <div
-      style={{
-        minHeight: "100vh",
-        width: "100vw",
-        boxSizing: "border-box",
-        overflowX: "hidden",
-        background: "#f3f4f6",
-        padding: 24,
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "flex-start",
-      }}
-    >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 920,
-          margin: "40px auto",
-          background: "#ffffff",
-          borderRadius: 32,
-          padding: "40px 56px 48px",
-          boxShadow: "0 24px 80px rgba(15,23,42,0.12)",
-        }}
-      >
-        <OnboardingPrivacyInner />
-      </div>
-    </div>
-  );
+  return <OnboardingPrivacyInner />;
 }
 
 // Default export

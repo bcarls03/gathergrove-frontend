@@ -54,6 +54,15 @@ export default function OnboardingAccess() {
       user = result.user;
       console.log("✅ OAuth successful:", provider, user.uid);
 
+      // ✅ CRITICAL: Sync localStorage UID with Firebase Auth UID
+      // This ensures all subsequent API calls use the same UID
+      try {
+        localStorage.setItem("gg:uid", user.uid);
+        console.log("✅ Synced localStorage UID with Firebase UID:", user.uid);
+      } catch (err) {
+        console.warn("Failed to sync UID to localStorage:", err);
+      }
+
       // Extract user info from OAuth provider
       const displayName = user.displayName || "";
       const nameParts = displayName.split(" ");
@@ -165,7 +174,7 @@ export default function OnboardingAccess() {
               fontSize: "0.9em",
             }}
           >
-            get started in seconds
+            get started
           </span>
         </h1>
       </motion.div>

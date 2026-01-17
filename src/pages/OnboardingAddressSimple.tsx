@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { Search } from 'lucide-react';
 import { OnboardingLayout } from '../components/OnboardingLayout';
 import { updateMyProfile } from '../lib/api';
 
@@ -71,13 +72,13 @@ export default function OnboardingAddressSimple() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="mb-10"
+          style={{ textAlign: 'center', marginBottom: 32 }}
         >
-          <h1 className="text-3xl font-bold text-gray-900 mb-3">
-            Where should we connect you with neighbors?
+          <h1 style={{ fontSize: 28, fontWeight: 700, color: '#111827', marginBottom: 12, letterSpacing: '-0.025em', lineHeight: 1.3 }}>
+            Where should we connect you<br />with neighbors?
           </h1>
-          <p className="text-gray-600">
-            City + ZIP place you in Nearby discovery. Street address helps match your neighborhood (optional).
+          <p style={{ fontSize: 16, color: '#6b7280', lineHeight: 1.5 }}>
+            City + ZIP place you in Nearby discovery.<br />Street address helps match your neighborhood (optional).
           </p>
         </motion.div>
 
@@ -356,58 +357,164 @@ export default function OnboardingAddressSimple() {
           </motion.div>
         </motion.div>
 
-        {/* Skip Option */}
+        {/* Skip Option - Modern sleek design */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="text-center mt-8"
+          transition={{ duration: 0.5, delay: 0.4 }}
+          style={{ textAlign: 'center', marginTop: 24 }}
         >
           <button
             onClick={handleSkipClick}
             disabled={loading}
-            className="text-gray-600 hover:text-gray-900 text-sm font-medium transition-colors disabled:opacity-50"
+            style={{
+              background: 'linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)',
+              border: '1px solid #d1d5db',
+              borderRadius: 12,
+              padding: '12px 24px',
+              color: '#4b5563',
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.5 : 1,
+              transition: 'all 0.2s ease',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+            onMouseEnter={(e) => {
+              if (!loading) {
+                e.currentTarget.style.background = 'linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%)';
+                e.currentTarget.style.borderColor = '#9ca3af';
+                e.currentTarget.style.color = '#1f2937';
+                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.1)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!loading) {
+                e.currentTarget.style.background = 'linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)';
+                e.currentTarget.style.borderColor = '#d1d5db';
+                e.currentTarget.style.color = '#4b5563';
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.05)';
+              }
+            }}
           >
-            Continue without discovery
+            <Search size={16} strokeWidth={2.5} />
+            <span>Continue without discovery</span>
           </button>
         </motion.div>
 
-        {/* Skip Warning Modal */}
+        {/* Skip Warning Modal - Modern design */}
         {showSkipModal && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+            style={{
+              position: 'fixed',
+              inset: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.6)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 16,
+              zIndex: 50,
+              backdropFilter: 'blur(4px)',
+            }}
             onClick={handleSkipCancel}
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
+              initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl"
+              transition={{ type: 'spring', duration: 0.3 }}
+              style={{
+                background: '#ffffff',
+                borderRadius: 24,
+                padding: 32,
+                maxWidth: 420,
+                width: '100%',
+                boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+              }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="text-center mb-6">
-                <div className="text-4xl mb-3">⚠️</div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">
-                  Skip location?
+              {/* Icon & Header */}
+              <div style={{ textAlign: 'center', marginBottom: 24 }}>
+                <div
+                  style={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto 16px',
+                  }}
+                >
+                  <Search size={32} strokeWidth={2} />
+                </div>
+                <h3 style={{ fontSize: 22, fontWeight: 700, color: '#111827', marginBottom: 8, letterSpacing: '-0.02em' }}>
+                  Browse without location?
                 </h3>
-                <p className="text-sm text-gray-600 leading-relaxed">
-                  Without a location, you won't appear in discovery or see nearby families yet.
+                <p style={{ fontSize: 15, color: '#6b7280', lineHeight: 1.6, margin: 0 }}>
+                  You can browse neighbors, but you won't appear in discovery or receive connection requests until you add a location later.
                 </p>
               </div>
 
-              <div className="space-y-3">
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <button
                   onClick={handleSkipCancel}
-                  className="w-full px-4 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors"
+                  style={{
+                    width: '100%',
+                    padding: '14px 20px',
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    border: 'none',
+                    borderRadius: 12,
+                    color: '#ffffff',
+                    fontSize: 15,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(16, 185, 129, 0.4)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.3)';
+                  }}
                 >
-                  Add ZIP Code
+                  Add location
                 </button>
                 <button
                   onClick={handleSkipConfirm}
-                  className="w-full px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors"
+                  style={{
+                    width: '100%',
+                    padding: '14px 20px',
+                    background: '#f3f4f6',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 12,
+                    color: '#6b7280',
+                    fontSize: 15,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#e5e7eb';
+                    e.currentTarget.style.color = '#374151';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = '#f3f4f6';
+                    e.currentTarget.style.color = '#6b7280';
+                  }}
                 >
-                  Continue without discovery
+                  Browse without location
                 </button>
               </div>
             </motion.div>

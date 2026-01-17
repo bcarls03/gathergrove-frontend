@@ -15,8 +15,8 @@ const householdOptions = [
     icon: Users,
     iconBg: "#dbeafe",
     iconColor: "#2563eb",
-    title: "Family with kids",
-    subtitle: "We have children at home",
+    title: "Family with Kids",
+    subtitle: "Household with children at home",
   },
   {
     type: "empty_nesters" as HouseholdType,
@@ -24,7 +24,7 @@ const householdOptions = [
     iconBg: "#fce7f3",
     iconColor: "#db2777",
     title: "Empty Nesters",
-    subtitle: "Our kids are grown/away",
+    subtitle: "Children have moved out",
   },
   {
     type: "singles_couples" as HouseholdType,
@@ -32,7 +32,7 @@ const householdOptions = [
     iconBg: "#fef3c7",
     iconColor: "#f59e0b",
     title: "Singles/Couples",
-    subtitle: "No children",
+    subtitle: "Household without children",
   },
 ];
 
@@ -61,7 +61,7 @@ export function OnboardingHouseholdType() {
 
   return (
     <OnboardingLayout currentStep="household">
-      <div style={{ maxWidth: 480, margin: "0 auto", padding: "48px 24px" }}>
+      <div style={{ maxWidth: 480, margin: "0 auto", padding: "24px 24px 48px" }}>
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -80,8 +80,8 @@ export function OnboardingHouseholdType() {
           >
             Tell us about your household
           </h1>
-          <p style={{ fontSize: 16, color: "#6b7280", lineHeight: 1.5 }}>
-            This helps us show the most relevant neighbors.
+          <p style={{ fontSize: 16, color: "#6b7280", lineHeight: 1.5, whiteSpace: "nowrap" }}>
+            This helps us suggest the most relevant connections for you.
           </p>
         </motion.div>
 

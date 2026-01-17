@@ -147,7 +147,7 @@ export default function OnboardingProfile() {
             fontWeight: 500
           }}
         >
-          Get started in seconds
+          Get started
         </motion.p>
       </motion.div>
 

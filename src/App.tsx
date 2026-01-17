@@ -94,9 +94,9 @@ function AppShell() {
           <Route path="/onboarding/magic-moment" element={<OnboardingMagicMoment />} />
           <Route
             path="/onboarding/household"
-            element={<OnboardingHousehold />}
+            element={<OnboardingHouseholdType />}
           />
-          <Route path="/onboarding/household-type" element={<OnboardingHouseholdType />} />
+          <Route path="/onboarding/household-old" element={<OnboardingHousehold />} />
           <Route path="/onboarding/kids" element={<OnboardingKids />} />
           <Route path="/onboarding/privacy" element={<OnboardingPrivacy />} />
           {/* Redirect old profile route to new OAuth access route */}
