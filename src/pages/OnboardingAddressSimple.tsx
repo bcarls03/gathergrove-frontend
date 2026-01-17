@@ -55,9 +55,17 @@ export default function OnboardingAddressSimple() {
     setShowSkipModal(true);
   };
 
-  const handleSkipConfirm = () => {
+  const handleSkipConfirm = async () => {
     setShowSkipModal(false);
-    navigate('/onboarding/household'); // Continue to next step without address
+    try {
+      await updateMyProfile({
+        discovery_opt_in: false,
+        visibility: "private",
+      });
+    } catch (err) {
+      console.warn("Failed to save privacy settings, continuing anyway:", err);
+    }
+    navigate('/people'); // Browse without location
   };
 
   const handleSkipCancel = () => {

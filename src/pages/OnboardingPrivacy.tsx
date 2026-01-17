@@ -55,11 +55,21 @@ function OnboardingPrivacyInner() {
         
         const householdName = `The ${baseName} Family`;
         
-        await createHousehold({
-          name: householdName,
-          household_type: state.householdType,
-          kids: state.kids || null,
-        });
+        try {
+          await createHousehold({
+            name: householdName,
+            household_type: state.householdType,
+            kids: state.kids || null,
+          });
+        } catch (householdErr: any) {
+          // If already linked to a household, that's okay - just continue
+          if (householdErr?.message?.includes("already linked to household")) {
+            console.log("User already has a household, continuing to magic moment");
+          } else {
+            // For other errors, throw to outer catch block
+            throw householdErr;
+          }
+        }
       }
 
       // Navigate to Step 6: Magic Moment (discovery reveal)
@@ -77,7 +87,9 @@ function OnboardingPrivacyInner() {
 
     try {
       // V16: Allow users to browse without creating a household
-      // Save as private profile (not discoverable without household)
+      // If user is already linked to a household, just navigate to people
+      // (they can unlink later from settings if desired)
+      
       try {
         await updateMyProfile({
           discovery_opt_in: false,
@@ -99,6 +111,8 @@ function OnboardingPrivacyInner() {
       console.error("Error saving preferences:", err);
       // Even if save fails, let them browse
       navigate("/people");
+    } finally {
+      setLoading(false);
     }
   };
 
