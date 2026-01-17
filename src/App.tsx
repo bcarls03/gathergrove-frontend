@@ -15,6 +15,7 @@ import Messages from "./pages/Messages.tsx";
 import ComposePost from "./pages/ComposePost.tsx";
 import SettingsNew from "./pages/SettingsNew.tsx";
 import ProfileSettings from "./pages/ProfileSettings.tsx";
+import SettingsHousehold from "./pages/SettingsHousehold.tsx";
 import Discovery from "./pages/Discovery.tsx";
 import TestAutoJoin from "./pages/TestAutoJoin.tsx";
 
@@ -111,6 +112,7 @@ function AppShell() {
           <Route path="/discovery" element={<Discovery />} />
           <Route path="/profile" element={<ProfileSettings />} />
           <Route path="/settings" element={<SettingsNew />} />
+          <Route path="/settings/household" element={<SettingsHousehold />} />
 
           {/* Hidden-from-nav routes */}
           <Route path="/messages" element={<Messages />} />

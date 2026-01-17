@@ -478,6 +478,36 @@ export default function SettingsNew() {
                 </div>
               </div>
 
+              {/* Link to Advanced Household Management */}
+              <div
+                style={{
+                  padding: 12,
+                  borderRadius: 8,
+                  background: "#f9fafb",
+                  border: "1px solid #e5e7eb",
+                  marginBottom: 8,
+                }}
+              >
+                <a
+                  href="/settings/household"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    color: "#667eea",
+                    fontSize: 14,
+                    fontWeight: 600,
+                    textDecoration: "none",
+                  }}
+                >
+                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <Users size={16} />
+                    Manage Members & Invites
+                  </span>
+                  <span>→</span>
+                </a>
+              </div>
+
               {/* Action Buttons */}
               <div style={{ display: "grid", gap: 8 }}>
                 <motion.button
