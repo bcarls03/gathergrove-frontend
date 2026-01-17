@@ -27,7 +27,7 @@ function OnboardingMagicMomentInner() {
       
       await new Promise(resolve => setTimeout(resolve, 800)); // Simulate loading
 
-      const isFamily = state.householdType === "family_with_kids";
+      const isFamily = state.intendedHouseholdType === "family_with_kids";
       
       // Generate 3-5 mock households
       const mockHouseholds: BlurredHousehold[] = [
@@ -71,7 +71,7 @@ function OnboardingMagicMomentInner() {
     };
 
     fetchNearbyHouseholds();
-  }, [state.householdType]);
+  }, [state.intendedHouseholdType]);
 
   const handleBrowseNeighbors = () => {
     // Primary CTA: Go to browse neighbors page
@@ -81,7 +81,7 @@ function OnboardingMagicMomentInner() {
   // Generate dynamic headline based on data
   const familiesCount = households.filter(h => h.type === "family").length;
   const totalCount = households.length;
-  const isFamily = state.householdType === "family_with_kids";
+  const isFamily = state.intendedHouseholdType === "family_with_kids";
 
   const headline = isFamily && familiesCount > 0
     ? `We found ${familiesCount} ${familiesCount === 1 ? 'family' : 'families'} with kids near you`

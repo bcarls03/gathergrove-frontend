@@ -39,7 +39,7 @@ function OnboardingPrivacyInner() {
 
       // Create household if user provided household type
       // (THIS is the critical operation that must succeed)
-      if (state.householdType) {
+      if (state.intendedHouseholdType) {
         // Generate household name with proper fallbacks
         // Priority: lastName > firstName > email prefix > "Household"
         let baseName = state.lastName;
@@ -58,7 +58,7 @@ function OnboardingPrivacyInner() {
         try {
           await createHousehold({
             name: householdName,
-            household_type: state.householdType,
+            household_type: state.intendedHouseholdType, // V16: send intended type
             kids: state.kids || null,
           });
         } catch (householdErr: any) {
@@ -126,7 +126,7 @@ function OnboardingPrivacyInner() {
   };
 
   // Determine if user has kids based on household type
-  const hasKids = state.householdType === "family_with_kids";
+  const hasKids = state.intendedHouseholdType === "family_with_kids";
   
   // Get household display name (use last name or fallback)
   // In production, OAuth providers will give us real names
@@ -167,9 +167,9 @@ function OnboardingPrivacyInner() {
   
   // Get household type display text
   const getHouseholdTypeText = () => {
-    if (state.householdType === "family_with_kids") return "Family with kids";
-    if (state.householdType === "empty_nesters") return "Empty nesters";
-    if (state.householdType === "singles_couples") return "Couple";
+    if (state.intendedHouseholdType === "family_with_kids") return "Family with kids";
+    if (state.intendedHouseholdType === "empty_nesters") return "Empty nesters";
+    if (state.intendedHouseholdType === "singles_couples") return "Couple";
     return "Household";
   };
 

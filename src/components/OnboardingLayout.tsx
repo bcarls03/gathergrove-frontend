@@ -30,7 +30,7 @@ export function OnboardingLayout({
   
   // Get household type to determine if we show kids step
   const state = getOnboardingState();
-  const hasKids = state.householdType === "family_with_kids";
+  const hasKids = state.intendedHouseholdType === "family_with_kids";
   
   // Filter steps based on household type
   // If not family, remove "kids" step from progress

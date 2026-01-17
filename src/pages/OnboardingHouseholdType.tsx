@@ -46,8 +46,8 @@ export function OnboardingHouseholdType() {
 
     setSaving(true);
 
-    // Save household type to onboarding state
-    setOnboardingState({ householdType: selectedType });
+    // V16: Save INTENDED household type (what user wants, not what they have)
+    setOnboardingState({ intendedHouseholdType: selectedType });
 
     // Route based on selection
     if (selectedType === "family_with_kids") {

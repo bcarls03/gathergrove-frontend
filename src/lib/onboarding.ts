@@ -14,7 +14,7 @@ export type OnboardingState = {
   // Step 2: Household (OPTIONAL)
   skipHousehold?: boolean;
   householdName?: string | null;
-  householdType?: "family_with_kids" | "empty_nesters" | "singles_couples" | null;
+  intendedHouseholdType?: "family_with_kids" | "empty_nesters" | "singles_couples" | null;
   kids?: OnboardingKid[];
   
   // Step 5: Privacy (NEW)
@@ -42,7 +42,7 @@ function readStorage(): OnboardingState | null {
     const raw = window.localStorage.getItem(KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    // Return new state shape
+    // Return new state shape (with backward compatibility for householdType → intendedHouseholdType)
     return {
       firstName: parsed.firstName ?? null,
       lastName: parsed.lastName ?? null,
@@ -50,7 +50,7 @@ function readStorage(): OnboardingState | null {
       visibility: parsed.visibility ?? null,
       skipHousehold: parsed.skipHousehold ?? false,
       householdName: parsed.householdName ?? null,
-      householdType: parsed.householdType ?? null,
+      intendedHouseholdType: parsed.intendedHouseholdType ?? parsed.householdType ?? null, // V16: intent vs identity
       kids: Array.isArray(parsed.kids) ? parsed.kids : [],
       // Legacy fields
       neighborhoodCode: parsed.neighborhoodCode ?? null,
@@ -77,7 +77,7 @@ const DEFAULT_STATE: OnboardingState = {
   visibility: "neighbors",
   skipHousehold: false,
   householdName: null,
-  householdType: null,
+  intendedHouseholdType: null, // V16: captures user's intent, not current identity
   kids: [],
   neighborhoodCode: null,
   adults: [],
