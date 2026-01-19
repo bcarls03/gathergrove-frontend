@@ -17,6 +17,7 @@ import SettingsNew from "./pages/SettingsNew.tsx";
 import SettingsHousehold from "./pages/SettingsHousehold.tsx";
 import Discovery from "./pages/Discovery.tsx";
 import TestAutoJoin from "./pages/TestAutoJoin.tsx";
+import Calendar from "./pages/Calendar.tsx";
 
 // ⬇️ NOTE: all default imports, no curly braces
 import OnboardingAccess from "./pages/OnboardingAccess.tsx";
@@ -71,6 +72,9 @@ function AppShell() {
           <NavLink to="/" className={linkClass} end>
             Home
           </NavLink>
+          <NavLink to="/calendar" className={linkClass}>
+            Calendar
+          </NavLink>
           <NavLink to="/people" className={linkClass}>
             People
           </NavLink>
@@ -107,6 +111,7 @@ function AppShell() {
 
           {/* Main tabs */}
           <Route path="/" element={<Home />} />
+          <Route path="/calendar" element={<Calendar />} />
           <Route path="/people" element={<People />} />
           <Route path="/discovery" element={<Discovery />} />
           <Route path="/settings" element={<SettingsNew />} />
