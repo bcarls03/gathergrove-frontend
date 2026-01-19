@@ -83,7 +83,9 @@ function OnboardingMagicMomentInner() {
   const totalCount = households.length;
   const isFamily = state.intendedHouseholdType === "family_with_kids";
 
-  const headline = isFamily && familiesCount > 0
+  // If all shown households are families, say "families with kids"
+  // Otherwise, say "households" to be accurate
+  const headline = isFamily && familiesCount > 0 && familiesCount === totalCount
     ? `We found ${familiesCount} ${familiesCount === 1 ? 'family' : 'families'} with kids near you`
     : `We found ${totalCount} ${totalCount === 1 ? 'household' : 'households'} near you`;
 

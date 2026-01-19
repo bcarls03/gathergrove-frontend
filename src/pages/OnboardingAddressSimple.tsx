@@ -358,16 +358,34 @@ export default function OnboardingAddressSimple() {
           />
 
           {/* Street Address - Last, clearly optional, de-emphasized */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 16 }}>
+          <motion.div 
+            style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 16 }}
+            initial={{ opacity: 0.7 }}
+            animate={city && state ? { 
+              opacity: 1,
+              scale: [1, 1.02, 1],
+              boxShadow: [
+                '0 0 0 0px rgba(16, 185, 129, 0)',
+                '0 0 0 4px rgba(16, 185, 129, 0.15)',
+                '0 0 0 0px rgba(16, 185, 129, 0)',
+              ]
+            } : { opacity: 0.7 }}
+            transition={{ 
+              scale: { duration: 0.6, times: [0, 0.5, 1] },
+              boxShadow: { duration: 1.2, times: [0, 0.5, 1], delay: 0.3 },
+              opacity: { duration: 0.3 }
+            }}
+          >
             <p style={{ 
               fontSize: 14, 
-              color: '#6b7280', 
+              color: city && state ? '#10b981' : '#6b7280',
               margin: 0,
               paddingLeft: 4,
-              fontWeight: 500,
+              fontWeight: city && state ? 600 : 500,
               display: 'flex',
               alignItems: 'center',
               gap: 6,
+              transition: 'all 0.3s ease',
             }}>
               <span style={{ color: '#10b981', fontSize: 16 }}>✓</span>
               <span><strong style={{ color: '#10b981' }}>Pro tip:</strong> Add your street address for better neighborhood matches</span>
@@ -383,12 +401,12 @@ export default function OnboardingAddressSimple() {
                 width: '100%',
                 padding: '14px 18px',
                 fontSize: 15,
-                border: '2px solid #e5e7eb',
+                border: city && state ? '2px solid #10b981' : '2px solid #e5e7eb',
                 borderRadius: 16,
                 outline: 'none',
                 transition: 'all 0.2s ease',
-                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-                backgroundColor: '#ffffff',
+                boxShadow: city && state ? '0 2px 8px rgba(16, 185, 129, 0.15)' : '0 1px 3px rgba(0, 0, 0, 0.1)',
+                backgroundColor: city && state ? '#f0fdf4' : '#ffffff',
                 boxSizing: 'border-box',
               }}
               onMouseEnter={(e) => {
@@ -423,7 +441,7 @@ export default function OnboardingAddressSimple() {
             }}>
               Only used to match you with nearby neighbors. Never shown publicly.
             </p>
-          </div>
+          </motion.div>
 
           {error && (
             <motion.div

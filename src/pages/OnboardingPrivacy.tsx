@@ -169,7 +169,7 @@ function OnboardingPrivacyInner() {
   const getHouseholdTypeText = () => {
     if (state.intendedHouseholdType === "family_with_kids") return "Family with Kids";
     if (state.intendedHouseholdType === "empty_nesters") return "Empty Nesters";
-    if (state.intendedHouseholdType === "singles_couples") return "Single/Couple";
+    if (state.intendedHouseholdType === "singles_couples") return "Singles/Couples";
     return "Household";
   };
 
