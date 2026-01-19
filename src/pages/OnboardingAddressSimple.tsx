@@ -16,6 +16,7 @@ export default function OnboardingAddressSimple() {
   const [state, setState] = useState('');
   const [zip, setZip] = useState('');
   const [zipValidating, setZipValidating] = useState(false);
+  const [zipError, setZipError] = useState('');
 
   // Google Geocoding API - Validate ZIP and get coordinates
   const geocodeZip = async (zipCode: string) => {
@@ -32,7 +33,7 @@ export default function OnboardingAddressSimple() {
       );
       const data = await response.json();
 
-      console.log('Google Geocoding Response:', data); // Debug log
+      console.log('Google Geocoding Response for', zipCode, ':', data); // Debug log
 
       if (data.status === 'OK' && data.results.length > 0) {
         const result = data.results[0];
@@ -51,6 +52,12 @@ export default function OnboardingAddressSimple() {
           }
         }
 
+        // Validate we got both city and state
+        if (!geocodedCity || !geocodedState) {
+          console.error('Missing city or state in response');
+          return null;
+        }
+
         return {
           valid: true,
           city: geocodedCity,
@@ -60,10 +67,10 @@ export default function OnboardingAddressSimple() {
         };
       }
 
-      console.error('Geocoding failed:', data.status, data.error_message);
+      console.error('Geocoding failed for', zipCode, '- Status:', data.status, 'Error:', data.error_message);
       return null;
     } catch (err) {
-      console.error('Geocoding error:', err);
+      console.error('Geocoding error for', zipCode, ':', err);
       return null;
     }
   };
@@ -73,6 +80,7 @@ export default function OnboardingAddressSimple() {
     const digits = value.replace(/\D/g, '').slice(0, 5);
     setZip(digits);
     setError(''); // Clear any previous errors
+    setZipError(''); // Clear ZIP-specific errors
 
     // When ZIP is complete, validate and auto-fill
     if (digits.length === 5) {
@@ -84,9 +92,17 @@ export default function OnboardingAddressSimple() {
         // Auto-fill city and state
         setCity(result.city);
         setState(result.state);
+        setZipError(''); // Clear error on success
+        console.log('✅ Valid ZIP:', digits, result);
       } else {
-        setError(`ZIP code ${digits} not found. Please check and try again.`);
+        setZipError(`Invalid ZIP code. Please check and try again.`);
+        setCity('');
+        setState('');
+        console.log('❌ Invalid ZIP:', digits);
       }
+    } else if (digits.length > 0 && digits.length < 5) {
+      // Show hint while typing
+      setZipError('');
     }
   };
 
@@ -220,6 +236,18 @@ export default function OnboardingAddressSimple() {
               type="text"
               value={zip}
               onChange={(e) => handleZipChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && zip.length === 5) {
+                  e.preventDefault();
+                  // Move focus to city field if ZIP is valid, or show error
+                  if (city && state) {
+                    document.getElementById('address')?.focus();
+                  } else if (!zipError) {
+                    // Re-trigger validation if Enter is pressed
+                    handleZipChange(zip);
+                  }
+                }
+              }}
               placeholder={zipValidating ? "Validating..." : "Enter your ZIP code *"}
               maxLength={5}
               autoFocus
@@ -228,12 +256,12 @@ export default function OnboardingAddressSimple() {
                 padding: '18px 22px',
                 fontSize: 17,
                 fontWeight: 500,
-                border: `3px solid ${zipValidating ? '#10b981' : '#10b981'}`,
+                border: `3px solid ${zipError ? '#ef4444' : zipValidating ? '#10b981' : '#10b981'}`,
                 borderRadius: 16,
                 outline: 'none',
                 transition: 'all 0.2s ease',
-                boxShadow: '0 2px 8px rgba(16, 185, 129, 0.15)',
-                backgroundColor: '#ffffff',
+                boxShadow: zipError ? '0 2px 8px rgba(239, 68, 68, 0.15)' : '0 2px 8px rgba(16, 185, 129, 0.15)',
+                backgroundColor: zipError ? '#fef2f2' : '#ffffff',
                 opacity: zipValidating ? 0.7 : 1,
                 boxSizing: 'border-box',
               }}
@@ -264,6 +292,26 @@ export default function OnboardingAddressSimple() {
               disabled={loading}
               required
             />
+            
+            {/* ZIP Error Message */}
+            {zipError && (
+              <motion.p 
+                initial={{ opacity: 0, y: -5 }}
+                animate={{ opacity: 1, y: 0 }}
+                style={{ 
+                  fontSize: 13, 
+                  color: '#ef4444', 
+                  margin: '6px 0 0 4px',
+                  fontWeight: 500,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                <span>⚠️</span>
+                {zipError}
+              </motion.p>
+            )}
           </motion.div>
 
           {/* City - Full width, auto-filled from ZIP */}
