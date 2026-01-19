@@ -162,21 +162,23 @@ export default function OnboardingAccess() {
             letterSpacing: "-0.02em",
           }}
         >
-          Discover families near you —{" "}
-          <span
-            style={{
-              display: "inline-block",
-              background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-              fontWeight: 700,
-              fontSize: "0.9em",
-            }}
-          >
-            get started
-          </span>
+          Discover families near you
         </h1>
+        <h2
+          style={{
+            fontSize: 28,
+            fontWeight: 700,
+            background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            backgroundClip: "text",
+            marginTop: 8,
+            marginBottom: 0,
+            lineHeight: 1.2,
+          }}
+        >
+          get started
+        </h2>
       </motion.div>
 
       {/* OAuth Buttons */}

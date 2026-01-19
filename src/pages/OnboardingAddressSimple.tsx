@@ -167,14 +167,13 @@ export default function OnboardingAddressSimple() {
 
   return (
     <OnboardingLayout currentStep="address">
-      <div className="max-w-md mx-auto px-6 py-12">
-        {/* Clean, modern header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          style={{ textAlign: 'center', marginBottom: 32 }}
-        >
+      {/* Clean, modern header */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        style={{ textAlign: 'center', marginBottom: 32, maxWidth: 520, margin: "0 auto 32px" }}
+      >
           <h1 style={{ fontSize: 28, fontWeight: 700, color: '#111827', marginBottom: 12, letterSpacing: '-0.025em', lineHeight: 1.3 }}>
             Where should we connect you<br />with neighbors?
           </h1>
@@ -195,9 +194,8 @@ export default function OnboardingAddressSimple() {
             display: 'flex', 
             flexDirection: 'column', 
             gap: 16,
-            maxWidth: '460px',
-            margin: '0 auto',
-            width: '100%',
+            maxWidth: 520,
+            margin: "0 auto",
           }}
         >
           {/* ZIP Code - First, prominent with green accent */}
@@ -215,7 +213,7 @@ export default function OnboardingAddressSimple() {
               scale: { duration: 0.3, delay: 0.2 },
               boxShadow: { duration: 2, delay: 0.5, times: [0, 0.5, 1] }
             }}
-            style={{ borderRadius: 16, maxWidth: '100%' }}
+            style={{ borderRadius: 16, width: '100%' }}
           >
             <input
               id="zip"
@@ -227,7 +225,6 @@ export default function OnboardingAddressSimple() {
               autoFocus
               style={{
                 width: '100%',
-                maxWidth: '100%',
                 padding: '18px 22px',
                 fontSize: 17,
                 fontWeight: 500,
@@ -238,6 +235,7 @@ export default function OnboardingAddressSimple() {
                 boxShadow: '0 2px 8px rgba(16, 185, 129, 0.15)',
                 backgroundColor: '#ffffff',
                 opacity: zipValidating ? 0.7 : 1,
+                boxSizing: 'border-box',
               }}
               onMouseEnter={(e) => {
                 const target = e.target as HTMLInputElement;
@@ -285,6 +283,7 @@ export default function OnboardingAddressSimple() {
               transition: 'all 0.2s ease',
               boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
               backgroundColor: '#ffffff',
+              boxSizing: 'border-box',
             }}
             onMouseEnter={(e) => {
               const target = e.target as HTMLInputElement;
@@ -330,6 +329,7 @@ export default function OnboardingAddressSimple() {
               transition: 'all 0.2s ease',
               boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
               backgroundColor: '#ffffff',
+              boxSizing: 'border-box',
             }}
             onMouseEnter={(e) => {
               const target = e.target as HTMLInputElement;
@@ -389,6 +389,7 @@ export default function OnboardingAddressSimple() {
                 transition: 'all 0.2s ease',
                 boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
                 backgroundColor: '#ffffff',
+                boxSizing: 'border-box',
               }}
               onMouseEnter={(e) => {
                 const target = e.target as HTMLInputElement;
@@ -463,6 +464,8 @@ export default function OnboardingAddressSimple() {
               boxShadow: loading || !city || !state || !zip 
                 ? '0 1px 3px rgba(0, 0, 0, 0.1)'
                 : '0 8px 16px rgba(16, 185, 129, 0.3)',
+              display: 'block',
+              boxSizing: 'border-box',
             }}
           >
             {loading ? (
@@ -497,11 +500,13 @@ export default function OnboardingAddressSimple() {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.3, duration: 0.5 }}
             style={{
+              width: '100%',
+              marginTop: 24,
+              boxSizing: 'border-box',
               background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
               border: '2px solid #86efac',
               borderRadius: 16,
               padding: 20,
-              marginTop: 24,
               boxShadow: '0 4px 12px rgba(16, 185, 129, 0.15)',
             }}
           >
@@ -682,7 +687,6 @@ export default function OnboardingAddressSimple() {
             </motion.div>
           </motion.div>
         )}
-      </div>
     </OnboardingLayout>
   );
 }
