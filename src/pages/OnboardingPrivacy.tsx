@@ -167,9 +167,9 @@ function OnboardingPrivacyInner() {
   
   // Get household type display text
   const getHouseholdTypeText = () => {
-    if (state.intendedHouseholdType === "family_with_kids") return "Family with kids";
-    if (state.intendedHouseholdType === "empty_nesters") return "Empty nesters";
-    if (state.intendedHouseholdType === "singles_couples") return "Couple";
+    if (state.intendedHouseholdType === "family_with_kids") return "Family with Kids";
+    if (state.intendedHouseholdType === "empty_nesters") return "Empty Nesters";
+    if (state.intendedHouseholdType === "singles_couples") return "Single/Couple";
     return "Household";
   };
 

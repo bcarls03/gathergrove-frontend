@@ -15,6 +15,80 @@ export default function OnboardingAddressSimple() {
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [zip, setZip] = useState('');
+  const [zipValidating, setZipValidating] = useState(false);
+
+  // Google Geocoding API - Validate ZIP and get coordinates
+  const geocodeZip = async (zipCode: string) => {
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    
+    if (!apiKey) {
+      console.warn('Google Maps API key not configured');
+      return null;
+    }
+
+    try {
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?address=${zipCode},USA&key=${apiKey}`
+      );
+      const data = await response.json();
+
+      console.log('Google Geocoding Response:', data); // Debug log
+
+      if (data.status === 'OK' && data.results.length > 0) {
+        const result = data.results[0];
+        const components = result.address_components;
+        
+        // Extract city and state from address components
+        let geocodedCity = '';
+        let geocodedState = '';
+
+        for (const component of components) {
+          if (component.types.includes('locality')) {
+            geocodedCity = component.long_name;
+          }
+          if (component.types.includes('administrative_area_level_1')) {
+            geocodedState = component.short_name;
+          }
+        }
+
+        return {
+          valid: true,
+          city: geocodedCity,
+          state: geocodedState,
+          lat: result.geometry.location.lat,
+          lng: result.geometry.location.lng,
+        };
+      }
+
+      console.error('Geocoding failed:', data.status, data.error_message);
+      return null;
+    } catch (err) {
+      console.error('Geocoding error:', err);
+      return null;
+    }
+  };
+
+  // Auto-fill city/state when ZIP is complete
+  const handleZipChange = async (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0, 5);
+    setZip(digits);
+    setError(''); // Clear any previous errors
+
+    // When ZIP is complete, validate and auto-fill
+    if (digits.length === 5) {
+      setZipValidating(true);
+      const result = await geocodeZip(digits);
+      setZipValidating(false);
+
+      if (result) {
+        // Auto-fill city and state
+        setCity(result.city);
+        setState(result.state);
+      } else {
+        setError(`ZIP code ${digits} not found. Please check and try again.`);
+      }
+    }
+  };
 
   const handleSubmit = async () => {
     if (!city || !state || !zip) {
@@ -22,12 +96,31 @@ export default function OnboardingAddressSimple() {
       return;
     }
 
+    // Validate state is 2 letters
+    if (!/^[A-Z]{2}$/.test(state)) {
+      setError('State must be 2 letters (e.g., OH, CA, NY)');
+      return;
+    }
+
+    // Validate ZIP code is 5 digits
+    if (!/^\d{5}$/.test(zip)) {
+      setError('ZIP code must be exactly 5 digits');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
-    // Mock geocoding for now (replace with actual service)
-    const lat = 39.8283;
-    const lng = -98.5795;
+    // Get real coordinates from Google Geocoding
+    const geocodeResult = await geocodeZip(zip);
+    
+    if (!geocodeResult) {
+      setLoading(false);
+      setError(`Unable to verify ZIP code ${zip}. Please check and try again.`);
+      return;
+    }
+
+    const { lat, lng } = geocodeResult;
 
     try {
       await updateMyProfile({
@@ -36,7 +129,7 @@ export default function OnboardingAddressSimple() {
         lng,
       });
 
-      // Navigate to Step 3: Household (NOT magical-moment)
+      // Navigate to Step 3: Household
       navigate('/onboarding/household', {
         state: { address, city, state, zip, lat, lng },
       });
@@ -73,7 +166,7 @@ export default function OnboardingAddressSimple() {
   };
 
   return (
-    <OnboardingLayout currentStep="household">
+    <OnboardingLayout currentStep="address">
       <div className="max-w-md mx-auto px-6 py-12">
         {/* Clean, modern header */}
         <motion.div
@@ -85,8 +178,11 @@ export default function OnboardingAddressSimple() {
           <h1 style={{ fontSize: 28, fontWeight: 700, color: '#111827', marginBottom: 12, letterSpacing: '-0.025em', lineHeight: 1.3 }}>
             Where should we connect you<br />with neighbors?
           </h1>
-          <p style={{ fontSize: 16, color: '#6b7280', lineHeight: 1.5 }}>
-            City + ZIP place you in Nearby discovery.<br />Street address helps match your neighborhood (optional).
+          <p style={{ fontSize: 16, color: '#6b7280', lineHeight: 1.5, marginBottom: 4 }}>
+            Start by entering your <span style={{ color: '#10b981', fontWeight: 600 }}>ZIP code</span> below.
+          </p>
+          <p style={{ fontSize: 14, color: '#9ca3af', lineHeight: 1.5 }}>
+            We'll auto-fill your city and state.
           </p>
         </motion.div>
 
@@ -95,68 +191,90 @@ export default function OnboardingAddressSimple() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
-          style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
+          style={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            gap: 16,
+            maxWidth: '460px',
+            margin: '0 auto',
+            width: '100%',
+          }}
         >
-          {/* Street Address - Modern with shadow + microcopy */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {/* ZIP Code - First, prominent with green accent */}
+          <motion.div
+            initial={{ scale: 0.98, boxShadow: '0 2px 8px rgba(16, 185, 129, 0.15)' }}
+            animate={{ 
+              scale: 1,
+              boxShadow: [
+                '0 2px 8px rgba(16, 185, 129, 0.15)',
+                '0 4px 16px rgba(16, 185, 129, 0.35)',
+                '0 2px 8px rgba(16, 185, 129, 0.15)',
+              ]
+            }}
+            transition={{ 
+              scale: { duration: 0.3, delay: 0.2 },
+              boxShadow: { duration: 2, delay: 0.5, times: [0, 0.5, 1] }
+            }}
+            style={{ borderRadius: 16, maxWidth: '100%' }}
+          >
             <input
-              id="address"
+              id="zip"
               type="text"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="Street address (optional)"
+              value={zip}
+              onChange={(e) => handleZipChange(e.target.value)}
+              placeholder={zipValidating ? "Validating..." : "Enter your ZIP code *"}
+              maxLength={5}
+              autoFocus
               style={{
                 width: '100%',
-                padding: '16px 20px',
-              fontSize: 16,
-              border: '2px solid #e5e7eb',
-              borderRadius: 16,
-              outline: 'none',
-              transition: 'all 0.2s ease',
-              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-              backgroundColor: '#ffffff',
-            }}
-            onMouseEnter={(e) => {
-              const target = e.target as HTMLInputElement;
-              if (target !== document.activeElement) {
-                target.style.borderColor = '#d1d5db';
-                target.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.12)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              const target = e.target as HTMLInputElement;
-              if (target !== document.activeElement) {
-                target.style.borderColor = '#e5e7eb';
-                target.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)';
-              }
-            }}
-            onFocus={(e) => {
-              e.target.style.borderColor = '#10b981';
-              e.target.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.15)';
-            }}
-            onBlur={(e) => {
-              e.target.style.borderColor = '#e5e7eb';
-              e.target.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)';
-            }}
-            disabled={loading}
-          />
-          <p style={{ 
-            fontSize: 13, 
-            color: '#6b7280', 
-            margin: 0,
-            paddingLeft: 4,
-          }}>
-            Used only to suggest your verified neighborhood. Never shown to others.
-          </p>
-          </div>
+                maxWidth: '100%',
+                padding: '18px 22px',
+                fontSize: 17,
+                fontWeight: 500,
+                border: `3px solid ${zipValidating ? '#10b981' : '#10b981'}`,
+                borderRadius: 16,
+                outline: 'none',
+                transition: 'all 0.2s ease',
+                boxShadow: '0 2px 8px rgba(16, 185, 129, 0.15)',
+                backgroundColor: '#ffffff',
+                opacity: zipValidating ? 0.7 : 1,
+              }}
+              onMouseEnter={(e) => {
+                const target = e.target as HTMLInputElement;
+                if (target !== document.activeElement && !zipValidating) {
+                  target.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.25)';
+                  target.style.transform = 'translateY(-1px)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                const target = e.target as HTMLInputElement;
+                if (target !== document.activeElement && !zipValidating) {
+                  target.style.boxShadow = '0 2px 8px rgba(16, 185, 129, 0.15)';
+                  target.style.transform = 'translateY(0)';
+                }
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = '#059669';
+                e.target.style.boxShadow = '0 6px 16px rgba(16, 185, 129, 0.3)';
+              }}
+              onBlur={(e) => {
+                if (!zipValidating) {
+                  e.target.style.borderColor = '#10b981';
+                  e.target.style.boxShadow = '0 2px 8px rgba(16, 185, 129, 0.15)';
+                }
+              }}
+              disabled={loading}
+              required
+            />
+          </motion.div>
 
-          {/* City - Modern with shadow */}
+          {/* City - Full width, auto-filled from ZIP */}
           <input
             id="city"
             type="text"
             value={city}
             onChange={(e) => setCity(e.target.value)}
-            placeholder="City *"
+            placeholder="City (auto-fills) *"
             style={{
               width: '100%',
               padding: '16px 20px',
@@ -194,18 +312,77 @@ export default function OnboardingAddressSimple() {
             required
           />
 
-          {/* State & ZIP - Side by side */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          {/* State - Full width, auto-filled from ZIP */}
+          <input
+            id="state"
+            type="text"
+            value={state}
+            onChange={(e) => setState(e.target.value.toUpperCase())}
+            placeholder="State (auto-fills) *"
+            maxLength={2}
+            style={{
+              width: '100%',
+              padding: '16px 20px',
+              fontSize: 16,
+              border: '2px solid #e5e7eb',
+              borderRadius: 16,
+              outline: 'none',
+              transition: 'all 0.2s ease',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+              backgroundColor: '#ffffff',
+            }}
+            onMouseEnter={(e) => {
+              const target = e.target as HTMLInputElement;
+              if (target !== document.activeElement) {
+                target.style.borderColor = '#d1d5db';
+                target.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.12)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              const target = e.target as HTMLInputElement;
+              if (target !== document.activeElement) {
+                target.style.borderColor = '#e5e7eb';
+                target.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)';
+              }
+            }}
+            onFocus={(e) => {
+              e.target.style.borderColor = '#10b981';
+              e.target.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.15)';
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = '#e5e7eb';
+              e.target.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)';
+            }}
+            disabled={loading}
+            required
+          />
+
+          {/* Street Address - Last, clearly optional, de-emphasized */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 16 }}>
+            <p style={{ 
+              fontSize: 14, 
+              color: '#6b7280', 
+              margin: 0,
+              paddingLeft: 4,
+              fontWeight: 500,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}>
+              <span style={{ color: '#10b981', fontSize: 16 }}>✓</span>
+              <span><strong style={{ color: '#10b981' }}>Pro tip:</strong> Add your street address for better neighborhood matches</span>
+            </p>
             <input
-              id="state"
+              id="address"
               type="text"
-              value={state}
-              onChange={(e) => setState(e.target.value.toUpperCase())}
-              placeholder="State *"
-              maxLength={2}
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="Street address (optional but recommended)"
+              autoComplete="street-address"
               style={{
-                padding: '16px 20px',
-                fontSize: 16,
+                width: '100%',
+                padding: '14px 18px',
+                fontSize: 15,
                 border: '2px solid #e5e7eb',
                 borderRadius: 16,
                 outline: 'none',
@@ -236,51 +413,15 @@ export default function OnboardingAddressSimple() {
                 e.target.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)';
               }}
               disabled={loading}
-              required
             />
-            
-            <input
-              id="zip"
-              type="text"
-              value={zip}
-              onChange={(e) => setZip(e.target.value.replace(/\D/g, '').slice(0, 5))}
-              placeholder="ZIP *"
-              maxLength={5}
-              style={{
-                padding: '16px 20px',
-                fontSize: 16,
-                border: '2px solid #e5e7eb',
-                borderRadius: 16,
-                outline: 'none',
-                transition: 'all 0.2s ease',
-                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-                backgroundColor: '#ffffff',
-              }}
-              onMouseEnter={(e) => {
-                const target = e.target as HTMLInputElement;
-                if (target !== document.activeElement) {
-                  target.style.borderColor = '#d1d5db';
-                  target.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.12)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                const target = e.target as HTMLInputElement;
-                if (target !== document.activeElement) {
-                  target.style.borderColor = '#e5e7eb';
-                  target.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)';
-                }
-              }}
-              onFocus={(e) => {
-                e.target.style.borderColor = '#10b981';
-                e.target.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.15)';
-              }}
-              onBlur={(e) => {
-                e.target.style.borderColor = '#e5e7eb';
-                e.target.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)';
-              }}
-              disabled={loading}
-              required
-            />
+            <p style={{ 
+              fontSize: 13, 
+              color: '#9ca3af', 
+              margin: 0,
+              paddingLeft: 4,
+            }}>
+              Only used to match you with nearby neighbors. Never shown publicly.
+            </p>
           </div>
 
           {error && (
@@ -336,6 +477,19 @@ export default function OnboardingAddressSimple() {
               'Continue'
             )}
           </motion.button>
+
+          {/* Helper text for disabled button */}
+          {(!city || !state || !zip) && !loading && (
+            <p style={{ 
+              fontSize: 13, 
+              color: '#9ca3af', 
+              textAlign: 'center',
+              margin: '8px 0 0 0',
+              fontStyle: 'italic',
+            }}>
+              Complete ZIP, City, and State to continue
+            </p>
+          )}
 
           {/* Privacy Notice - Premium card with shadow */}
           <motion.div
