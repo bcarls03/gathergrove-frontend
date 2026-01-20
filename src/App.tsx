@@ -77,8 +77,8 @@ function AppShell() {
           <NavLink to="/discovery" className={linkClass}>
             Discover
           </NavLink>
-          <NavLink to="/settings" className={linkClass}>
-            Settings
+          <NavLink to="/me" className={linkClass}>
+            Me
           </NavLink>
         </nav>
       )}
@@ -109,10 +109,12 @@ function AppShell() {
           <Route path="/" element={<Home />} />
           <Route path="/calendar" element={<Calendar />} />
           <Route path="/discovery" element={<Discovery />} />
-          <Route path="/settings" element={<SettingsNew />} />
-          <Route path="/settings/household" element={<SettingsHousehold />} />
-          {/* Redirect old /profile route to new /settings */}
-          <Route path="/profile" element={<Navigate to="/settings" replace />} />
+          <Route path="/me" element={<SettingsNew />} />
+          <Route path="/me/household" element={<SettingsHousehold />} />
+          {/* Redirect old routes to /me */}
+          <Route path="/settings" element={<Navigate to="/me" replace />} />
+          <Route path="/settings/household" element={<Navigate to="/me/household" replace />} />
+          <Route path="/profile" element={<Navigate to="/me" replace />} />
 
           {/* Hidden-from-nav routes */}
           <Route path="/messages" element={<Messages />} />

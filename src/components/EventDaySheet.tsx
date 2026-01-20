@@ -1,6 +1,6 @@
 // src/components/EventDaySheet.tsx
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Calendar, Clock, MapPin } from "lucide-react";
+import { X, Calendar, Clock, MapPin, Download } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import type { GGEvent } from "../lib/api";
@@ -10,6 +10,7 @@ import {
   fetchMyRsvp,
   type RSVPStatus,
 } from "../lib/api";
+import { downloadICS } from "../lib/calendar";
 
 type Props = {
   open: boolean;
@@ -424,6 +425,31 @@ export default function EventDaySheet({ open, onClose, date, events }: Props) {
                             {currentStatus === "declined" ? "✓ Can't go" : "Can't go"}
                           </button>
                         </div>
+
+                        {/* Add to Calendar button */}
+                        <button
+                          onClick={() => downloadICS(event)}
+                          style={{
+                            width: "100%",
+                            marginTop: 12,
+                            padding: "10px 16px",
+                            fontSize: 14,
+                            fontWeight: 600,
+                            color: "#6b7280",
+                            backgroundColor: "white",
+                            border: "2px solid #e5e7eb",
+                            borderRadius: 8,
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 8,
+                          }}
+                          title="Download .ics file to add to your calendar"
+                        >
+                          <Download size={16} />
+                          Add to Calendar
+                        </button>
                       </motion.div>
                     );
                   })}

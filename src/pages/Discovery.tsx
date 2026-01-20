@@ -36,6 +36,7 @@ export default function Discovery() {
     setEventsLoading(true);
     try {
       const data = await fetchEvents();
+      
       // Filter to only "Happening Now" events (type: "now" or "happening")
       const now = new Date();
       const happeningNow = data.filter(event => {

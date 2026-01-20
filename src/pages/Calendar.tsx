@@ -134,6 +134,16 @@ export default function Calendar() {
   return (
     <div style={{ maxWidth: 800, margin: "0 auto", padding: "16px 16px 80px" }}>
       {/* Header */}
+      <div style={{ marginBottom: 16 }}>
+        <h1 style={{ fontSize: 28, fontWeight: 700, margin: 0, marginBottom: 4 }}>
+          Calendar
+        </h1>
+        <p style={{ fontSize: 14, color: "#6b7280", margin: 0 }}>
+          Your GatherGrove commitments. Events sync with your personal calendar when you RSVP.
+        </p>
+      </div>
+
+      {/* Month Navigation */}
       <div
         style={{
           display: "flex",
@@ -143,9 +153,9 @@ export default function Calendar() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <h1 style={{ fontSize: 28, fontWeight: 700, margin: 0 }}>
+          <h2 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>
             {monthYearLabel}
-          </h1>
+          </h2>
           <button
             onClick={goToToday}
             style={{

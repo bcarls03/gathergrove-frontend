@@ -370,9 +370,9 @@ export default function SettingsNew() {
       boxSizing: "border-box",
       flexShrink: 0
     }}>
-      <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Settings</h1>
+      <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Me</h1>
       <p style={{ fontSize: 15, color: "#6b7280", marginBottom: 24 }}>
-        Manage your profile and household
+        Your household, privacy, and account settings
       </p>
 
       {/* Success/Error Messages */}
