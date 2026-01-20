@@ -1,9 +1,9 @@
 // src/pages/Discovery.tsx
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Heart, Home, MapPin, Sparkles, UserPlus, Calendar, MessageCircle } from 'lucide-react';
+import { Users, Heart, Home, MapPin, Sparkles, UserPlus, Calendar, MessageCircle, Zap, Clock } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { fetchHouseholds, type GGHousehold } from '../lib/api';
+import { fetchHouseholds, fetchEvents, type GGHousehold, type GGEvent } from '../lib/api';
 import { fetchConnections, sendConnectionRequest } from '../lib/api/connections';
 
 type DiscoverTab = 'nearby' | 'connected';
@@ -13,7 +13,9 @@ export default function Discovery() {
   
   const [activeTab, setActiveTab] = useState<DiscoverTab>('nearby');
   const [households, setHouseholds] = useState<GGHousehold[]>([]);
+  const [events, setEvents] = useState<GGEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [eventsLoading, setEventsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
   // Filters
@@ -27,7 +29,28 @@ export default function Discovery() {
   useEffect(() => {
     loadHouseholds();
     loadConnections();
+    loadEvents();
   }, []);
+
+  const loadEvents = async () => {
+    setEventsLoading(true);
+    try {
+      const data = await fetchEvents();
+      // Filter to only "Happening Now" events (type: "now" or "happening")
+      const now = new Date();
+      const happeningNow = data.filter(event => {
+        const isNowType = event.type === 'now' || event.type === 'happening';
+        const notExpired = !event.expiresAt || new Date(event.expiresAt) > now;
+        const notCanceled = event.status !== 'canceled';
+        return isNowType && notExpired && notCanceled;
+      });
+      setEvents(happeningNow);
+    } catch (err) {
+      console.error('Failed to load events:', err);
+    } finally {
+      setEventsLoading(false);
+    }
+  };
 
   const loadConnections = async () => {
     try {
@@ -188,6 +211,49 @@ export default function Discovery() {
     return connectingIds.has(householdId || '');
   };
 
+  const getEventTimeDisplay = (event: GGEvent): string => {
+    if (event.when) return event.when;
+    if (event.startAt) {
+      const start = new Date(event.startAt);
+      const now = new Date();
+      const diffMinutes = Math.floor((now.getTime() - start.getTime()) / 60000);
+      
+      if (diffMinutes < 5) return 'Just started';
+      if (diffMinutes < 60) return `Started ${diffMinutes}m ago`;
+      const diffHours = Math.floor(diffMinutes / 60);
+      return `Started ${diffHours}h ago`;
+    }
+    return 'Happening now';
+  };
+
+  const getEventCategoryColor = (category?: string) => {
+    switch (category) {
+      case 'playdate': return '#ec4899';
+      case 'neighborhood': return '#3b82f6';
+      case 'celebrations': return '#a855f7';
+      case 'sports': return '#f59e0b';
+      case 'food': return '#10b981';
+      case 'pet': return '#8b5cf6';
+      default: return '#6b7280';
+    }
+  };
+
+  const getEventCategoryLabel = (category?: string) => {
+    switch (category) {
+      case 'playdate': return '🎪 Playdate';
+      case 'neighborhood': return '🏡 Neighborhood';
+      case 'celebrations': return '🎉 Celebrations';
+      case 'sports': return '⚽ Sports';
+      case 'food': return '🍕 Food';
+      case 'pet': return '🐶 Pets';
+      default: return '✨ Other';
+    }
+  };
+
+  const handleJoinEvent = (event: GGEvent) => {
+    navigate(`/calendar?event=${event.id}`);
+  };
+
   return (
     <div style={{ minHeight: '100vh', background: '#f9fafb', paddingBottom: 80 }}>
       {/* Header */}
@@ -315,6 +381,178 @@ export default function Discovery() {
 
       {/* Content */}
       <div style={{ maxWidth: 900, margin: '0 auto', padding: 24 }}>
+        {/* Happening Now Section */}
+        {!eventsLoading && events.length > 0 && (
+          <div style={{ marginBottom: 32 }}>
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 8, 
+              marginBottom: 16 
+            }}>
+              <Zap size={20} style={{ color: '#f59e0b' }} />
+              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: '#111827' }}>
+                Happening Now
+              </h2>
+              <div style={{
+                padding: '2px 8px',
+                borderRadius: 6,
+                background: '#fef3c7',
+                fontSize: 12,
+                fontWeight: 600,
+                color: '#92400e'
+              }}>
+                {events.length} active
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {events.slice(0, 3).map((event) => (
+                <motion.div
+                  key={event.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  style={{
+                    background: '#ffffff',
+                    border: '2px solid #fbbf24',
+                    borderRadius: 12,
+                    padding: 16,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  whileHover={{ 
+                    borderColor: '#f59e0b',
+                    boxShadow: '0 4px 12px rgba(251, 191, 36, 0.2)',
+                    y: -2
+                  }}
+                  onClick={() => handleJoinEvent(event)}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, color: '#111827' }}>
+                        {event.title || 'Untitled Event'}
+                      </h3>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                        {/* Category Badge */}
+                        {event.category && (
+                          <div
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              padding: '4px 10px',
+                              borderRadius: 8,
+                              background: getEventCategoryColor(event.category) + '15',
+                              color: getEventCategoryColor(event.category),
+                              fontSize: 13,
+                              fontWeight: 600
+                            }}
+                          >
+                            {getEventCategoryLabel(event.category)}
+                          </div>
+                        )}
+                        
+                        {/* Time Badge */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#6b7280', fontSize: 13 }}>
+                          <Clock size={14} />
+                          {getEventTimeDisplay(event)}
+                        </div>
+
+                        {/* Neighborhood */}
+                        {event.neighborhoods && event.neighborhoods.length > 0 && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#6b7280', fontSize: 13 }}>
+                            <MapPin size={14} />
+                            {event.neighborhoods[0]}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Join Button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleJoinEvent(event);
+                      }}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: 8,
+                        border: '2px solid #f59e0b',
+                        background: '#f59e0b',
+                        color: '#ffffff',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6
+                      }}
+                    >
+                      <Zap size={14} />
+                      Join Now
+                    </button>
+                  </div>
+
+                  {/* Details */}
+                  {event.details && (
+                    <p style={{ 
+                      fontSize: 14, 
+                      color: '#6b7280', 
+                      margin: 0,
+                      lineHeight: 1.5
+                    }}>
+                      {event.details.length > 120 
+                        ? event.details.substring(0, 120) + '...' 
+                        : event.details
+                      }
+                    </p>
+                  )}
+
+                  {/* Attendance Count */}
+                  {event.goingCount !== undefined && event.goingCount > 0 && (
+                    <div style={{
+                      marginTop: 12,
+                      paddingTop: 12,
+                      borderTop: '1px solid #f3f4f6',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      fontSize: 13,
+                      color: '#059669',
+                      fontWeight: 600
+                    }}>
+                      <Users size={14} />
+                      {event.goingCount} {event.goingCount === 1 ? 'neighbor' : 'neighbors'} going
+                    </div>
+                  )}
+                </motion.div>
+              ))}
+            </div>
+
+            {/* Divider */}
+            <div style={{ 
+              height: 1, 
+              background: '#e5e7eb', 
+              marginTop: 32,
+              marginBottom: 32
+            }} />
+          </div>
+        )}
+
+        {/* Households Section */}
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: 8, 
+          marginBottom: 16 
+        }}>
+          <Users size={20} style={{ color: '#10b981' }} />
+          <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: '#111827' }}>
+            {activeTab === 'connected' ? 'Your Connections' : 'Nearby Neighbors'}
+          </h2>
+        </div>
+
         {loading && (
           <div style={{ textAlign: 'center', padding: 64, color: '#6b7280' }}>
             Loading nearby households...
