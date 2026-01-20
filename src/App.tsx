@@ -10,7 +10,6 @@ import {
 } from "react-router-dom";
 
 import Home from "./pages/Home.tsx";
-import People from "./pages/People.tsx";
 import Messages from "./pages/Messages.tsx";
 import ComposePost from "./pages/ComposePost.tsx";
 import SettingsNew from "./pages/SettingsNew.tsx";
@@ -75,9 +74,6 @@ function AppShell() {
           <NavLink to="/calendar" className={linkClass}>
             Calendar
           </NavLink>
-          <NavLink to="/people" className={linkClass}>
-            People
-          </NavLink>
           <NavLink to="/discovery" className={linkClass}>
             Discover
           </NavLink>
@@ -112,7 +108,6 @@ function AppShell() {
           {/* Main tabs */}
           <Route path="/" element={<Home />} />
           <Route path="/calendar" element={<Calendar />} />
-          <Route path="/people" element={<People />} />
           <Route path="/discovery" element={<Discovery />} />
           <Route path="/settings" element={<SettingsNew />} />
           <Route path="/settings/household" element={<SettingsHousehold />} />
