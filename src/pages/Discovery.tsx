@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Users, Heart, Home, MapPin, Sparkles, UserPlus, Calendar, MessageCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { fetchHouseholds, type GGHousehold } from '../lib/api';
+import { fetchConnections, sendConnectionRequest } from '../lib/api/connections';
 
 type DiscoverTab = 'nearby' | 'connected';
 
@@ -19,12 +20,23 @@ export default function Discovery() {
   const [filterType, setFilterType] = useState<string>('all');
   const [filterAgeRange, setFilterAgeRange] = useState<string>('all');
 
-  // Mock connected household IDs (TODO: Replace with real API)
-  const [connectedHouseholdIds] = useState<string[]>([]);
+  // Connected household IDs from API
+  const [connectedHouseholdIds, setConnectedHouseholdIds] = useState<string[]>([]);
+  const [connectingIds, setConnectingIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadHouseholds();
+    loadConnections();
   }, []);
+
+  const loadConnections = async () => {
+    try {
+      const connections = await fetchConnections();
+      setConnectedHouseholdIds(connections);
+    } catch (err) {
+      console.error('Failed to load connections:', err);
+    }
+  };
 
   const loadHouseholds = async () => {
     setLoading(true);
@@ -136,18 +148,44 @@ export default function Discovery() {
     navigate('/compose/event');
   };
 
-  const handleConnect = (household: GGHousehold) => {
-    // TODO: Implement connection request API
-    alert(`Connection request to ${getHouseholdName(household)} - Coming soon!`);
+  const handleConnect = async (household: GGHousehold) => {
+    if (!household.id) return;
+    
+    // Optimistic UI update
+    setConnectingIds(prev => new Set(prev).add(household.id!));
+    
+    try {
+      const success = await sendConnectionRequest(household.id);
+      if (success) {
+        // Add to connected list immediately (optimistic)
+        setConnectedHouseholdIds(prev => [...prev, household.id!]);
+        alert(`✅ Connection request sent to ${getHouseholdName(household)}!`);
+      } else {
+        alert(`❌ Failed to send connection request. Please try again.`);
+      }
+    } catch (err) {
+      console.error('Error sending connection request:', err);
+      alert(`❌ Failed to send connection request. Please try again.`);
+    } finally {
+      setConnectingIds(prev => {
+        const next = new Set(prev);
+        next.delete(household.id!);
+        return next;
+      });
+    }
   };
 
   const handleMessage = (household: GGHousehold) => {
-    // TODO: Implement messaging
-    alert(`Message ${getHouseholdName(household)} - Coming soon!`);
+    // Navigate to messages page with household pre-selected
+    navigate('/messages', { state: { householdId: household.id, householdName: getHouseholdName(household) } });
   };
 
   const isConnected = (householdId?: string) => {
     return connectedHouseholdIds.includes(householdId || '');
+  };
+
+  const isConnecting = (householdId?: string) => {
+    return connectingIds.has(householdId || '');
   };
 
   return (
@@ -510,6 +548,7 @@ export default function Discovery() {
                         e.stopPropagation();
                         handleConnect(household);
                       }}
+                      disabled={isConnecting(household.id)}
                       style={{
                         flex: 1,
                         padding: '10px 16px',
@@ -519,15 +558,16 @@ export default function Discovery() {
                         color: '#3b82f6',
                         fontSize: 14,
                         fontWeight: 600,
-                        cursor: 'pointer',
+                        cursor: isConnecting(household.id) ? 'not-allowed' : 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: 6
+                        gap: 6,
+                        opacity: isConnecting(household.id) ? 0.6 : 1
                       }}
                     >
                       <UserPlus size={16} />
-                      Connect
+                      {isConnecting(household.id) ? 'Connecting...' : 'Connect'}
                     </button>
                   )}
                 </div>
