@@ -24,6 +24,21 @@ export default function OnboardingAccess() {
   const [error, setError] = useState<string | null>(null);
   const [showMoreOptions, setShowMoreOptions] = useState(false);
 
+  // 🔧 DEV MODE: Skip OAuth and go straight to address
+  const handleDevModeSkip = () => {
+    console.log("🔧 DEV MODE: Skipping OAuth authentication");
+    // Set dummy onboarding state
+    setOnboardingState({
+      firstName: "Dev",
+      lastName: "User",
+      email: "dev@example.com",
+    });
+    // Set UID in localStorage (used by API)
+    localStorage.setItem("gg:uid", "dev-user-123");
+    // Go straight to address page
+    navigate("/onboarding/address");
+  };
+
   const handleOAuthSignIn = async (
     provider: "google" | "apple" | "facebook" | "microsoft"
   ) => {
@@ -111,9 +126,19 @@ export default function OnboardingAccess() {
     } catch (err: any) {
       console.error("❌ OAuth error:", err);
       
+      // Check for network errors (Firebase emulator not running)
+      const errorCode = err?.code || "";
+      const errorMessage = err?.message || err?.response?.data?.detail || "";
+      
+      if (errorCode === "auth/network-request-failed" || errorMessage.includes("network-request-failed")) {
+        // Firebase emulator not available - show dev mode hint
+        setError("Firebase emulator not running. Use 'DEV MODE: Skip Auth' button below to continue.");
+        setLoading(false);
+        return;
+      }
+      
       // Check if this is a 409 error (user already exists)
       const status = err?.response?.status || err?.status;
-      const errorMessage = err?.message || err?.response?.data?.detail || "";
       const errorDetail = err?.response?.data?.detail || "";
       
       // Multiple checks for 409/user exists errors
@@ -380,7 +405,7 @@ export default function OnboardingAccess() {
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           style={{
-            marginBottom: 20,
+            marginBottom: 12,
             padding: "12px 16px",
             background: "#fef2f2",
             border: "1px solid #fecaca",
@@ -392,6 +417,37 @@ export default function OnboardingAccess() {
         >
           {error}
         </motion.div>
+      )}
+
+      {/* 🔧 DEV MODE: Skip Auth Button */}
+      {import.meta.env.DEV && (
+        <motion.button
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          whileHover={{ scale: 1.02, boxShadow: "0 4px 12px rgba(251, 191, 36, 0.3)" }}
+          whileTap={{ scale: 0.98 }}
+          onClick={handleDevModeSkip}
+          style={{
+            width: "100%",
+            padding: "14px 20px",
+            borderRadius: 10,
+            border: "2px solid #fbbf24",
+            background: "#fef3c7",
+            color: "#92400e",
+            fontSize: 15,
+            fontWeight: 700,
+            cursor: "pointer",
+            marginBottom: 20,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            boxShadow: "0 2px 8px rgba(251, 191, 36, 0.2)",
+          }}
+        >
+          <span style={{ fontSize: 18 }}>🔧</span>
+          <span>DEV MODE: Skip Auth</span>
+        </motion.button>
       )}
 
       {/* Loading Indicator */}

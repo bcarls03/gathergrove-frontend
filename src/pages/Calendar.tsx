@@ -176,9 +176,14 @@ export default function Calendar() {
               borderRadius: 8,
               backgroundColor: "white",
               cursor: "pointer",
+              fontSize: 20,
+              fontWeight: 700,
+              color: "#374151",
             }}
+            title="Previous month"
+            aria-label="Previous month"
           >
-            <ChevronLeft size={20} color="#374151" />
+            ←
           </button>
           <button
             onClick={goToNextMonth}
@@ -192,9 +197,14 @@ export default function Calendar() {
               borderRadius: 8,
               backgroundColor: "white",
               cursor: "pointer",
+              fontSize: 20,
+              fontWeight: 700,
+              color: "#374151",
             }}
+            title="Next month"
+            aria-label="Next month"
           >
-            <ChevronRight size={20} color="#374151" />
+            →
           </button>
         </div>
       </div>
