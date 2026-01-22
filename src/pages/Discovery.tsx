@@ -5,6 +5,7 @@ import { Users, Heart, Home, MapPin, Sparkles, UserPlus, Calendar, MessageCircle
 import { motion } from 'framer-motion';
 import { fetchHouseholds, fetchEvents, type GGHousehold, type GGEvent } from '../lib/api';
 import { fetchConnections, sendConnectionRequest } from '../lib/api/connections';
+import { Chip, DualAgeRange, HOUSEHOLD_TYPE_META, type HouseholdType } from '../components/filters';
 
 type DiscoverTab = 'nearby' | 'connected';
 
@@ -18,19 +19,59 @@ export default function Discovery() {
   const [eventsLoading, setEventsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // Filters
-  const [filterType, setFilterType] = useState<string>('all');
-  const [filterAgeRange, setFilterAgeRange] = useState<string>('all');
+  // Filters - Updated to use Set for multi-select household types
+  const [selectedTypes, setSelectedTypes] = useState<Set<HouseholdType>>(new Set());
+  const [ageMin, setAgeMin] = useState<number>(0);
+  const [ageMax, setAgeMax] = useState<number>(18);
 
   // Connected household IDs from API
   const [connectedHouseholdIds, setConnectedHouseholdIds] = useState<string[]>([]);
   const [connectingIds, setConnectingIds] = useState<Set<string>>(new Set());
+
+  // Create event dropdown state
+  const [showCreateDropdown, setShowCreateDropdown] = useState(false);
+  
+  // Per-card invite dropdown state (tracks which card's dropdown is open)
+  const [inviteDropdownOpen, setInviteDropdownOpen] = useState<string | null>(null);
+
+  // Helper: Toggle item in Set
+  const toggleInSet = <T,>(set: Set<T>, item: T): Set<T> => {
+    const next = new Set(set);
+    if (next.has(item)) {
+      next.delete(item);
+    } else {
+      next.add(item);
+    }
+    return next;
+  };
 
   useEffect(() => {
     loadHouseholds();
     loadConnections();
     loadEvents();
   }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      
+      // Close create event dropdown
+      if (showCreateDropdown && !target.closest('[data-dropdown="create-event"]')) {
+        setShowCreateDropdown(false);
+      }
+      
+      // Close invite dropdowns
+      if (inviteDropdownOpen && !target.closest('[data-dropdown="invite-event"]')) {
+        setInviteDropdownOpen(null);
+      }
+    };
+
+    if (showCreateDropdown || inviteDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showCreateDropdown, inviteDropdownOpen]);
 
   const loadEvents = async () => {
     setEventsLoading(true);
@@ -90,23 +131,41 @@ export default function Discovery() {
     ? connectedHouseholds 
     : nearbyHouseholds;
 
+  // Helper to map backend householdType values to filter HouseholdType
+  const mapToFilterType = (type?: string): HouseholdType | null => {
+    switch (type) {
+      case 'family_with_kids':
+      case 'single_parent':
+        return 'Family w/ Kids';
+      case 'empty_nesters':
+        return 'Empty Nesters';
+      case 'couple':
+      case 'single':
+        return 'Singles/Couples';
+      default:
+        return null;
+    }
+  };
+
   // Filter households locally
   const filteredHouseholds = currentHouseholds.filter(h => {
-    // Filter by household type
-    if (filterType !== 'all' && h.householdType !== filterType) {
-      return false;
+    // Filter by household type (if any types selected)
+    if (selectedTypes.size > 0) {
+      // Map backend householdType to frontend display type for comparison
+      const mappedType = mapToFilterType(h.householdType);
+      const matchesType = mappedType && selectedTypes.has(mappedType);
+      if (!matchesType) return false;
     }
     
-    // Filter by age range (if kids exist)
-    if (filterAgeRange !== 'all' && filterAgeRange) {
-      const [minAge, maxAge] = filterAgeRange.split('-').map(Number);
+    // Filter by age range (only if "Family w/ Kids" is selected)
+    if (selectedTypes.has("Family w/ Kids")) {
       const hasMatchingKid = h.kids?.some(kid => {
         if (!kid.birthYear || !kid.birthMonth) return false;
         const today = new Date();
         const birthDate = new Date(kid.birthYear, (kid.birthMonth || 1) - 1);
         const ageInMonths = (today.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
         const ageInYears = Math.floor(ageInMonths / 12);
-        return ageInYears >= minAge && ageInYears <= maxAge;
+        return ageInYears >= ageMin && ageInYears <= ageMax;
       });
       if (!hasMatchingKid) return false;
     }
@@ -115,30 +174,102 @@ export default function Discovery() {
   });
 
   const getHouseholdTypeIcon = (type?: string) => {
+    const filterType = mapToFilterType(type);
+    if (filterType && HOUSEHOLD_TYPE_META[filterType]) {
+      const { Icon } = HOUSEHOLD_TYPE_META[filterType];
+      return <Icon size={16} />;
+    }
+    
+    // Fallback for legacy or unknown types
     switch (type) {
-      case 'family': return <Users size={16} />;
-      case 'couple': return <Heart size={16} />;
-      case 'individual': return <Home size={16} />;
-      default: return <Users size={16} />;
+      case 'family_with_kids':
+      case 'family': 
+        return <Users size={16} />;
+      case 'couple': 
+        return <Heart size={16} />;
+      case 'single_parent':
+      case 'single':
+      case 'individual': 
+        return <Home size={16} />;
+      default: 
+        return <Users size={16} />;
     }
   };
 
   const getHouseholdTypeColor = (type?: string) => {
+    const filterType = mapToFilterType(type);
+    if (filterType && HOUSEHOLD_TYPE_META[filterType]) {
+      return HOUSEHOLD_TYPE_META[filterType].iconColor;
+    }
+    
+    // Fallback for legacy or unknown types
     switch (type) {
-      case 'family': return '#3b82f6';
-      case 'couple': return '#a855f7';
-      case 'individual': return '#f59e0b';
-      default: return '#6b7280';
+      case 'family_with_kids':
+      case 'family': 
+        return '#3b82f6';
+      case 'couple': 
+        return '#ec4899';
+      case 'single_parent':
+      case 'single':
+      case 'individual': 
+        return '#f59e0b';
+      default: 
+        return '#6b7280';
     }
   };
 
   const getHouseholdTypeLabel = (type?: string) => {
-    switch (type) {
-      case 'family': return 'Family';
-      case 'couple': return 'Couple';
-      case 'individual': return 'Individual';
-      default: return 'Household';
+    const filterType = mapToFilterType(type);
+    if (filterType) {
+      return filterType; // Return the display label directly
     }
+    
+    // Fallback for legacy or unknown types
+    switch (type) {
+      case 'family_with_kids': 
+        return 'Family w/ Kids';
+      case 'single_parent': 
+        return 'Family w/ Kids'; // Single parents are families with kids
+      case 'family': 
+        return 'Family';
+      case 'couple': 
+        return 'Singles/Couples';
+      case 'single':
+      case 'individual': 
+        return 'Singles/Couples';
+      default: 
+        return 'Household';
+    }
+  };
+
+  // Calculate distance between two points using Haversine formula
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 3959; // Earth's radius in miles
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  // Format distance for display
+  const getDistanceText = (household: GGHousehold): string | null => {
+    // TODO: Get user's current location
+    // For now, using a default location (Portland, OR area)
+    const userLat = 45.5152;
+    const userLon = -122.6784;
+    
+    if (household.latitude && household.longitude) {
+      const distance = calculateDistance(userLat, userLon, household.latitude, household.longitude);
+      if (distance < 0.1) {
+        return '< 0.1 miles away';
+      }
+      return `~${distance.toFixed(1)} miles away`;
+    }
+    return null;
   };
 
   const getHouseholdName = (household: GGHousehold): string => {
@@ -146,9 +277,19 @@ export default function Discovery() {
       return `The ${household.lastName} Family`;
     }
     if (household.adultNames && household.adultNames.length > 0) {
-      return household.adultNames.join(' & ');
+      const names = household.adultNames.filter(n => n && n.trim());
+      if (names.length > 0) {
+        return names.length === 1 ? names[0] : names.join(' & ');
+      }
     }
-    return 'Neighbor';
+    // Fallback: use email username or just "Household"
+    if (household.email) {
+      const username = household.email.split('@')[0];
+      return `${username}'s Household`;
+    }
+    return household.householdType === 'couple' ? 'Couple' : 
+           household.householdType === 'single' ? 'Neighbor' :
+           'Household';
   };
 
   const getKidsAges = (household: GGHousehold): number[] => {
@@ -165,11 +306,33 @@ export default function Discovery() {
       .sort((a, b) => b - a); // Sort descending (oldest first)
   };
 
-  const handleInviteToEvent = (household: GGHousehold) => {
+  // Check if a kid's age matches the current filter range
+  const isAgeInFilterRange = (age: number): boolean => {
+    // Only highlight if "Family w/ Kids" is selected (meaning age filter is active)
+    if (!selectedTypes.has("Family w/ Kids")) return false;
+    return age >= ageMin && age <= ageMax;
+  };
+
+  const handleInviteToEvent = (household: GGHousehold, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    // Toggle dropdown for this specific household
+    setInviteDropdownOpen(inviteDropdownOpen === household.id ? null : household.id || null);
+  };
+
+  const handleInviteToEventType = (household: GGHousehold, type: 'now' | 'future') => {
     // Store household ID in localStorage to pre-select when creating event
     localStorage.setItem('invite_household_id', household.id || '');
     localStorage.setItem('invite_household_name', getHouseholdName(household));
-    navigate('/compose/event');
+    
+    // Navigate to appropriate compose page
+    if (type === 'now') {
+      navigate('/compose/happening');
+    } else {
+      navigate('/compose/event');
+    }
+    
+    // Close dropdown
+    setInviteDropdownOpen(null);
   };
 
   const handleConnect = async (household: GGHousehold) => {
@@ -274,20 +437,179 @@ export default function Discovery() {
             <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, color: '#111827' }}>
               Discover
             </h1>
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: 6,
-              padding: '6px 12px',
-              borderRadius: 8,
-              background: '#f0fdf4',
-              border: '1px solid #d1fae5',
-              fontSize: 13,
-              fontWeight: 600,
-              color: '#047857'
-            }}>
-              <Sparkles size={14} />
-              {filteredHouseholds.length} {activeTab === 'connected' ? 'connected' : 'nearby'}
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {/* Nearby/Connected Count Badge */}
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 6,
+                padding: '6px 12px',
+                borderRadius: 8,
+                background: '#f0fdf4',
+                border: '1px solid #d1fae5',
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#047857'
+              }}>
+                <Sparkles size={14} />
+                {filteredHouseholds.length} {activeTab === 'connected' ? 'connected' : 'nearby'}
+              </div>
+
+              {/* Create Event Dropdown */}
+              <div style={{ position: 'relative' }} data-dropdown="create-event">
+                <button
+                  onClick={() => setShowCreateDropdown(!showCreateDropdown)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 14px',
+                    borderRadius: 8,
+                    border: '2px solid #10b981',
+                    background: '#10b981',
+                    color: '#ffffff',
+                    fontSize: 14,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    boxShadow: '0 2px 8px rgba(16, 185, 129, 0.2)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.3)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(16, 185, 129, 0.2)';
+                  }}
+                >
+                  <Calendar size={16} />
+                  <span>New Event</span>
+                  <motion.div
+                    animate={{ rotate: showCreateDropdown ? 180 : 0 }}
+                    transition={{ duration: 0.2 }}
+                    style={{ display: 'flex', alignItems: 'center' }}
+                  >
+                    ▼
+                  </motion.div>
+                </button>
+
+                {/* Dropdown Menu */}
+                {showCreateDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.15 }}
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 8px)',
+                      right: 0,
+                      background: '#ffffff',
+                      border: '2px solid #e5e7eb',
+                      borderRadius: 12,
+                      boxShadow: '0 10px 30px rgba(0, 0, 0, 0.15)',
+                      minWidth: 240,
+                      zIndex: 1000,
+                      overflow: 'hidden'
+                    }}
+                  >
+                    {/* Happening Now Option */}
+                    <button
+                      onClick={() => {
+                        setShowCreateDropdown(false);
+                        navigate('/compose/happening');
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '14px 16px',
+                        border: 'none',
+                        background: 'transparent',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        transition: 'background 0.15s',
+                        borderBottom: '1px solid #f3f4f6'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = '#f0fdf4';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent';
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div style={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: 8,
+                          background: 'linear-gradient(135deg, #f59e0b 0%, #f97316 100%)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 18
+                        }}>
+                          ⚡
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 2 }}>
+                            Happening Now
+                          </div>
+                          <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.3 }}>
+                            Post something spontaneous - right now!
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Plan Event Option */}
+                    <button
+                      onClick={() => {
+                        setShowCreateDropdown(false);
+                        navigate('/compose/event');
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '14px 16px',
+                        border: 'none',
+                        background: 'transparent',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        transition: 'background 0.15s'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = '#eff6ff';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent';
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div style={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: 8,
+                          background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 18
+                        }}>
+                          📅
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 2 }}>
+                            Plan Event
+                          </div>
+                          <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.3 }}>
+                            Schedule something for a specific date/time
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  </motion.div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -332,50 +654,70 @@ export default function Discovery() {
           </div>
 
           {/* Filters */}
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            {/* Household Type Filter */}
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              style={{
-                padding: '8px 12px',
-                borderRadius: 8,
-                border: '2px solid #e5e7eb',
-                background: '#ffffff',
-                fontSize: 14,
-                fontWeight: 500,
-                color: '#374151',
-                cursor: 'pointer'
-              }}
-            >
-              <option value="all">All Types</option>
-              <option value="family">Families</option>
-              <option value="couple">Couples</option>
-              <option value="individual">Individuals</option>
-            </select>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Household Type Filter - Icon-based chips */}
+            <div>
+              <div style={{ 
+                fontSize: 13, 
+                fontWeight: 600, 
+                color: '#6b7280', 
+                marginBottom: 10,
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em'
+              }}>
+                Household Type
+              </div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                {(Object.keys(HOUSEHOLD_TYPE_META) as HouseholdType[]).map(type => {
+                  const { Icon, iconColor, iconBorder } = HOUSEHOLD_TYPE_META[type];
+                  return (
+                    <Chip
+                      key={type}
+                      label={type}
+                      selected={selectedTypes.has(type)}
+                      onClick={() => setSelectedTypes(toggleInSet(selectedTypes, type))}
+                      Icon={Icon}
+                      iconColor={iconColor}
+                      iconBorder={iconBorder}
+                    />
+                  );
+                })}
+              </div>
+            </div>
 
-            {/* Age Range Filter */}
-            <select
-              value={filterAgeRange}
-              onChange={(e) => setFilterAgeRange(e.target.value)}
-              style={{
-                padding: '8px 12px',
-                borderRadius: 8,
-                border: '2px solid #e5e7eb',
-                background: '#ffffff',
-                fontSize: 14,
-                fontWeight: 500,
-                color: '#374151',
-                cursor: 'pointer'
-              }}
-            >
-              <option value="all">All Ages</option>
-              <option value="0-2">0-2 years</option>
-              <option value="3-5">3-5 years</option>
-              <option value="6-8">6-8 years</option>
-              <option value="9-12">9-12 years</option>
-              <option value="13-17">13-17 years</option>
-            </select>
+            {/* Age Range Filter - Only show if "Family w/ Kids" is selected */}
+            {selectedTypes.has("Family w/ Kids") && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <div style={{ 
+                  fontSize: 13, 
+                  fontWeight: 600, 
+                  color: '#6b7280', 
+                  marginBottom: 10,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em'
+                }}>
+                  Kids' Ages: {ageMin}–{ageMax} years
+                </div>
+                <div style={{ paddingLeft: 8, paddingRight: 8 }}>
+                  <DualAgeRange
+                    min={0}
+                    max={18}
+                    step={1}
+                    valueMin={ageMin}
+                    valueMax={ageMax}
+                    onChange={(nextMin, nextMax) => {
+                      setAgeMin(nextMin);
+                      setAgeMax(nextMax);
+                    }}
+                  />
+                </div>
+              </motion.div>
+            )}
           </div>
         </div>
       </div>
@@ -636,9 +978,25 @@ export default function Discovery() {
                 {/* Header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 16 }}>
                   <div>
-                    <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: '#111827' }}>
+                    <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: '#111827' }}>
                       {householdName}
                     </h3>
+                    
+                    {/* Distance */}
+                    {getDistanceText(household) && (
+                      <div style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: 4, 
+                        color: '#6b7280', 
+                        fontSize: 13,
+                        marginBottom: 8
+                      }}>
+                        <MapPin size={14} />
+                        {getDistanceText(household)}
+                      </div>
+                    )}
+                    
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                       {/* Household Type Badge */}
                       <div
@@ -707,53 +1065,165 @@ export default function Discovery() {
                       Kids:
                     </div>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {kidsAges.map((age, idx) => (
-                        <div
-                          key={idx}
-                          style={{
-                            padding: '4px 10px',
-                            borderRadius: 8,
-                            background: '#f0fdf4',
-                            border: '1px solid #d1fae5',
-                            fontSize: 13,
-                            fontWeight: 600,
-                            color: '#047857'
-                          }}
-                        >
-                          {age} {age === 1 ? 'year' : 'years'}
-                        </div>
-                      ))}
+                      {kidsAges.map((age, idx) => {
+                        const isMatch = isAgeInFilterRange(age);
+                        return (
+                          <div
+                            key={idx}
+                            style={{
+                              padding: '4px 10px',
+                              borderRadius: 8,
+                              background: isMatch ? '#10b981' : '#f0fdf4',
+                              border: isMatch ? '2px solid #059669' : '1px solid #d1fae5',
+                              fontSize: 13,
+                              fontWeight: isMatch ? 700 : 600,
+                              color: isMatch ? '#ffffff' : '#047857',
+                              boxShadow: isMatch ? '0 2px 8px rgba(16, 185, 129, 0.3)' : 'none',
+                              transform: isMatch ? 'scale(1.05)' : 'scale(1)',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            {age} {age === 1 ? 'year' : 'years'}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
 
                 {/* Action Buttons */}
                 <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
-                  {/* Always show Invite to Event */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleInviteToEvent(household);
-                    }}
-                    style={{
-                      flex: 1,
-                      padding: '10px 16px',
-                      borderRadius: 10,
-                      border: '2px solid #10b981',
-                      background: '#10b981',
-                      color: '#ffffff',
-                      fontSize: 14,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 6
-                    }}
-                  >
-                    <Calendar size={16} />
-                    Invite to Event
-                  </button>
+                  {/* Invite to Event with dropdown */}
+                  <div style={{ flex: 1, position: 'relative' }} data-dropdown="invite-event">
+                    <button
+                      onClick={(e) => handleInviteToEvent(household, e)}
+                      style={{
+                        width: '100%',
+                        padding: '10px 16px',
+                        borderRadius: 10,
+                        border: '2px solid #10b981',
+                        background: '#10b981',
+                        color: '#ffffff',
+                        fontSize: 14,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6
+                      }}
+                    >
+                      <Calendar size={16} />
+                      Invite to Event
+                      <motion.div
+                        animate={{ rotate: inviteDropdownOpen === household.id ? 180 : 0 }}
+                        transition={{ duration: 0.2 }}
+                        style={{ display: 'flex', marginLeft: 4 }}
+                      >
+                        ▼
+                      </motion.div>
+                    </button>
+
+                    {/* Dropdown menu */}
+                    {inviteDropdownOpen === household.id && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        style={{
+                          position: 'absolute',
+                          top: '100%',
+                          left: 0,
+                          right: 0,
+                          marginTop: 8,
+                          background: '#ffffff',
+                          borderRadius: 12,
+                          boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                          border: '2px solid #e5e7eb',
+                          overflow: 'hidden',
+                          zIndex: 1000
+                        }}
+                      >
+                        <div
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleInviteToEventType(household, 'now');
+                          }}
+                          style={{
+                            padding: '12px 16px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 12,
+                            transition: 'background 0.2s',
+                            background: 'transparent'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
+                          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                        >
+                          <div style={{
+                            width: 36,
+                            height: 36,
+                            borderRadius: 10,
+                            background: '#fef3c7',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: 18
+                          }}>
+                            ⚡
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 600, fontSize: 14, color: '#111827', marginBottom: 2 }}>
+                              Happening Now
+                            </div>
+                            <div style={{ fontSize: 12, color: '#6b7280' }}>
+                              Quick spontaneous gathering
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ height: 1, background: '#e5e7eb' }} />
+                        <div
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleInviteToEventType(household, 'future');
+                          }}
+                          style={{
+                            padding: '12px 16px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 12,
+                            transition: 'background 0.2s',
+                            background: 'transparent'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
+                          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                        >
+                          <div style={{
+                            width: 36,
+                            height: 36,
+                            borderRadius: 10,
+                            background: '#dbeafe',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: 18
+                          }}>
+                            📅
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 600, fontSize: 14, color: '#111827', marginBottom: 2 }}>
+                              Plan Event
+                            </div>
+                            <div style={{ fontSize: 12, color: '#6b7280' }}>
+                              Schedule for later
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </div>
 
                   {/* Show Message if connected, Connect if not */}
                   {connected ? (

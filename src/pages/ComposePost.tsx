@@ -5,6 +5,7 @@ import { getViewer } from "../lib/viewer";
 import { loadNeighbors } from "../lib/profile";
 import * as Api from "../lib/api";
 import type { EventCategory, EventVisibility } from "../lib/api";
+import { HouseholdSelector } from "../components/HouseholdSelector";
 
 /* ---------- Types ---------- */
 
@@ -202,6 +203,7 @@ export default function ComposePost() {
   const [showCategoryStep, setShowCategoryStep] = useState(kind === "event" && !existingPost);
   const [showNeighborEditor, setShowNeighborEditor] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedHouseholdIds, setSelectedHouseholdIds] = useState<Set<string>>(new Set());
 
   const resolvedNeighborLabel = (n: Neighbor) => (n.label ?? n.lastName ?? "").toString();
 
@@ -665,6 +667,12 @@ export default function ComposePost() {
                   />
                 </div>
               )}
+
+              {/* Household Selector */}
+              <HouseholdSelector 
+                selectedIds={selectedHouseholdIds}
+                onSelectionChange={setSelectedHouseholdIds}
+              />
 
               <div className="preview-shell-inline">
                 <div className="preview-label-inline">Next step</div>
