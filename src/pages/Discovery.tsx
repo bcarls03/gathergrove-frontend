@@ -320,15 +320,32 @@ export default function Discovery() {
   };
 
   const handleInviteToEventType = (household: GGHousehold, type: 'now' | 'future') => {
-    // Store household ID in localStorage to pre-select when creating event
-    localStorage.setItem('invite_household_id', household.id || '');
-    localStorage.setItem('invite_household_name', getHouseholdName(household));
+    // Build invite context from current Discover state
+    const inviteContext = {
+      clickedHouseholdId: household.id || '',
+      clickedHouseholdName: getHouseholdName(household),
+      // Pass filtered households as suggestions
+      suggestedHouseholds: filteredHouseholds.map(h => ({
+        id: h.id || '',
+        name: getHouseholdName(h),
+        neighborhood: h.neighborhood || null,
+        householdType: h.householdType || null,
+        kidsAges: getKidsAges(h),
+        kids: h.kids || [],
+      })),
+      // Store filter context (for display/debugging)
+      filterContext: {
+        types: Array.from(selectedTypes),
+        ageRange: selectedTypes.has("Family w/ Kids") ? { min: ageMin, max: ageMax } : null,
+        hasFilters: selectedTypes.size > 0,
+      }
+    };
     
-    // Navigate to appropriate compose page
+    // Navigate with state (no localStorage pollution)
     if (type === 'now') {
-      navigate('/compose/happening');
+      navigate('/compose/happening', { state: { inviteContext } });
     } else {
-      navigate('/compose/event');
+      navigate('/compose/event', { state: { inviteContext } });
     }
     
     // Close dropdown
@@ -543,7 +560,7 @@ export default function Discovery() {
                           width: 36,
                           height: 36,
                           borderRadius: 8,
-                          background: 'linear-gradient(135deg, #f59e0b 0%, #f97316 100%)',
+                          background: '#fef3c7',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -556,7 +573,7 @@ export default function Discovery() {
                             Happening Now
                           </div>
                           <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.3 }}>
-                            Post something spontaneous - right now!
+                            Quick spontaneous gathering
                           </div>
                         </div>
                       </div>
@@ -589,7 +606,7 @@ export default function Discovery() {
                           width: 36,
                           height: 36,
                           borderRadius: 8,
-                          background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                          background: '#dbeafe',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -602,7 +619,7 @@ export default function Discovery() {
                             Plan Event
                           </div>
                           <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.3 }}>
-                            Schedule something for a specific date/time
+                            Schedule for later
                           </div>
                         </div>
                       </div>

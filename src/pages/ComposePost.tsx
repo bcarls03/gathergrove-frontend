@@ -152,6 +152,9 @@ export default function ComposePost() {
   const kind: "happening" | "event" = params.kind === "event" ? "event" : "happening";
   const editId = params.id;
 
+  // Extract invite context from navigation state
+  const inviteContext = (location.state as any)?.inviteContext;
+
   const recipientsFromState: string[] =
     (location.state as any)?.recipients && Array.isArray((location.state as any).recipients)
       ? (location.state as any).recipients
@@ -181,7 +184,7 @@ export default function ComposePost() {
 
   const lockedRecipients: string[] = existingPost?.recipients ?? [];
 
-  const [mutableRecipients, setMutableRecipients] = useState<string[]>(() => recipientsFromState);
+  const mutableRecipients: string[] = recipientsFromState;
 
   const effectiveRecipients: string[] = isEditingExisting
     ? Array.from(new Set([...lockedRecipients, ...mutableRecipients]))
@@ -201,7 +204,6 @@ export default function ComposePost() {
 
   const [mode, setMode] = useState<"edit" | "preview">("edit");
   const [showCategoryStep, setShowCategoryStep] = useState(kind === "event" && !existingPost);
-  const [showNeighborEditor, setShowNeighborEditor] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedHouseholdIds, setSelectedHouseholdIds] = useState<Set<string>>(new Set());
 
@@ -394,26 +396,6 @@ export default function ComposePost() {
 
   const primaryLabel = editId ? "Save changes" : kind === "happening" ? "Post" : "Create event";
 
-  const toggleRecipient = (label: string) => {
-    if (isEditingExisting && lockedRecipients.includes(label)) return;
-    setMutableRecipients((current) => (current.includes(label) ? current.filter((x) => x !== label) : [...current, label]));
-  };
-
-  const selectableNeighbors = allNeighbors.filter((n) => {
-    const label = resolvedNeighborLabel(n);
-    if (!label) return false;
-    if (isEditingExisting && lockedRecipients.includes(label)) return false;
-    return true;
-  });
-
-  const neighborButtonLabel = !showNeighborEditor
-    ? isEditingExisting
-      ? "Add more households"
-      : "Add or remove neighbors"
-    : isEditingExisting
-    ? "Done adding neighbors"
-    : "Done choosing neighbors";
-
   const showCancelEventButton = isEditingExisting; // ✅ show for BOTH edit happening + edit future
 
   return (
@@ -422,6 +404,9 @@ export default function ComposePost() {
         <style>{`
           .gg-compose-root { padding: 16px; display: flex; justify-content: center; }
           .gg-compose-inner { width: 100%; max-width: 760px; }
+          .gg-back-button { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; border: 1px solid #e5e7eb; background: #fff; color: #374151; font-size: 14px; font-weight: 600; cursor: pointer; margin-bottom: 16px; transition: all 0.15s; }
+          .gg-back-button:hover { background: #f9fafb; border-color: #d1d5db; }
+          .gg-back-arrow { font-size: 16px; }
           .gg-page-title { font-size: 30px; font-weight: 800; letter-spacing: .02em; color: #0f172a; margin-bottom: 8px; }
           .gg-page-sub { font-size: 14px; color: #6b7280; margin-bottom: 16px; }
           .gg-card-shell { background: #fff; border-radius: 20px; border: 1px solid rgba(15,23,42,.06); box-shadow: 0 18px 40px rgba(15,23,42,.06); padding: 18px 18px 16px; width: 100%; box-sizing: border-box; }
@@ -468,6 +453,11 @@ export default function ComposePost() {
           .preview-label-inline { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:#64748b; font-weight:700; margin-bottom:6px; }
           @media (max-width: 640px) { .gg-row-2 { grid-template-columns: 1fr; } }
         `}</style>
+
+        <button type="button" className="gg-back-button" onClick={() => navigate(-1)}>
+          <span className="gg-back-arrow">←</span>
+          <span>Back to Discovery</span>
+        </button>
 
         <h1 className="gg-page-title">{heading}</h1>
         <div className="gg-page-sub">
@@ -516,69 +506,6 @@ export default function ComposePost() {
             </>
           ) : mode === "edit" ? (
             <>
-              <div className="gg-card-section">
-                <div className="gg-label">Targeting</div>
-                <div className="gg-label-sub">
-                  {effectiveRecipients.length === 0 ? "Everyone in your neighborhood" : "This post is shared with:"}
-                </div>
-
-                {effectiveRecipients.length > 0 && (
-                  <>
-                    <div className="recipient-row">
-                      {lockedRecipients.map((r) => (
-                        <span key={`locked-${r}`} className="recipient-pill recipient-pill-locked">
-                          {r}
-                        </span>
-                      ))}
-                      {mutableRecipients.map((r) => (
-                        <span key={`added-${r}`} className="recipient-pill recipient-pill-added">
-                          {r}
-                        </span>
-                      ))}
-                    </div>
-                    {isEditingExisting && (
-                      <div className="recipient-pill-label-muted">Gray = originally invited · Purple = newly added in this edit.</div>
-                    )}
-                  </>
-                )}
-
-                {allNeighbors.length > 0 && (
-                  <>
-                    <button type="button" className="neighbor-edit-btn" onClick={() => setShowNeighborEditor((v) => !v)}>
-                      {neighborButtonLabel}
-                    </button>
-
-                    {showNeighborEditor && (
-                      <div style={{ marginTop: 8 }}>
-                        <div className="gg-label-sub" style={{ marginBottom: 4 }}>
-                          {isEditingExisting
-                            ? "Tap to add more households to this post."
-                            : "Tap to choose which households should see this post."}
-                        </div>
-                        <div className="recipient-row">
-                          {selectableNeighbors.map((n) => {
-                            const label = resolvedNeighborLabel(n);
-                            if (!label) return null;
-                            const selected = mutableRecipients.includes(label);
-                            return (
-                              <button
-                                key={n.id}
-                                type="button"
-                                className="recipient-pill recipient-pill-added"
-                                style={{ opacity: selected ? 1 : 0.35, borderStyle: selected ? "solid" : "dashed" }}
-                                onClick={() => toggleRecipient(label)}
-                              >
-                                {label}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-
               {kind === "event" && (
                 <div className="gg-card-section">
                   <div className="gg-label">Category</div>
@@ -672,6 +599,7 @@ export default function ComposePost() {
               <HouseholdSelector 
                 selectedIds={selectedHouseholdIds}
                 onSelectionChange={setSelectedHouseholdIds}
+                inviteContext={inviteContext}
               />
 
               <div className="preview-shell-inline">
