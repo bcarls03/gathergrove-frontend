@@ -579,7 +579,7 @@ export function HouseholdSelector({
               onClick={pickFromContacts}
               style={{
                 padding: "8px 16px",
-                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
                 color: "white",
                 border: "none",
                 borderRadius: 8,
@@ -590,16 +590,16 @@ export function HouseholdSelector({
                 display: "flex",
                 alignItems: "center",
                 gap: "6px",
-                boxShadow: "0 2px 8px rgba(102, 126, 234, 0.3)",
+                boxShadow: "0 2px 8px rgba(16, 185, 129, 0.3)",
                 transition: "all 0.2s ease"
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = "translateY(-1px)";
-                e.currentTarget.style.boxShadow = "0 4px 12px rgba(102, 126, 234, 0.4)";
+                e.currentTarget.style.boxShadow = "0 4px 12px rgba(16, 185, 129, 0.4)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow = "0 2px 8px rgba(102, 126, 234, 0.3)";
+                e.currentTarget.style.boxShadow = "0 2px 8px rgba(16, 185, 129, 0.3)";
               }}
               title="Pick from your phone contacts"
             >
