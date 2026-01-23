@@ -176,13 +176,32 @@
             const errorContainer = document.getElementById('error-container');
             errorContainer.innerHTML = '';
             
+            // Detailed capability check
+            const hasNavigator = 'navigator' in window;
+            const hasContacts = hasNavigator && 'contacts' in navigator;
+            const hasContactsManager = 'ContactsManager' in window;
+            
+            console.log('Browser capabilities:', {
+                hasNavigator,
+                hasContacts,
+                hasContactsManager,
+                userAgent: navigator.userAgent
+            });
+            
             // Check if Contact Picker API is supported
-            if (!('contacts' in navigator && 'ContactsManager' in window)) {
+            if (!hasContacts || !hasContactsManager) {
                 errorContainer.innerHTML = `
                     <div class="error-box">
                         <strong>❌ Not Supported</strong><br>
-                        The Contact Picker API is not supported on this device/browser.<br>
-                        Please try on iOS Safari (14.5+) or Android Chrome (80+).
+                        The Contact Picker API is not available.<br><br>
+                        <strong>Details:</strong><br>
+                        • navigator.contacts: ${hasContacts ? '✅' : '❌'}<br>
+                        • ContactsManager: ${hasContactsManager ? '✅' : '❌'}<br>
+                        • Browser: ${navigator.userAgent}<br><br>
+                        <strong>Requirements:</strong><br>
+                        • iOS Safari 14.5+ or Android Chrome 80+<br>
+                        • Must use Safari (not Chrome/Firefox on iOS)<br>
+                        • Must be HTTPS connection
                     </div>
                 `;
                 return;
