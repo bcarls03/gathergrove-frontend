@@ -139,6 +139,44 @@ export function HouseholdSelector({
     onSelectionChange(new Set());
   };
 
+  // NEW: Contact Picker API handler
+  const pickFromContacts = async () => {
+    try {
+      // Check if Contact Picker API is available
+      if (!('contacts' in navigator)) {
+        alert('Contact picker is not supported on this device. Please enter the phone number manually.');
+        return;
+      }
+
+      // @ts-ignore - ContactsManager API not in TypeScript types yet
+      const contacts = await navigator.contacts.select(['tel'], { multiple: true });
+      
+      // Process each selected contact
+      contacts.forEach((contact: any) => {
+        if (contact.tel && contact.tel.length > 0) {
+          // Add the first phone number from the contact
+          const phoneNumber = contact.tel[0];
+          const cleaned = phoneNumber.replace(/\D/g, '');
+          
+          if (cleaned.length === 10 || cleaned.length === 11) {
+            const formatted = cleaned.length === 10 
+              ? `+1${cleaned}`
+              : `+${cleaned}`;
+            
+            if (!selectedPhoneNumbers.has(formatted)) {
+              const newSet = new Set(selectedPhoneNumbers);
+              newSet.add(formatted);
+              onPhoneNumbersChange?.(newSet);
+            }
+          }
+        }
+      });
+    } catch (error) {
+      // User cancelled or error occurred
+      console.log('Contact picker cancelled or error:', error);
+    }
+  };
+
   // NEW: Phone number handlers
   const addPhoneNumber = () => {
     if (!onPhoneNumbersChange) return;
@@ -536,6 +574,50 @@ export function HouseholdSelector({
                 fontSize: 14
               }}
             />
+            <button
+              type="button"
+              onClick={pickFromContacts}
+              style={{
+                padding: "8px 16px",
+                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                color: "white",
+                border: "none",
+                borderRadius: 8,
+                fontWeight: 600,
+                fontSize: 13,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                boxShadow: "0 2px 8px rgba(102, 126, 234, 0.3)",
+                transition: "all 0.2s ease"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "translateY(-1px)";
+                e.currentTarget.style.boxShadow = "0 4px 12px rgba(102, 126, 234, 0.4)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.boxShadow = "0 2px 8px rgba(102, 126, 234, 0.3)";
+              }}
+              title="Pick from your phone contacts"
+            >
+              <svg 
+                width="16" 
+                height="16" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2.5" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+              >
+                <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+                <line x1="12" y1="18" x2="12.01" y2="18"></line>
+              </svg>
+              Contacts
+            </button>
             <button
               type="button"
               onClick={addPhoneNumber}
