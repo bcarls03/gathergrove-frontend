@@ -326,9 +326,8 @@ export type EventRsvpBuckets = {
 export type InviteeType = "household" | "phone_number";
 
 export type InvitationCreate = {
-  invitee_type: InviteeType;
-  household_id?: string;
-  phone_number?: string;
+  household_ids?: string[];
+  phone_numbers?: string[];
 };
 
 export type InvitationResponse = {
@@ -748,7 +747,7 @@ export async function getEventRsvps(eventId: string): Promise<any> {
  */
 export async function createEventInvitations(
   eventId: string,
-  invitations: InvitationCreate[]
+  invitations: InvitationCreate
 ): Promise<InvitationResponse[]> {
   try {
     const res = await api.post(`/events/${eventId}/invitations`, invitations, {

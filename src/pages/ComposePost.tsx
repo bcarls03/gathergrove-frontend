@@ -218,31 +218,21 @@ export default function ComposePost() {
   /* ---------- Send Invitations ---------- */
 
   const sendInvitations = async (eventId: string) => {
-    // Build invitations array from selected households and phone numbers
-    const invitations: Api.InvitationCreate[] = [];
-
-    // Add household invitations
-    selectedHouseholdIds.forEach((householdId) => {
-      invitations.push({
-        invitee_type: "household",
-        household_id: householdId,
-      });
-    });
-
-    // Add phone number invitations
-    selectedPhoneNumbers.forEach((phoneNumber) => {
-      invitations.push({
-        invitee_type: "phone_number",
-        phone_number: phoneNumber,
-      });
-    });
+    // Build invitation payload with arrays of household IDs and phone numbers
+    const household_ids = Array.from(selectedHouseholdIds);
+    const phone_numbers = Array.from(selectedPhoneNumbers);
 
     // Only call API if there are invitations to send
-    if (invitations.length === 0) return;
+    if (household_ids.length === 0 && phone_numbers.length === 0) return;
 
     try {
-      await Api.createEventInvitations(eventId, invitations);
-      console.log(`Successfully sent ${invitations.length} invitation(s)`);
+      const invitationPayload: Api.InvitationCreate = {
+        household_ids,
+        phone_numbers,
+      };
+      
+      await Api.createEventInvitations(eventId, invitationPayload);
+      console.log(`Successfully sent invitations to ${household_ids.length} household(s) and ${phone_numbers.length} phone number(s)`);
     } catch (err: any) {
       console.error("Failed to send invitations:", err?.response?.data ?? err);
       // Don't block event creation if invitations fail
