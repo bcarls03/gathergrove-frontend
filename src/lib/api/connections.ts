@@ -28,6 +28,11 @@ export async function fetchConnections(): Promise<string[]> {
     });
     
     if (!response.ok) {
+      // If user doesn't have a household yet (400 Bad Request), return empty array
+      if (response.status === 400) {
+        console.warn('User does not have a household yet. Skipping connections fetch.');
+        return [];
+      }
       throw new Error(`Failed to fetch connections: ${response.statusText}`);
     }
     

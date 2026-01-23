@@ -139,7 +139,9 @@ export default function Discovery() {
       const connections = await fetchConnections();
       setConnectedHouseholdIds(connections);
     } catch (err) {
-      console.error('Failed to load connections:', err);
+      // Silently fail - user might not have completed onboarding yet
+      console.warn('Could not load connections (user may not have a household yet):', err);
+      setConnectedHouseholdIds([]);
     }
   };
 
