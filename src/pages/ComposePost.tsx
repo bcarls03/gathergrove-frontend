@@ -206,6 +206,7 @@ export default function ComposePost() {
   const [showCategoryStep, setShowCategoryStep] = useState(kind === "event" && !existingPost);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedHouseholdIds, setSelectedHouseholdIds] = useState<Set<string>>(new Set());
+  const [selectedPhoneNumbers, setSelectedPhoneNumbers] = useState<Set<string>>(new Set());
 
   const resolvedNeighborLabel = (n: Neighbor) => (n.label ?? n.lastName ?? "").toString();
 
@@ -213,6 +214,40 @@ export default function ComposePost() {
     kind === "happening"
       ? details.trim().length > 0
       : details.trim().length > 0 && title.trim().length > 0 && !!date && !!startTime;
+
+  /* ---------- Send Invitations ---------- */
+
+  const sendInvitations = async (eventId: string) => {
+    // Build invitations array from selected households and phone numbers
+    const invitations: Api.InvitationCreate[] = [];
+
+    // Add household invitations
+    selectedHouseholdIds.forEach((householdId) => {
+      invitations.push({
+        invitee_type: "household",
+        household_id: householdId,
+      });
+    });
+
+    // Add phone number invitations
+    selectedPhoneNumbers.forEach((phoneNumber) => {
+      invitations.push({
+        invitee_type: "phone_number",
+        phone_number: phoneNumber,
+      });
+    });
+
+    // Only call API if there are invitations to send
+    if (invitations.length === 0) return;
+
+    try {
+      await Api.createEventInvitations(eventId, invitations);
+      console.log(`Successfully sent ${invitations.length} invitation(s)`);
+    } catch (err: any) {
+      console.error("Failed to send invitations:", err?.response?.data ?? err);
+      // Don't block event creation if invitations fail
+    }
+  };
 
   /* ---------- Submit ---------- */
 
@@ -273,6 +308,9 @@ export default function ComposePost() {
           if (backendId) {
             const updated = loadPosts().map((p) => (p.id !== tempId ? p : { ...p, id: backendId, backendId }));
             savePosts(updated);
+
+            // Send invitations if households or phone numbers are selected
+            await sendInvitations(backendId);
           }
         } catch (err: any) {
           console.error("Failed to create backend happening", err?.response?.data ?? err);
@@ -321,6 +359,9 @@ export default function ComposePost() {
         if (backendId) {
           const updated = loadPosts().map((p) => (p.id !== tempId ? p : { ...p, id: backendId, backendId }));
           savePosts(updated);
+
+          // Send invitations if households or phone numbers are selected
+          await sendInvitations(backendId);
         }
       } catch (err: any) {
         console.error("Failed to create backend future event", err?.response?.data ?? err);
@@ -602,6 +643,8 @@ export default function ComposePost() {
               <HouseholdSelector 
                 selectedIds={selectedHouseholdIds}
                 onSelectionChange={setSelectedHouseholdIds}
+                selectedPhoneNumbers={selectedPhoneNumbers}
+                onPhoneNumbersChange={setSelectedPhoneNumbers}
                 inviteContext={inviteContext}
               />
 
