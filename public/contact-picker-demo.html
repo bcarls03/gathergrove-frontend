@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact Picker Demo - GatherGrove</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        
+        h1 {
+            font-size: 24px;
+            margin-bottom: 12px;
+            color: #1a1a1a;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 24px;
+            line-height: 1.5;
+        }
+        
+        .contacts-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 24px;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+            transition: all 0.2s;
+        }
+        
+        .contacts-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+        }
+        
+        .contacts-btn:active {
+            transform: translateY(0);
+        }
+        
+        .phone-list {
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 2px solid #f0f0f0;
+        }
+        
+        .phone-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: #f9fafb;
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+        
+        .phone-number {
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 14px;
+        }
+        
+        .remove-btn {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+        
+        .info-box {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .info-box h3 {
+            color: #1e40af;
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+        
+        .info-box p {
+            color: #1e3a8a;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        
+        .error-box {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 16px;
+            color: #991b1b;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📱 Contact Picker Demo</h1>
+        <p class="subtitle">
+            This demonstrates the native Contact Picker API integration in GatherGrove. 
+            Tap the button below to select contacts from your phone.
+        </p>
+        
+        <div class="info-box">
+            <h3>ℹ️ Requirements</h3>
+            <p>
+                • Works on iOS Safari (14.5+) and Android Chrome (80+)<br>
+                • Requires HTTPS (secure connection)<br>
+                • User permission required to access contacts
+            </p>
+        </div>
+        
+        <button class="contacts-btn" onclick="pickContacts()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+                <line x1="12" y1="18" x2="12" y2="18"></line>
+            </svg>
+            Pick from Contacts
+        </button>
+        
+        <div id="error-container"></div>
+        
+        <div class="phone-list">
+            <h3 style="margin-bottom: 12px; font-size: 18px;">Selected Contacts</h3>
+            <div id="phone-list-container">
+                <div class="empty-state">
+                    <p>No contacts selected yet.<br>Tap the button above to get started!</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let phoneNumbers = [];
+        
+        async function pickContacts() {
+            const errorContainer = document.getElementById('error-container');
+            errorContainer.innerHTML = '';
+            
+            // Check if Contact Picker API is supported
+            if (!('contacts' in navigator && 'ContactsManager' in window)) {
+                errorContainer.innerHTML = `
+                    <div class="error-box">
+                        <strong>❌ Not Supported</strong><br>
+                        The Contact Picker API is not supported on this device/browser.<br>
+                        Please try on iOS Safari (14.5+) or Android Chrome (80+).
+                    </div>
+                `;
+                return;
+            }
+            
+            try {
+                // Request contacts with name and phone number
+                const contacts = await navigator.contacts.select(['name', 'tel'], { 
+                    multiple: true 
+                });
+                
+                console.log('Selected contacts:', contacts);
+                
+                // Process each contact
+                contacts.forEach(contact => {
+                    if (contact.tel && contact.tel.length > 0) {
+                        contact.tel.forEach(phone => {
+                            // Clean and format phone number
+                            const cleaned = phone.replace(/\D/g, '');
+                            
+                            // Assume US numbers (10 digits) and add +1
+                            if (cleaned.length === 10) {
+                                const formatted = `+1${cleaned}`;
+                                
+                                // Avoid duplicates
+                                if (!phoneNumbers.includes(formatted)) {
+                                    phoneNumbers.push(formatted);
+                                }
+                            }
+                        });
+                    }
+                });
+                
+                renderPhoneList();
+                
+            } catch (error) {
+                console.error('Error picking contacts:', error);
+                errorContainer.innerHTML = `
+                    <div class="error-box">
+                        <strong>Error:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        }
+        
+        function removePhone(index) {
+            phoneNumbers.splice(index, 1);
+            renderPhoneList();
+        }
+        
+        function formatPhoneDisplay(phone) {
+            // Format +15551234567 as (555) 123-4567
+            if (phone.startsWith('+1') && phone.length === 12) {
+                const digits = phone.slice(2);
+                return `(${digits.slice(0,3)}) ${digits.slice(3,6)}-${digits.slice(6)}`;
+            }
+            return phone;
+        }
+        
+        function renderPhoneList() {
+            const container = document.getElementById('phone-list-container');
+            
+            if (phoneNumbers.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <p>No contacts selected yet.<br>Tap the button above to get started!</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = phoneNumbers.map((phone, index) => `
+                <div class="phone-item">
+                    <span class="phone-number">${formatPhoneDisplay(phone)}</span>
+                    <button class="remove-btn" onclick="removePhone(${index})">Remove</button>
+                </div>
+            `).join('');
+        }
+    </script>
+</body>
+</html>
