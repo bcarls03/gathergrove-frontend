@@ -454,10 +454,13 @@ export default function ComposePost() {
           @media (max-width: 640px) { .gg-row-2 { grid-template-columns: 1fr; } }
         `}</style>
 
-        <button type="button" className="gg-back-button" onClick={() => navigate(-1)}>
-          <span className="gg-back-arrow">←</span>
-          <span>Back to Discovery</span>
-        </button>
+        {/* Only show "Back to Discovery" when NOT in preview mode */}
+        {mode !== "preview" && (
+          <button type="button" className="gg-back-button" onClick={() => navigate(-1)}>
+            <span className="gg-back-arrow">←</span>
+            <span>Back to Discovery</span>
+          </button>
+        )}
 
         <h1 className="gg-page-title">{heading}</h1>
         <div className="gg-page-sub">

@@ -9,6 +9,31 @@ import { Chip, DualAgeRange, HOUSEHOLD_TYPE_META, type HouseholdType } from '../
 
 type DiscoverTab = 'nearby' | 'connected';
 
+// Session storage keys for filter persistence
+const FILTER_STORAGE_KEY = 'discovery_filters';
+
+// Helper to load filters from sessionStorage
+const loadSavedFilters = () => {
+  try {
+    const saved = sessionStorage.getItem(FILTER_STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return {
+        selectedTypes: new Set<HouseholdType>(parsed.selectedTypes || []),
+        ageMin: parsed.ageMin ?? 0,
+        ageMax: parsed.ageMax ?? 18,
+      };
+    }
+  } catch (error) {
+    console.error('Error loading saved filters:', error);
+  }
+  return {
+    selectedTypes: new Set<HouseholdType>(),
+    ageMin: 0,
+    ageMax: 18,
+  };
+};
+
 export default function Discovery() {
   const navigate = useNavigate();
   
@@ -19,10 +44,11 @@ export default function Discovery() {
   const [eventsLoading, setEventsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // Filters - Updated to use Set for multi-select household types
-  const [selectedTypes, setSelectedTypes] = useState<Set<HouseholdType>>(new Set());
-  const [ageMin, setAgeMin] = useState<number>(0);
-  const [ageMax, setAgeMax] = useState<number>(18);
+  // Filters - Restore from sessionStorage on mount
+  const savedFilters = loadSavedFilters();
+  const [selectedTypes, setSelectedTypes] = useState<Set<HouseholdType>>(savedFilters.selectedTypes);
+  const [ageMin, setAgeMin] = useState<number>(savedFilters.ageMin);
+  const [ageMax, setAgeMax] = useState<number>(savedFilters.ageMax);
 
   // Connected household IDs from API
   const [connectedHouseholdIds, setConnectedHouseholdIds] = useState<string[]>([]);
@@ -50,6 +76,20 @@ export default function Discovery() {
     loadConnections();
     loadEvents();
   }, []);
+
+  // Save filters to sessionStorage whenever they change
+  useEffect(() => {
+    try {
+      const filtersToSave = {
+        selectedTypes: Array.from(selectedTypes),
+        ageMin,
+        ageMax,
+      };
+      sessionStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filtersToSave));
+    } catch (error) {
+      console.error('Error saving filters:', error);
+    }
+  }, [selectedTypes, ageMin, ageMax]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -147,6 +187,19 @@ export default function Discovery() {
     }
   };
 
+  // Calculate distance between two points using Haversine formula
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 3959; // Earth's radius in miles
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
   // Filter households locally
   const filteredHouseholds = currentHouseholds.filter(h => {
     // Filter by household type (if any types selected)
@@ -171,6 +224,24 @@ export default function Discovery() {
     }
     
     return true;
+  }).sort((a, b) => {
+    // Sort by distance (closest first)
+    const userLat = 45.5152;
+    const userLon = -122.6784;
+    
+    const aLat = (a as any).latitude;
+    const aLon = (a as any).longitude;
+    const bLat = (b as any).latitude;
+    const bLon = (b as any).longitude;
+    
+    const distanceA = (aLat && aLon) 
+      ? calculateDistance(userLat, userLon, aLat, aLon)
+      : Infinity;
+    const distanceB = (bLat && bLon)
+      ? calculateDistance(userLat, userLon, bLat, bLon)
+      : Infinity;
+    
+    return distanceA - distanceB;
   });
 
   const getHouseholdTypeIcon = (type?: string) => {
@@ -242,19 +313,6 @@ export default function Discovery() {
     }
   };
 
-  // Calculate distance between two points using Haversine formula
-  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-    const R = 3959; // Earth's radius in miles
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = 
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-      Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  };
-
   // Format distance for display
   const getDistanceText = (household: GGHousehold): string | null => {
     // TODO: Get user's current location
@@ -262,12 +320,17 @@ export default function Discovery() {
     const userLat = 45.5152;
     const userLon = -122.6784;
     
-    if (household.latitude && household.longitude) {
-      const distance = calculateDistance(userLat, userLon, household.latitude, household.longitude);
+    const lat = (household as any).latitude;
+    const lon = (household as any).longitude;
+    
+    if (lat && lon) {
+      const distance = calculateDistance(userLat, userLon, lat, lon);
+      const isZipOnly = household.location_precision === 'zipcode';
+      
       if (distance < 0.1) {
-        return '< 0.1 miles away';
+        return isZipOnly ? '< 0.1 miles (approx)*' : '< 0.1 miles';
       }
-      return `~${distance.toFixed(1)} miles away`;
+      return isZipOnly ? `~${distance.toFixed(1)} miles (approx)*` : `~${distance.toFixed(1)} miles`;
     }
     return null;
   };
@@ -321,23 +384,26 @@ export default function Discovery() {
 
   const handleInviteToEventType = (household: GGHousehold, type: 'now' | 'future') => {
     // Build invite context from current Discover state
+    const hasActiveFilters = selectedTypes.size > 0;
+    
     const inviteContext = {
       clickedHouseholdId: household.id || '',
       clickedHouseholdName: getHouseholdName(household),
-      // Pass filtered households as suggestions
-      suggestedHouseholds: filteredHouseholds.map(h => ({
+      // ONLY pass filtered households as suggestions if filters are active
+      // Otherwise pass empty array so all households show in "other" section
+      suggestedHouseholds: hasActiveFilters ? filteredHouseholds.map(h => ({
         id: h.id || '',
         name: getHouseholdName(h),
         neighborhood: h.neighborhood || null,
         householdType: h.householdType || null,
         kidsAges: getKidsAges(h),
         kids: h.kids || [],
-      })),
+      })) : [],
       // Store filter context (for display/debugging)
       filterContext: {
         types: Array.from(selectedTypes),
         ageRange: selectedTypes.has("Family w/ Kids") ? { min: ageMin, max: ageMax } : null,
-        hasFilters: selectedTypes.size > 0,
+        hasFilters: hasActiveFilters,
       }
     };
     
@@ -905,12 +971,54 @@ export default function Discovery() {
           display: 'flex', 
           alignItems: 'center', 
           gap: 8, 
-          marginBottom: 16 
+          marginBottom: 8 
         }}>
           <Users size={20} style={{ color: '#10b981' }} />
           <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: '#111827' }}>
             {activeTab === 'connected' ? 'Your Connections' : 'Nearby Neighbors'}
           </h2>
+        </div>
+
+        {/* Distance Accuracy Legend */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 16,
+          padding: '10px 14px',
+          background: '#f8fafc',
+          borderRadius: 8,
+          marginBottom: 16,
+          fontSize: 12,
+          color: '#64748b'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{
+              padding: '2px 6px',
+              borderRadius: 4,
+              background: '#dcfce7',
+              border: '1px solid #86efac',
+              fontSize: 11,
+              fontWeight: 600,
+              color: '#166534'
+            }}>
+              ~0.2 miles
+            </div>
+            <span>Precise location (street address)</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{
+              padding: '2px 6px',
+              borderRadius: 4,
+              background: '#fef3c7',
+              border: '1px solid #fbbf24',
+              fontSize: 11,
+              fontWeight: 600,
+              color: '#92400e'
+            }}>
+              ~0.3 miles*
+            </div>
+            <span>Approximate (ZIP code only)</span>
+          </div>
         </div>
 
         {loading && (
@@ -1004,13 +1112,24 @@ export default function Discovery() {
                       <div style={{ 
                         display: 'flex', 
                         alignItems: 'center', 
-                        gap: 4, 
-                        color: '#6b7280', 
-                        fontSize: 13,
+                        gap: 6, 
                         marginBottom: 8
                       }}>
-                        <MapPin size={14} />
-                        {getDistanceText(household)}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '3px 8px',
+                          borderRadius: 6,
+                          background: household.location_precision === 'zipcode' ? '#fef3c7' : '#dcfce7',
+                          border: household.location_precision === 'zipcode' ? '1px solid #fbbf24' : '1px solid #86efac',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: household.location_precision === 'zipcode' ? '#92400e' : '#166534'
+                        }}>
+                          <MapPin size={12} />
+                          {getDistanceText(household)}
+                        </div>
                       </div>
                     )}
                     

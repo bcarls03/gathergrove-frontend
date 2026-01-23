@@ -124,6 +124,7 @@ export type UserProfile = {
   address?: string | null;
   lat?: number | null;
   lng?: number | null;
+  location_precision?: "street" | "zipcode" | null;
   discovery_opt_in?: boolean;
   visibility?: UserVisibility;
   household_id?: string | null;
@@ -141,6 +142,7 @@ export type UserProfileUpdate = {
   address?: string | null;
   lat?: number | null;
   lng?: number | null;
+  location_precision?: "street" | "zipcode" | null;
   discovery_opt_in?: boolean;
   visibility?: UserVisibility;
   interests?: string[] | null;
@@ -224,6 +226,7 @@ export type GGHousehold = {
     awayAtCollege?: boolean | null;
     canBabysit?: boolean | null;
   }[];
+  location_precision?: "street" | "zipcode" | null;
   createdAt?: string;
   updatedAt?: string;
 };

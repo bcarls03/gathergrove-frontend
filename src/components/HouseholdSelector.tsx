@@ -73,9 +73,53 @@ export function HouseholdSelector({
     return household.lastName || "Unknown Household";
   };
 
-  const getKidsInfo = (household: GGHousehold): string => {
-    if (!household.kids || household.kids.length === 0) return "No kids listed";
-    return `${household.kids.length} kid${household.kids.length !== 1 ? 's' : ''}`;
+  const getKidsAges = (household: GGHousehold): number[] => {
+    if (!household.kids || household.kids.length === 0) return [];
+    
+    const today = new Date();
+    return household.kids
+      .filter(kid => kid.birthYear && kid.birthMonth)
+      .map(kid => {
+        const birthDate = new Date(kid.birthYear!, (kid.birthMonth || 1) - 1);
+        const ageInMonths = (today.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
+        return Math.floor(ageInMonths / 12);
+      })
+      .sort((a, b) => b - a);
+  };
+
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 3958.8; // Earth's radius in miles
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  const getDistanceText = (household: GGHousehold): string | null => {
+    const userLat = 45.5152;
+    const userLon = -122.6784;
+    
+    const lat = (household as any).latitude;
+    const lon = (household as any).longitude;
+    
+    if (lat && lon) {
+      const distance = calculateDistance(userLat, userLon, lat, lon);
+      const isZipOnly = household.location_precision === 'zipcode';
+      
+      if (distance < 0.1) {
+        return isZipOnly ? '< 0.1 miles*' : '< 0.1 miles';
+      }
+      return isZipOnly ? `~${distance.toFixed(1)} miles*` : `~${distance.toFixed(1)} miles`;
+    }
+    return null;
+  };
+
+  const getAdultsText = (household: GGHousehold): string | null => {
+    if (!household.adultNames || household.adultNames.length === 0) return null;
+    return household.adultNames.join(', ');
   };
 
   const selectAll = () => {
@@ -90,10 +134,28 @@ export function HouseholdSelector({
   const allSelected = availableHouseholds.length > 0 && 
     selectedIds.size === availableHouseholds.filter(h => h.id).length;
 
+  // Helper to get calculated distance for sorting
+  const getCalculatedDistance = (household: GGHousehold): number => {
+    const userLat = 45.5152;
+    const userLon = -122.6784;
+    const lat = (household as any).latitude;
+    const lon = (household as any).longitude;
+    
+    if (lat && lon) {
+      return calculateDistance(userLat, userLon, lat, lon);
+    }
+    return Infinity; // Put households without location at the end
+  };
+
+  // Sort households by distance
+  const sortedByDistance = [...availableHouseholds].sort((a, b) => {
+    return getCalculatedDistance(a) - getCalculatedDistance(b);
+  });
+
   // Group households into suggested vs others
   const suggestedIds = new Set(inviteContext?.suggestedHouseholds?.map(h => h.id) || []);
-  const suggestedHouseholds = availableHouseholds.filter(h => suggestedIds.has(h.id || ''));
-  const otherHouseholds = availableHouseholds.filter(h => !suggestedIds.has(h.id || ''));
+  const suggestedHouseholds = sortedByDistance.filter(h => suggestedIds.has(h.id || ''));
+  const otherHouseholds = sortedByDistance.filter(h => !suggestedIds.has(h.id || ''));
   
   const hasSuggestions = inviteContext?.filterContext?.hasFilters && suggestedHouseholds.length > 0;
 
@@ -101,15 +163,19 @@ export function HouseholdSelector({
     const householdId = household.id;
     if (!householdId) return null;
     
+    const kidsAges = getKidsAges(household);
+    const adultsText = getAdultsText(household);
+    const distanceText = getDistanceText(household);
+    
     return (
       <label
         key={householdId}
         style={{
           display: "flex",
-          alignItems: "center",
-          padding: "12px",
+          alignItems: "flex-start",
+          padding: "16px",
           border: "1px solid #e2e8f0",
-          borderRadius: "8px",
+          borderRadius: "12px",
           cursor: "pointer",
           backgroundColor: selectedIds.has(householdId) ? "#f0fdf4" : "#fff",
           transition: "all 0.2s",
@@ -133,17 +199,67 @@ export function HouseholdSelector({
             width: "18px",
             height: "18px",
             marginRight: "12px",
+            marginTop: "2px",
             cursor: "pointer",
+            flexShrink: 0,
           }}
         />
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: "500", color: "#1e293b" }}>
-            {getHouseholdName(household)}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {/* Header with name and distance */}
+          <div style={{ marginBottom: "8px" }}>
+            <div style={{ fontWeight: "600", color: "#1e293b", fontSize: "15px", marginBottom: "4px" }}>
+              {getHouseholdName(household)}
+            </div>
+            {distanceText && (
+              <div style={{ fontSize: "12px", color: "#64748b", display: "flex", alignItems: "center", gap: "4px" }}>
+                📍 {distanceText}
+              </div>
+            )}
+            {household.neighborhood && (
+              <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>
+                {household.neighborhood}
+              </div>
+            )}
           </div>
-          <div style={{ fontSize: "13px", color: "#64748b", marginTop: "2px" }}>
-            {getKidsInfo(household)}
-            {household.neighborhood && ` • ${household.neighborhood}`}
-          </div>
+
+          {/* Adults */}
+          {adultsText && (
+            <div style={{ marginBottom: "8px" }}>
+              <div style={{ fontSize: "11px", fontWeight: "600", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "2px" }}>
+                Adults:
+              </div>
+              <div style={{ fontSize: "13px", color: "#374151" }}>
+                {adultsText}
+              </div>
+            </div>
+          )}
+
+          {/* Kids ages */}
+          {kidsAges.length > 0 && (
+            <div>
+              <div style={{ fontSize: "11px", fontWeight: "600", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>
+                Kids:
+              </div>
+              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                {kidsAges.map((age, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      padding: "3px 8px",
+                      borderRadius: "6px",
+                      background: "#f0fdf4",
+                      border: "1px solid #d1fae5",
+                      fontSize: "12px",
+                      fontWeight: "600",
+                      color: "#047857",
+                    }}
+                  >
+                    {age} {age === 1 ? 'yr' : 'yrs'}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </label>
     );
@@ -296,6 +412,19 @@ export function HouseholdSelector({
               )}
             </div>
           )}
+          
+          {/* Distance accuracy note */}
+          <div style={{
+            marginTop: 16,
+            padding: '8px 12px',
+            background: '#f8fafc',
+            borderRadius: 8,
+            fontSize: 11,
+            color: '#64748b',
+            lineHeight: 1.4
+          }}>
+            <strong>*</strong> Distance is approximate (based on ZIP code only). Neighbors with full addresses show more accurate distances.
+          </div>
         </div>
       )}
     </div>

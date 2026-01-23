@@ -143,6 +143,7 @@ export default function OnboardingAddressSimple() {
         address,
         lat,
         lng,
+        location_precision: address.trim() ? 'street' : 'zipcode',
       });
 
       // Navigate to Step 3: Household
