@@ -26,17 +26,25 @@ interface InviteContext {
 interface HouseholdSelectorProps {
   selectedIds: Set<string>;
   onSelectionChange: (ids: Set<string>) => void;
-  inviteContext?: InviteContext; // NEW: Pass invite context from navigation state
+  selectedPhoneNumbers?: Set<string>;  // NEW: For off-platform invites
+  onPhoneNumbersChange?: (phones: Set<string>) => void;  // NEW
+  inviteContext?: InviteContext; // Pass invite context from navigation state
 }
 
 export function HouseholdSelector({ 
   selectedIds, 
   onSelectionChange,
+  selectedPhoneNumbers = new Set(),  // NEW: Default to empty set
+  onPhoneNumbersChange,  // NEW
   inviteContext 
 }: HouseholdSelectorProps) {
   const [availableHouseholds, setAvailableHouseholds] = useState<GGHousehold[]>([]);
   const [loading, setLoading] = useState(false);
   const [showOthers, setShowOthers] = useState(false);
+  
+  // NEW: Phone number input state
+  const [phoneInput, setPhoneInput] = useState("");
+  const [phoneError, setPhoneError] = useState("");
 
   useEffect(() => {
     const loadHouseholds = async () => {
@@ -129,6 +137,57 @@ export function HouseholdSelector({
 
   const deselectAll = () => {
     onSelectionChange(new Set());
+  };
+
+  // NEW: Phone number handlers
+  const addPhoneNumber = () => {
+    if (!onPhoneNumbersChange) return;
+    
+    // Remove all non-digits
+    const cleaned = phoneInput.replace(/\D/g, '');
+    
+    // Validate length (10 digits for US)
+    if (cleaned.length !== 10) {
+      setPhoneError("Please enter a valid 10-digit phone number");
+      return;
+    }
+    
+    // Format as E.164 (+1 for US)
+    const formatted = `+1${cleaned}`;
+    
+    // Check for duplicates
+    if (selectedPhoneNumbers.has(formatted)) {
+      setPhoneError("This number has already been added");
+      return;
+    }
+    
+    // Add to set
+    const newSet = new Set(selectedPhoneNumbers);
+    newSet.add(formatted);
+    onPhoneNumbersChange(newSet);
+    
+    // Clear input
+    setPhoneInput("");
+    setPhoneError("");
+  };
+
+  const removePhoneNumber = (phone: string) => {
+    if (!onPhoneNumbersChange) return;
+    const newSet = new Set(selectedPhoneNumbers);
+    newSet.delete(phone);
+    onPhoneNumbersChange(newSet);
+  };
+
+  const formatPhoneForDisplay = (e164: string): string => {
+    // Convert +15551234567 to (555) 123-4567
+    const digits = e164.replace(/\D/g, '');
+    if (digits.length === 11 && digits.startsWith('1')) {
+      const areaCode = digits.slice(1, 4);
+      const prefix = digits.slice(4, 7);
+      const line = digits.slice(7, 11);
+      return `(${areaCode}) ${prefix}-${line}`;
+    }
+    return e164;
   };
 
   const allSelected = availableHouseholds.length > 0 && 
@@ -424,6 +483,137 @@ export function HouseholdSelector({
             lineHeight: 1.4
           }}>
             <strong>*</strong> Distance is approximate (based on ZIP code only). Neighbors with full addresses show more accurate distances.
+          </div>
+        </div>
+      )}
+
+      {/* NEW: Off-platform invitation section */}
+      {onPhoneNumbersChange && (
+        <div style={{ 
+          marginTop: 24, 
+          paddingTop: 24, 
+          borderTop: "2px solid #e5e7eb" 
+        }}>
+          <div style={{ 
+            fontSize: 14, 
+            fontWeight: 600, 
+            color: "#1e293b",
+            marginBottom: 8,
+            display: "flex",
+            alignItems: "center",
+            gap: 8
+          }}>
+            📱 Invite People Not on GatherGrove
+            <span style={{ 
+              fontSize: 11, 
+              fontWeight: 500, 
+              color: "#64748b",
+              background: "#f1f5f9",
+              padding: "2px 6px",
+              borderRadius: 4
+            }}>
+              Optional
+            </span>
+          </div>
+          
+          <div style={{ fontSize: 13, color: "#64748b", marginBottom: 12 }}>
+            Send a text message with event details. They can RSVP without creating an account.
+          </div>
+
+          {/* Phone number input */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            <input
+              type="tel"
+              placeholder="(555) 123-4567"
+              value={phoneInput}
+              onChange={(e) => setPhoneInput(e.target.value)}
+              onKeyPress={(e) => e.key === "Enter" && addPhoneNumber()}
+              style={{
+                flex: 1,
+                padding: "8px 12px",
+                border: phoneError ? "1px solid #ef4444" : "1px solid #e2e8f0",
+                borderRadius: 8,
+                fontSize: 14
+              }}
+            />
+            <button
+              type="button"
+              onClick={addPhoneNumber}
+              style={{
+                padding: "8px 16px",
+                background: "#10b981",
+                color: "white",
+                border: "none",
+                borderRadius: 8,
+                fontWeight: 600,
+                fontSize: 13,
+                cursor: "pointer"
+              }}
+            >
+              Add
+            </button>
+          </div>
+
+          {phoneError && (
+            <div style={{ color: "#ef4444", fontSize: 12, marginBottom: 8 }}>
+              {phoneError}
+            </div>
+          )}
+
+          {/* Selected phone numbers */}
+          {selectedPhoneNumbers.size > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+              {Array.from(selectedPhoneNumbers).map(phone => (
+                <div
+                  key={phone}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "8px 12px",
+                    background: "#f0fdf4",
+                    border: "1px solid #d1fae5",
+                    borderRadius: 8
+                  }}
+                >
+                  <span style={{ fontSize: 13, color: "#047857" }}>
+                    {formatPhoneForDisplay(phone)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removePhoneNumber(phone)}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: "#dc2626",
+                      cursor: "pointer",
+                      fontSize: 18,
+                      padding: 4
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Privacy/delivery explanation */}
+          <div style={{
+            marginTop: 12,
+            padding: "8px 12px",
+            background: "#eff6ff",
+            borderRadius: 8,
+            fontSize: 11,
+            color: "#1e40af",
+            lineHeight: 1.4
+          }}>
+            <strong>How delivery works:</strong>
+            <ul style={{ margin: "4px 0 0 0", paddingLeft: 16 }}>
+              <li>Members on GatherGrove receive in-app notifications</li>
+              <li>Non-members receive a text message with RSVP link</li>
+              <li>Phone numbers are used only for this event invitation</li>
+            </ul>
           </div>
         </div>
       )}
