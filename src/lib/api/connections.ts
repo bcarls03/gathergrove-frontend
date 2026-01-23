@@ -21,19 +21,31 @@ export interface Connection {
 export async function fetchConnections(): Promise<string[]> {
   try {
     const token = await getIdToken();
+    
+    // Suppress network errors in console for expected 400 responses
     const response = await fetch(`${API_BASE}/api/connections?status=accepted`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
+    }).catch((error) => {
+      // Network-level error (e.g., server down) - silently fail
+      console.warn('Could not reach connections API:', error.message);
+      return null;
     });
+    
+    if (!response) {
+      return [];
+    }
     
     if (!response.ok) {
       // If user doesn't have a household yet (400 Bad Request), return empty array
       if (response.status === 400) {
-        console.warn('User does not have a household yet. Skipping connections fetch.');
+        // Silently ignore - this is expected for users who haven't completed onboarding
         return [];
       }
-      throw new Error(`Failed to fetch connections: ${response.statusText}`);
+      // Other errors should be logged
+      console.warn(`Failed to fetch connections: ${response.status} ${response.statusText}`);
+      return [];
     }
     
     const data: Connection[] = await response.json();
@@ -42,7 +54,8 @@ export async function fetchConnections(): Promise<string[]> {
       .filter((conn) => conn.status === 'accepted')
       .map((conn) => conn.householdId);
   } catch (error) {
-    console.error('Error fetching connections:', error);
+    // Unexpected error
+    console.warn('Error fetching connections:', error);
     return [];
   }
 }

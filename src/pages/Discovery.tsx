@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, Heart, Home, MapPin, Sparkles, UserPlus, Calendar, MessageCircle, Zap, Clock } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { fetchHouseholds, fetchEvents, type GGHousehold, type GGEvent } from '../lib/api';
+import { fetchHouseholds, fetchEvents, getMyProfile, type GGHousehold, type GGEvent } from '../lib/api';
 import { fetchConnections, sendConnectionRequest } from '../lib/api/connections';
 import { Chip, DualAgeRange, HOUSEHOLD_TYPE_META, type HouseholdType } from '../components/filters';
 
@@ -136,6 +136,14 @@ export default function Discovery() {
 
   const loadConnections = async () => {
     try {
+      // Check if user has a household before fetching connections
+      const profile = await getMyProfile();
+      if (!profile?.household_id) {
+        // User hasn't completed onboarding yet - skip connections fetch
+        setConnectedHouseholdIds([]);
+        return;
+      }
+      
       const connections = await fetchConnections();
       setConnectedHouseholdIds(connections);
     } catch (err) {
