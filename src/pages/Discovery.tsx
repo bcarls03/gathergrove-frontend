@@ -137,9 +137,9 @@ export default function Discovery() {
   const loadConnections = async () => {
     try {
       // Check if user has a household before fetching connections
-      const profile = await getMyProfile();
+      const profile = await getMyProfile().catch(() => null);
       if (!profile?.household_id) {
-        // User hasn't completed onboarding yet - skip connections fetch
+        // User hasn't completed onboarding yet - skip connections fetch silently
         setConnectedHouseholdIds([]);
         return;
       }
@@ -148,7 +148,6 @@ export default function Discovery() {
       setConnectedHouseholdIds(connections);
     } catch (err) {
       // Silently fail - user might not have completed onboarding yet
-      console.warn('Could not load connections (user may not have a household yet):', err);
       setConnectedHouseholdIds([]);
     }
   };
