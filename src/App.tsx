@@ -31,6 +31,7 @@ import { OnboardingKids } from "./pages/OnboardingKids.tsx";
 import { OnboardingPrivacy } from "./pages/OnboardingPrivacy.tsx";
 import OnboardingPreview from "./pages/OnboardingPreview.tsx";
 import OnboardingSave from "./pages/OnboardingSave.tsx";
+import PublicRSVP from "./pages/PublicRSVP.tsx";
 
 // Push notifications (Capacitor)
 import { initPushNotifications } from "./lib/notifications";
@@ -121,6 +122,9 @@ function AppShell() {
           <Route path="/compose/:kind" element={<ComposePost />} />
           <Route path="/compose/:kind/:id" element={<ComposePost />} />
           <Route path="/test-autojoin" element={<TestAutoJoin />} />
+          
+          {/* Public RSVP - No authentication required */}
+          <Route path="/rsvp/:token" element={<PublicRSVP />} />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
