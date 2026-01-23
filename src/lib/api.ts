@@ -319,6 +319,52 @@ export type EventRsvpBuckets = {
   cant: EventRsvpHousehold[];
 };
 
+// ============================================================================
+// INVITATIONS - Off-platform event invitations
+// ============================================================================
+
+export type InviteeType = "household" | "phone_number";
+
+export type InvitationCreate = {
+  invitee_type: InviteeType;
+  household_id?: string;
+  phone_number?: string;
+};
+
+export type InvitationResponse = {
+  id: string;
+  event_id: string;
+  invitee_type: InviteeType;
+  household_id?: string | null;
+  phone_number?: string | null;
+  rsvp_token: string;
+  guest_name?: string | null;
+  guest_email?: string | null;
+  status: RSVPStatus | "invited";
+  sms_sent?: boolean;
+  sms_sent_at?: string | null;
+  sms_message_sid?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type RSVPSubmit = {
+  status: RSVPStatus;
+  guest_name?: string;
+  guest_email?: string;
+};
+
+export type PublicEventView = {
+  id: string;
+  title: string;
+  details?: string;
+  category?: EventCategory;
+  start_at?: string | null;
+  end_at?: string | null;
+  host_name: string;
+  visibility: EventVisibility;
+};
+
 /* ------------------------------ Users endpoints ----------------------------- */
 
 // ============================================================================
@@ -689,6 +735,66 @@ export async function getEventRsvps(eventId: string): Promise<any> {
     return await fetchEventRsvps(eventId);
   } catch {
     return await fetchMyRsvp(eventId);
+  }
+}
+
+// ============================================================================
+// INVITATIONS API - Off-platform event invitations
+// ============================================================================
+
+/**
+ * Create invitations for an event.
+ * Can invite both households (in-app notifications) and phone numbers (SMS).
+ */
+export async function createEventInvitations(
+  eventId: string,
+  invitations: InvitationCreate[]
+): Promise<InvitationResponse[]> {
+  try {
+    const res = await api.post(`/events/${eventId}/invitations`, invitations, {
+      headers: { "Content-Type": "application/json" },
+    });
+    return res.data as InvitationResponse[];
+  } catch (e) {
+    throw unwrapAxiosError(e);
+  }
+}
+
+/**
+ * Get all invitations for an event (host only).
+ */
+export async function getEventInvitations(eventId: string): Promise<InvitationResponse[]> {
+  try {
+    const res = await api.get(`/events/${eventId}/invitations`);
+    return res.data as InvitationResponse[];
+  } catch (e) {
+    throw unwrapAxiosError(e);
+  }
+}
+
+/**
+ * Get public event details via RSVP token (no authentication required).
+ */
+export async function getPublicEvent(token: string): Promise<PublicEventView> {
+  try {
+    const res = await api.get(`/events/rsvp/${token}`);
+    return res.data as PublicEventView;
+  } catch (e) {
+    throw unwrapAxiosError(e);
+  }
+}
+
+/**
+ * Submit RSVP for a public event (no authentication required).
+ */
+export async function submitPublicRSVP(token: string, rsvp: RSVPSubmit): Promise<{ message: string }> {
+  try {
+    const res = await api.post(`/events/rsvp/${token}`, rsvp, {
+      headers: { "Content-Type": "application/json" },
+    });
+    return res.data;
+  } catch (e) {
+    throw unwrapAxiosError(e);
   }
 }
 
