@@ -26,25 +26,17 @@ interface InviteContext {
 interface HouseholdSelectorProps {
   selectedIds: Set<string>;
   onSelectionChange: (ids: Set<string>) => void;
-  selectedPhoneNumbers?: Set<string>;  // NEW: For off-platform invites
-  onPhoneNumbersChange?: (phones: Set<string>) => void;  // NEW
   inviteContext?: InviteContext; // Pass invite context from navigation state
 }
 
 export function HouseholdSelector({ 
   selectedIds, 
   onSelectionChange,
-  selectedPhoneNumbers = new Set(),  // NEW: Default to empty set
-  onPhoneNumbersChange,  // NEW
   inviteContext 
 }: HouseholdSelectorProps) {
   const [availableHouseholds, setAvailableHouseholds] = useState<GGHousehold[]>([]);
   const [loading, setLoading] = useState(false);
   const [showOthers, setShowOthers] = useState(false);
-  
-  // NEW: Phone number input state
-  const [phoneInput, setPhoneInput] = useState("");
-  const [phoneError, setPhoneError] = useState("");
 
   useEffect(() => {
     const loadHouseholds = async () => {
@@ -139,93 +131,55 @@ export function HouseholdSelector({
     onSelectionChange(new Set());
   };
 
-  // NEW: Contact Picker API handler
-  const pickFromContacts = async () => {
-    try {
-      // Check if Contact Picker API is available
-      if (!('contacts' in navigator)) {
-        alert('Contact picker is not supported on this device. Please enter the phone number manually.');
-        return;
-      }
-
-      // @ts-ignore - ContactsManager API not in TypeScript types yet
-      const contacts = await navigator.contacts.select(['tel'], { multiple: true });
-      
-      // Process each selected contact
-      contacts.forEach((contact: any) => {
-        if (contact.tel && contact.tel.length > 0) {
-          // Add the first phone number from the contact
-          const phoneNumber = contact.tel[0];
-          const cleaned = phoneNumber.replace(/\D/g, '');
-          
-          if (cleaned.length === 10 || cleaned.length === 11) {
-            const formatted = cleaned.length === 10 
-              ? `+1${cleaned}`
-              : `+${cleaned}`;
-            
-            if (!selectedPhoneNumbers.has(formatted)) {
-              const newSet = new Set(selectedPhoneNumbers);
-              newSet.add(formatted);
-              onPhoneNumbersChange?.(newSet);
-            }
-          }
+  // Share/invite helpers (works on iOS + Android + Desktop)
+  const shareInvite = async (inviteLink: string, eventTitle: string) => {
+    const shareText = `You're invited to "${eventTitle}" on GatherGrove! 🎉\n\nRSVP here: ${inviteLink}`;
+    
+    // Try native share (works on mobile + modern desktop)
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Invite to ${eventTitle}`,
+          text: shareText,
+        });
+        return true;
+      } catch (error: any) {
+        // User cancelled or error - fall through to alternatives
+        if (error.name !== 'AbortError') {
+          console.log('Share failed:', error);
         }
-      });
+      }
+    }
+    
+    return false; // Share not available or failed
+  };
+
+  const sendViaSMS = (inviteLink: string, eventTitle: string) => {
+    const message = `You're invited to "${eventTitle}" on GatherGrove! 🎉\n\nRSVP: ${inviteLink}`;
+    const smsLink = `sms:?body=${encodeURIComponent(message)}`;
+    window.open(smsLink, '_blank');
+  };
+
+  const copyInviteLink = async (inviteLink: string) => {
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      alert('✅ Link copied to clipboard!');
     } catch (error) {
-      // User cancelled or error occurred
-      console.log('Contact picker cancelled or error:', error);
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = inviteLink;
+      textArea.style.position = 'fixed';
+      textArea.style.opacity = '0';
+      document.body.appendChild(textArea);
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        alert('✅ Link copied to clipboard!');
+      } catch (err) {
+        alert('❌ Could not copy link. Please copy manually:\n\n' + inviteLink);
+      }
+      document.body.removeChild(textArea);
     }
-  };
-
-  // NEW: Phone number handlers
-  const addPhoneNumber = () => {
-    if (!onPhoneNumbersChange) return;
-    
-    // Remove all non-digits
-    const cleaned = phoneInput.replace(/\D/g, '');
-    
-    // Validate length (10 digits for US)
-    if (cleaned.length !== 10) {
-      setPhoneError("Please enter a valid 10-digit phone number");
-      return;
-    }
-    
-    // Format as E.164 (+1 for US)
-    const formatted = `+1${cleaned}`;
-    
-    // Check for duplicates
-    if (selectedPhoneNumbers.has(formatted)) {
-      setPhoneError("This number has already been added");
-      return;
-    }
-    
-    // Add to set
-    const newSet = new Set(selectedPhoneNumbers);
-    newSet.add(formatted);
-    onPhoneNumbersChange(newSet);
-    
-    // Clear input
-    setPhoneInput("");
-    setPhoneError("");
-  };
-
-  const removePhoneNumber = (phone: string) => {
-    if (!onPhoneNumbersChange) return;
-    const newSet = new Set(selectedPhoneNumbers);
-    newSet.delete(phone);
-    onPhoneNumbersChange(newSet);
-  };
-
-  const formatPhoneForDisplay = (e164: string): string => {
-    // Convert +15551234567 to (555) 123-4567
-    const digits = e164.replace(/\D/g, '');
-    if (digits.length === 11 && digits.startsWith('1')) {
-      const areaCode = digits.slice(1, 4);
-      const prefix = digits.slice(4, 7);
-      const line = digits.slice(7, 11);
-      return `(${areaCode}) ${prefix}-${line}`;
-    }
-    return e164;
   };
 
   const allSelected = availableHouseholds.length > 0 && 
@@ -525,180 +479,169 @@ export function HouseholdSelector({
         </div>
       )}
 
-      {/* NEW: Off-platform invitation section */}
-      {onPhoneNumbersChange && (
+      {/* NEW: Share invite section (works everywhere!) */}
+      <div style={{ 
+        marginTop: 24, 
+        paddingTop: 24, 
+        borderTop: "2px solid #e5e7eb" 
+      }}>
         <div style={{ 
-          marginTop: 24, 
-          paddingTop: 24, 
-          borderTop: "2px solid #e5e7eb" 
+          fontSize: 14, 
+          fontWeight: 600, 
+          color: "#1e293b",
+          marginBottom: 8,
+          display: "flex",
+          alignItems: "center",
+          gap: 8
         }}>
-          <div style={{ 
-            fontSize: 14, 
-            fontWeight: 600, 
-            color: "#1e293b",
-            marginBottom: 8,
-            display: "flex",
-            alignItems: "center",
-            gap: 8
-          }}>
-            📱 Invite People Not on GatherGrove
-            <span style={{ 
-              fontSize: 11, 
-              fontWeight: 500, 
-              color: "#64748b",
-              background: "#f1f5f9",
-              padding: "2px 6px",
-              borderRadius: 4
-            }}>
-              Optional
-            </span>
-          </div>
-          
-          <div style={{ fontSize: 13, color: "#64748b", marginBottom: 12 }}>
-            Send a text message with event details. They can RSVP without creating an account.
-          </div>
-
-          {/* Phone number input */}
-          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            <input
-              type="tel"
-              placeholder="(555) 123-4567"
-              value={phoneInput}
-              onChange={(e) => setPhoneInput(e.target.value)}
-              onKeyPress={(e) => e.key === "Enter" && addPhoneNumber()}
-              style={{
-                flex: 1,
-                padding: "8px 12px",
-                border: phoneError ? "1px solid #ef4444" : "1px solid #e2e8f0",
-                borderRadius: 8,
-                fontSize: 14
-              }}
-            />
-            <button
-              type="button"
-              onClick={pickFromContacts}
-              style={{
-                padding: "8px 16px",
-                background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-                color: "white",
-                border: "none",
-                borderRadius: 8,
-                fontWeight: 600,
-                fontSize: 13,
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-                boxShadow: "0 2px 8px rgba(16, 185, 129, 0.3)",
-                transition: "all 0.2s ease"
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = "translateY(-1px)";
-                e.currentTarget.style.boxShadow = "0 4px 12px rgba(16, 185, 129, 0.4)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow = "0 2px 8px rgba(16, 185, 129, 0.3)";
-              }}
-              title="Pick from your phone contacts"
-            >
-              <svg 
-                width="16" 
-                height="16" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2.5" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-              >
-                <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
-                <line x1="12" y1="18" x2="12.01" y2="18"></line>
-              </svg>
-              Contacts
-            </button>
-            <button
-              type="button"
-              onClick={addPhoneNumber}
-              style={{
-                padding: "8px 16px",
-                background: "#10b981",
-                color: "white",
-                border: "none",
-                borderRadius: 8,
-                fontWeight: 600,
-                fontSize: 13,
-                cursor: "pointer"
-              }}
-            >
-              Add
-            </button>
-          </div>
-
-          {phoneError && (
-            <div style={{ color: "#ef4444", fontSize: 12, marginBottom: 8 }}>
-              {phoneError}
-            </div>
-          )}
-
-          {/* Selected phone numbers */}
-          {selectedPhoneNumbers.size > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
-              {Array.from(selectedPhoneNumbers).map(phone => (
-                <div
-                  key={phone}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "8px 12px",
-                    background: "#f0fdf4",
-                    border: "1px solid #d1fae5",
-                    borderRadius: 8
-                  }}
-                >
-                  <span style={{ fontSize: 13, color: "#047857" }}>
-                    {formatPhoneForDisplay(phone)}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => removePhoneNumber(phone)}
-                    style={{
-                      background: "transparent",
-                      border: "none",
-                      color: "#dc2626",
-                      cursor: "pointer",
-                      fontSize: 18,
-                      padding: 4
-                    }}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Privacy/delivery explanation */}
-          <div style={{
-            marginTop: 12,
-            padding: "8px 12px",
-            background: "#eff6ff",
-            borderRadius: 8,
-            fontSize: 11,
-            color: "#1e40af",
-            lineHeight: 1.4
-          }}>
-            <strong>How delivery works:</strong>
-            <ul style={{ margin: "4px 0 0 0", paddingLeft: 16 }}>
-              <li>Members on GatherGrove receive in-app notifications</li>
-              <li>Non-members receive a text message with RSVP link</li>
-              <li>Phone numbers are used only for this event invitation</li>
-            </ul>
-          </div>
+          � Invite Anyone
         </div>
-      )}
+        
+        <div style={{ fontSize: 13, color: "#64748b", marginBottom: 16 }}>
+          Share your event with neighbors, friends, or family — they can RSVP without creating an account.
+        </div>
+
+        {/* Three action buttons */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {/* Share button (uses native share sheet on mobile) */}
+          <button
+            type="button"
+            onClick={() => {
+              const inviteLink = "https://gathergrove-nine.vercel.app/event/demo123"; // TODO: Replace with actual event link
+              const eventTitle = "Community Event"; // TODO: Replace with actual event title
+              shareInvite(inviteLink, eventTitle);
+            }}
+            style={{
+              padding: "14px 16px",
+              background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+              color: "white",
+              border: "none",
+              borderRadius: 10,
+              fontWeight: 600,
+              fontSize: 15,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 10,
+              boxShadow: "0 3px 10px rgba(16, 185, 129, 0.3)",
+              transition: "all 0.2s ease"
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = "translateY(-2px)";
+              e.currentTarget.style.boxShadow = "0 5px 15px rgba(16, 185, 129, 0.4)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = "translateY(0)";
+              e.currentTarget.style.boxShadow = "0 3px 10px rgba(16, 185, 129, 0.3)";
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="18" cy="5" r="3"></circle>
+              <circle cx="6" cy="12" r="3"></circle>
+              <circle cx="18" cy="19" r="3"></circle>
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+            </svg>
+            Share…
+            <span style={{ fontSize: 12, opacity: 0.9, fontWeight: 500 }}>
+              (recommended)
+            </span>
+          </button>
+
+          {/* Send Text button */}
+          <button
+            type="button"
+            onClick={() => {
+              const inviteLink = "https://gathergrove-nine.vercel.app/event/demo123"; // TODO: Replace with actual event link
+              const eventTitle = "Community Event"; // TODO: Replace with actual event title
+              sendViaSMS(inviteLink, eventTitle);
+            }}
+            style={{
+              padding: "12px 16px",
+              background: "white",
+              color: "#059669",
+              border: "2px solid #10b981",
+              borderRadius: 10,
+              fontWeight: 600,
+              fontSize: 14,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              transition: "all 0.15s ease"
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "#f0fdf4";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "white";
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+            Send Text
+          </button>
+
+          {/* Copy Link button */}
+          <button
+            type="button"
+            onClick={() => {
+              const inviteLink = "https://gathergrove-nine.vercel.app/event/demo123"; // TODO: Replace with actual event link
+              copyInviteLink(inviteLink);
+            }}
+            style={{
+              padding: "12px 16px",
+              background: "white",
+              color: "#64748b",
+              border: "1px solid #e2e8f0",
+              borderRadius: 10,
+              fontWeight: 600,
+              fontSize: 14,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              transition: "all 0.15s ease"
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "#f8fafc";
+              e.currentTarget.style.borderColor = "#cbd5e1";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "white";
+              e.currentTarget.style.borderColor = "#e2e8f0";
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            Copy Link
+          </button>
+        </div>
+
+        {/* How it works */}
+        <div style={{
+          marginTop: 16,
+          padding: "12px 14px",
+          background: "#eff6ff",
+          borderRadius: 10,
+          fontSize: 12,
+          color: "#1e40af",
+          lineHeight: 1.5
+        }}>
+          <strong>✨ Works everywhere:</strong>
+          <ul style={{ margin: "6px 0 0 0", paddingLeft: 18 }}>
+            <li><strong>Share…</strong> opens your device's share menu (Messages, WhatsApp, email, etc.)</li>
+            <li><strong>Send Text</strong> opens your messaging app with pre-filled invite</li>
+            <li><strong>Copy Link</strong> copies the link so you can paste anywhere</li>
+          </ul>
+        </div>
+      </div>
     </div>
   );
 }
