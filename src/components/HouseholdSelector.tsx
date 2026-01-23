@@ -507,8 +507,8 @@ export function HouseholdSelector({
           <button
             type="button"
             onClick={() => {
-              const inviteLink = "https://gathergrove-nine.vercel.app/event/demo123"; // TODO: Replace with actual event link
-              const eventTitle = "Community Event"; // TODO: Replace with actual event title
+              const inviteLink = window.location.href;
+              const eventTitle = "GatherGrove Event";
               shareInvite(inviteLink, eventTitle);
             }}
             style={{
@@ -553,8 +553,8 @@ export function HouseholdSelector({
           <button
             type="button"
             onClick={() => {
-              const inviteLink = "https://gathergrove-nine.vercel.app/event/demo123"; // TODO: Replace with actual event link
-              const eventTitle = "Community Event"; // TODO: Replace with actual event title
+              const inviteLink = window.location.href;
+              const eventTitle = "GatherGrove Event";
               sendViaSMS(inviteLink, eventTitle);
             }}
             style={{
@@ -589,7 +589,7 @@ export function HouseholdSelector({
           <button
             type="button"
             onClick={() => {
-              const inviteLink = "https://gathergrove-nine.vercel.app/event/demo123"; // TODO: Replace with actual event link
+              const inviteLink = window.location.href;
               copyInviteLink(inviteLink);
             }}
             style={{
