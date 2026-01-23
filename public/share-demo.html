@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GatherGrove - Share Demo</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    
+    .card {
+      background: white;
+      border-radius: 20px;
+      padding: 32px;
+      max-width: 450px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+    
+    h1 {
+      font-size: 28px;
+      color: #1e293b;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+    
+    .subtitle {
+      font-size: 15px;
+      color: #64748b;
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    
+    .event-card {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: white;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 24px;
+    }
+    
+    .event-title {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    
+    .event-details {
+      font-size: 14px;
+      opacity: 0.95;
+      line-height: 1.6;
+    }
+    
+    .share-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    
+    button {
+      padding: 16px 20px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: all 0.2s ease;
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: white;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(16, 185, 129, 0.5);
+    }
+    
+    .btn-secondary {
+      background: white;
+      color: #059669;
+      border: 2px solid #10b981;
+    }
+    
+    .btn-secondary:hover {
+      background: #f0fdf4;
+    }
+    
+    .btn-tertiary {
+      background: white;
+      color: #64748b;
+      border: 1px solid #e2e8f0;
+    }
+    
+    .btn-tertiary:hover {
+      background: #f8fafc;
+      border-color: #cbd5e1;
+    }
+    
+    .badge {
+      display: inline-block;
+      background: rgba(16, 185, 129, 0.15);
+      color: #059669;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 6px;
+      margin-left: 8px;
+    }
+    
+    .info-box {
+      background: #eff6ff;
+      border-radius: 10px;
+      padding: 14px;
+      font-size: 12px;
+      color: #1e40af;
+      line-height: 1.6;
+    }
+    
+    .info-box strong {
+      display: block;
+      margin-bottom: 6px;
+    }
+    
+    .info-box ul {
+      margin: 6px 0 0 18px;
+      padding: 0;
+    }
+    
+    .info-box li {
+      margin: 3px 0;
+    }
+    
+    .status {
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      text-align: center;
+      font-weight: 500;
+    }
+    
+    .status.success {
+      background: #f0fdf4;
+      color: #047857;
+      border: 1px solid #d1fae5;
+    }
+    
+    .status.info {
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fde68a;
+    }
+    
+    .detection {
+      margin-top: 24px;
+      padding-top: 24px;
+      border-top: 2px solid #e5e7eb;
+    }
+    
+    .detection-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 12px;
+    }
+    
+    .detection-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      background: #f8fafc;
+      border-radius: 8px;
+      margin-bottom: 6px;
+      font-size: 13px;
+    }
+    
+    .detection-item .label {
+      color: #64748b;
+      font-weight: 500;
+    }
+    
+    .detection-item .value {
+      color: #1e293b;
+      font-weight: 600;
+    }
+    
+    .supported {
+      color: #059669;
+    }
+    
+    .not-supported {
+      color: #dc2626;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🎉 Share Demo</h1>
+    <p class="subtitle">Universal invite sharing for iOS + Android + Desktop</p>
+    
+    <div class="event-card">
+      <div class="event-title">Community Potluck Dinner</div>
+      <div class="event-details">
+        📅 Saturday, Jan 25 at 6:00 PM<br>
+        📍 Maple Street Park<br>
+        👥 Hosted by The Johnsons
+      </div>
+    </div>
+    
+    <div class="share-buttons">
+      <button class="btn-primary" onclick="shareInvite()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="18" cy="5" r="3"></circle>
+          <circle cx="6" cy="12" r="3"></circle>
+          <circle cx="18" cy="19" r="3"></circle>
+          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+          <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+        </svg>
+        Share…
+        <span class="badge">recommended</span>
+      </button>
+      
+      <button class="btn-secondary" onclick="sendSMS()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </svg>
+        Send Text
+      </button>
+      
+      <button class="btn-tertiary" onclick="copyLink()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        </svg>
+        Copy Link
+      </button>
+    </div>
+    
+    <div class="info-box">
+      <strong>✨ How it works:</strong>
+      <ul>
+        <li><strong>Share…</strong> opens your device's share menu (Messages, WhatsApp, email, etc.)</li>
+        <li><strong>Send Text</strong> opens your messaging app with pre-filled invite</li>
+        <li><strong>Copy Link</strong> copies the link so you can paste anywhere</li>
+      </ul>
+    </div>
+    
+    <div id="status"></div>
+    
+    <div class="detection">
+      <div class="detection-title">Your Browser Capabilities</div>
+      <div id="capabilities"></div>
+    </div>
+  </div>
+  
+  <script>
+    const EVENT_LINK = 'https://gathergrove-nine.vercel.app/event/demo123';
+    const EVENT_TITLE = 'Community Potluck Dinner';
+    
+    // Detect capabilities on load
+    window.addEventListener('DOMContentLoaded', () => {
+      const hasShare = !!navigator.share;
+      const hasClipboard = !!navigator.clipboard;
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      
+      const caps = document.getElementById('capabilities');
+      caps.innerHTML = `
+        <div class="detection-item">
+          <span class="label">Web Share API:</span>
+          <span class="value ${hasShare ? 'supported' : 'not-supported'}">
+            ${hasShare ? '✅ Supported' : '❌ Not available'}
+          </span>
+        </div>
+        <div class="detection-item">
+          <span class="label">Clipboard API:</span>
+          <span class="value ${hasClipboard ? 'supported' : 'not-supported'}">
+            ${hasClipboard ? '✅ Supported' : '❌ Not available'}
+          </span>
+        </div>
+        <div class="detection-item">
+          <span class="label">Device Type:</span>
+          <span class="value">${isMobile ? '📱 Mobile' : '🖥️ Desktop'}</span>
+        </div>
+        <div class="detection-item">
+          <span class="label">User Agent:</span>
+          <span class="value" style="font-size: 10px; word-break: break-all;">${navigator.userAgent}</span>
+        </div>
+      `;
+    });
+    
+    async function shareInvite() {
+      const shareText = `You're invited to "${EVENT_TITLE}" on GatherGrove! 🎉\n\nRSVP here: ${EVENT_LINK}`;
+      
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: `Invite to ${EVENT_TITLE}`,
+            text: shareText,
+          });
+          showStatus('✅ Shared successfully!', 'success');
+        } catch (error) {
+          if (error.name === 'AbortError') {
+            showStatus('ℹ️ Share cancelled', 'info');
+          } else {
+            showStatus('❌ Share failed: ' + error.message, 'info');
+          }
+        }
+      } else {
+        showStatus('❌ Web Share API not available on this device. Try "Send Text" or "Copy Link" instead.', 'info');
+      }
+    }
+    
+    function sendSMS() {
+      const message = `You're invited to "${EVENT_TITLE}" on GatherGrove! 🎉\n\nRSVP: ${EVENT_LINK}`;
+      const smsLink = `sms:?body=${encodeURIComponent(message)}`;
+      window.open(smsLink, '_blank');
+      showStatus('✅ Opening your messaging app...', 'success');
+    }
+    
+    async function copyLink() {
+      if (navigator.clipboard) {
+        try {
+          await navigator.clipboard.writeText(EVENT_LINK);
+          showStatus('✅ Link copied to clipboard!', 'success');
+        } catch (error) {
+          fallbackCopy();
+        }
+      } else {
+        fallbackCopy();
+      }
+    }
+    
+    function fallbackCopy() {
+      const textArea = document.createElement('textarea');
+      textArea.value = EVENT_LINK;
+      textArea.style.position = 'fixed';
+      textArea.style.opacity = '0';
+      document.body.appendChild(textArea);
+      textArea.select();
+      
+      try {
+        document.execCommand('copy');
+        showStatus('✅ Link copied to clipboard!', 'success');
+      } catch (err) {
+        showStatus('❌ Could not copy. Link: ' + EVENT_LINK, 'info');
+      }
+      
+      document.body.removeChild(textArea);
+    }
+    
+    function showStatus(message, type) {
+      const status = document.getElementById('status');
+      status.className = `status ${type}`;
+      status.textContent = message;
+      status.style.display = 'block';
+      
+      setTimeout(() => {
+        status.style.display = 'none';
+      }, 4000);
+    }
+  </script>
+</body>
+</html>
