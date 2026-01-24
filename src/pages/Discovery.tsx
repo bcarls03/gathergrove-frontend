@@ -735,44 +735,48 @@ export default function Discovery() {
             </div>
           </div>
 
-          {/* Tabs - Compact for mobile */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-            <button
-              onClick={() => setActiveTab('nearby')}
-              style={{
-                flex: 1,
-                padding: '10px 14px',
-                borderRadius: 8,
-                border: '1.5px solid',
-                borderColor: activeTab === 'nearby' ? '#10b981' : '#e5e7eb',
-                background: activeTab === 'nearby' ? '#10b981' : '#ffffff',
-                color: activeTab === 'nearby' ? '#ffffff' : '#6b7280',
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: 'pointer',
-                transition: 'all 0.2s'
-              }}
-            >
-              Nearby ({nearbyHouseholds.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('connected')}
-              style={{
-                flex: 1,
-                padding: '10px 14px',
-                borderRadius: 8,
-                border: '1.5px solid',
-                borderColor: activeTab === 'connected' ? '#10b981' : '#e5e7eb',
-                background: activeTab === 'connected' ? '#10b981' : '#ffffff',
-                color: activeTab === 'connected' ? '#ffffff' : '#6b7280',
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: 'pointer',
-                transition: 'all 0.2s'
-              }}
-            >
-              Connected ({connectedHouseholds.length})
-            </button>
+          {/* Tabs - Centered and compact for mobile */}
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+            <div style={{ display: 'flex', gap: 8, maxWidth: 400 }}>
+              <button
+                onClick={() => setActiveTab('nearby')}
+                style={{
+                  flex: 1,
+                  minWidth: 140,
+                  padding: '10px 14px',
+                  borderRadius: 8,
+                  border: '1.5px solid',
+                  borderColor: activeTab === 'nearby' ? '#10b981' : '#e5e7eb',
+                  background: activeTab === 'nearby' ? '#10b981' : '#ffffff',
+                  color: activeTab === 'nearby' ? '#ffffff' : '#6b7280',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+              >
+                Nearby ({nearbyHouseholds.length})
+              </button>
+              <button
+                onClick={() => setActiveTab('connected')}
+                style={{
+                  flex: 1,
+                  minWidth: 140,
+                  padding: '10px 14px',
+                  borderRadius: 8,
+                  border: '1.5px solid',
+                  borderColor: activeTab === 'connected' ? '#10b981' : '#e5e7eb',
+                  background: activeTab === 'connected' ? '#10b981' : '#ffffff',
+                  color: activeTab === 'connected' ? '#ffffff' : '#6b7280',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+              >
+                Connected ({connectedHouseholds.length})
+              </button>
+            </div>
           </div>
 
           {/* Filters - Compact Horizontal Layout for Mobile */}
@@ -1034,21 +1038,23 @@ export default function Discovery() {
           </h2>
         </div>
 
-        {/* Distance Accuracy Legend + Location Precision Filter */}
+        {/* Distance Accuracy Legend - Centered */}
         <div style={{
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-          padding: '8px 12px',
-          background: '#f8fafc',
-          borderRadius: 6,
-          marginBottom: 12,
-          fontSize: 11,
-          color: '#64748b',
-          flexWrap: 'wrap'
+          justifyContent: 'center',
+          marginBottom: 12
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '8px 12px',
+            background: '#f8fafc',
+            borderRadius: 6,
+            fontSize: 11,
+            color: '#64748b',
+            flexWrap: 'wrap'
+          }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <div style={{
                 padding: '2px 5px',
@@ -1080,29 +1086,36 @@ export default function Discovery() {
               <span style={{ fontSize: 10 }}>Approx</span>
             </div>
           </div>
-          
-          {/* Location Precision Filter Toggle */}
+        </div>
+        
+        {/* Location Precision Filter - Centered and larger for mobile */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          marginBottom: 16
+        }}>
           <div style={{ 
             display: 'flex', 
-            gap: 4,
-            padding: '2px',
+            gap: 6,
+            padding: '3px',
             background: '#e2e8f0',
-            borderRadius: 4,
+            borderRadius: 8,
           }}>
             <button
               onClick={() => setLocationPrecision('all')}
               style={{
-                padding: '3px 8px',
-                fontSize: 10,
+                padding: '8px 16px',
+                fontSize: 13,
                 fontWeight: 600,
-                borderRadius: 3,
+                borderRadius: 6,
                 border: 'none',
                 background: locationPrecision === 'all' ? '#ffffff' : 'transparent',
                 color: locationPrecision === 'all' ? '#0f172a' : '#64748b',
                 cursor: 'pointer',
                 transition: 'all 0.15s',
                 whiteSpace: 'nowrap',
-                boxShadow: locationPrecision === 'all' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none'
+                boxShadow: locationPrecision === 'all' ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
+                minWidth: 70
               }}
             >
               All
@@ -1110,17 +1123,18 @@ export default function Discovery() {
             <button
               onClick={() => setLocationPrecision('precise')}
               style={{
-                padding: '3px 8px',
-                fontSize: 10,
+                padding: '8px 16px',
+                fontSize: 13,
                 fontWeight: 600,
-                borderRadius: 3,
+                borderRadius: 6,
                 border: 'none',
                 background: locationPrecision === 'precise' ? '#dcfce7' : 'transparent',
                 color: locationPrecision === 'precise' ? '#166534' : '#64748b',
                 cursor: 'pointer',
                 transition: 'all 0.15s',
                 whiteSpace: 'nowrap',
-                boxShadow: locationPrecision === 'precise' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none'
+                boxShadow: locationPrecision === 'precise' ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
+                minWidth: 70
               }}
             >
               Precise
@@ -1128,17 +1142,18 @@ export default function Discovery() {
             <button
               onClick={() => setLocationPrecision('approximate')}
               style={{
-                padding: '3px 8px',
-                fontSize: 10,
+                padding: '8px 16px',
+                fontSize: 13,
                 fontWeight: 600,
-                borderRadius: 3,
+                borderRadius: 6,
                 border: 'none',
                 background: locationPrecision === 'approximate' ? '#fef3c7' : 'transparent',
                 color: locationPrecision === 'approximate' ? '#92400e' : '#64748b',
                 cursor: 'pointer',
                 transition: 'all 0.15s',
                 whiteSpace: 'nowrap',
-                boxShadow: locationPrecision === 'approximate' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none'
+                boxShadow: locationPrecision === 'approximate' ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
+                minWidth: 70
               }}
             >
               Approx
