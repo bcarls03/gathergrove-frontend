@@ -523,45 +523,51 @@ export default function Discovery() {
         <div style={{ 
           maxWidth: 900, 
           margin: '0 auto', 
-          padding: '20px 24px'
+          padding: '16px 20px'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, color: '#111827' }}>
+          {/* Mobile-optimized header layout */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {/* Top row: Title only */}
+            <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0, color: '#111827' }}>
               Discover
             </h1>
             
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {/* Bottom row: Badge and Button with better spacing */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               {/* Nearby/Connected Count Badge */}
               <div style={{ 
                 display: 'flex', 
                 alignItems: 'center', 
-                gap: 6,
-                padding: '6px 12px',
-                borderRadius: 8,
+                gap: 8,
+                padding: '10px 16px',
+                borderRadius: 12,
                 background: '#f0fdf4',
-                border: '1px solid #d1fae5',
-                fontSize: 13,
-                fontWeight: 600,
-                color: '#047857'
+                border: '2px solid #d1fae5',
+                fontSize: 14,
+                fontWeight: 700,
+                color: '#047857',
+                flex: '0 0 auto'
               }}>
-                <Sparkles size={14} />
-                {filteredHouseholds.length} {activeTab === 'connected' ? 'connected' : 'nearby'}
+                <Sparkles size={16} />
+                <span>{filteredHouseholds.length} {activeTab === 'connected' ? 'connected' : 'nearby'}</span>
               </div>
 
               {/* Create Event Dropdown */}
-              <div style={{ position: 'relative' }} data-dropdown="create-event">
+              <div style={{ position: 'relative', flex: '1 1 auto', minWidth: '140px' }} data-dropdown="create-event">
                 <button
                   onClick={() => setShowCreateDropdown(!showCreateDropdown)}
                   style={{
+                    width: '100%',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 6,
-                    padding: '8px 14px',
-                    borderRadius: 8,
+                    justifyContent: 'center',
+                    gap: 8,
+                    padding: '12px 16px',
+                    borderRadius: 12,
                     border: '2px solid #10b981',
                     background: '#10b981',
                     color: '#ffffff',
-                    fontSize: 14,
+                    fontSize: 15,
                     fontWeight: 700,
                     cursor: 'pointer',
                     transition: 'all 0.2s',
@@ -576,12 +582,12 @@ export default function Discovery() {
                     e.currentTarget.style.boxShadow = '0 2px 8px rgba(16, 185, 129, 0.2)';
                   }}
                 >
-                  <Calendar size={16} />
+                  <Calendar size={18} />
                   <span>New Event</span>
                   <motion.div
                     animate={{ rotate: showCreateDropdown ? 180 : 0 }}
                     transition={{ duration: 0.2 }}
-                    style={{ display: 'flex', alignItems: 'center' }}
+                    style={{ display: 'flex', alignItems: 'center', marginLeft: 'auto' }}
                   >
                     ▼
                   </motion.div>
@@ -705,20 +711,20 @@ export default function Discovery() {
             </div>
           </div>
 
-          {/* Tabs */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          {/* Tabs - Better mobile spacing */}
+          <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
             <button
               onClick={() => setActiveTab('nearby')}
               style={{
                 flex: 1,
-                padding: '10px 16px',
-                borderRadius: 10,
+                padding: '14px 20px',
+                borderRadius: 12,
                 border: '2px solid',
                 borderColor: activeTab === 'nearby' ? '#10b981' : '#e5e7eb',
                 background: activeTab === 'nearby' ? '#10b981' : '#ffffff',
                 color: activeTab === 'nearby' ? '#ffffff' : '#6b7280',
-                fontSize: 14,
-                fontWeight: 600,
+                fontSize: 15,
+                fontWeight: 700,
                 cursor: 'pointer',
                 transition: 'all 0.2s'
               }}
@@ -729,14 +735,14 @@ export default function Discovery() {
               onClick={() => setActiveTab('connected')}
               style={{
                 flex: 1,
-                padding: '10px 16px',
-                borderRadius: 10,
+                padding: '14px 20px',
+                borderRadius: 12,
                 border: '2px solid',
                 borderColor: activeTab === 'connected' ? '#10b981' : '#e5e7eb',
                 background: activeTab === 'connected' ? '#10b981' : '#ffffff',
                 color: activeTab === 'connected' ? '#ffffff' : '#6b7280',
-                fontSize: 14,
-                fontWeight: 600,
+                fontSize: 15,
+                fontWeight: 700,
                 cursor: 'pointer',
                 transition: 'all 0.2s'
               }}
@@ -746,20 +752,20 @@ export default function Discovery() {
           </div>
 
           {/* Filters */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {/* Household Type Filter - Icon-based chips */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Household Type Filter - Icon-based chips with better spacing */}
             <div>
               <div style={{ 
                 fontSize: 13, 
-                fontWeight: 600, 
+                fontWeight: 700, 
                 color: '#6b7280', 
-                marginBottom: 10,
+                marginBottom: 12,
                 textTransform: 'uppercase',
                 letterSpacing: '0.05em'
               }}>
                 Household Type
               </div>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                 {(Object.keys(HOUSEHOLD_TYPE_META) as HouseholdType[]).map(type => {
                   const { Icon, iconColor, iconBorder } = HOUSEHOLD_TYPE_META[type];
                   return (

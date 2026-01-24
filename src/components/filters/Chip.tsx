@@ -26,21 +26,22 @@ export default function Chip({ label, selected, onClick, Icon, iconColor, iconBo
       aria-pressed={selected}
       {...chipMotionProps}
       style={{
-        padding: "8px 14px",
+        padding: "12px 18px",
         borderRadius: 999,
-        border: selected ? "2px solid #10b981" : "1px solid rgba(148,163,184,0.6)",
-        fontSize: 13,
-        fontWeight: 600,
+        border: selected ? "2px solid #10b981" : "2px solid rgba(148,163,184,0.4)",
+        fontSize: 14,
+        fontWeight: 700,
         display: "inline-flex",
         alignItems: "center",
-        gap: 8,
+        gap: 10,
         background: "#ffffff",
         color: "#0f172a",
         cursor: "pointer",
         transition: "all 0.15s ease",
         outline: "none",
-        boxShadow: selected ? "0 4px 12px rgba(16,185,129,0.15)" : "none",
+        boxShadow: selected ? "0 4px 12px rgba(16,185,129,0.2)" : "0 2px 6px rgba(0,0,0,0.05)",
         transform: selected ? "translateY(-1px)" : "none",
+        minHeight: '44px', // Better touch target for mobile
       }}
     >
       {/* Icon in circle */}
@@ -50,21 +51,21 @@ export default function Chip({ label, selected, onClick, Icon, iconColor, iconBo
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
-            width: 26,
-            height: 26,
+            width: 28,
+            height: 28,
             borderRadius: 999,
             background: "#ffffff",
-            border: `1px solid ${iconBorder || "#e5e7eb"}`,
+            border: `2px solid ${iconBorder || "#e5e7eb"}`,
             flexShrink: 0,
           }}
         >
-          <Icon size={15} color={iconColor || "#374151"} />
+          <Icon size={16} color={iconColor || "#374151"} />
         </span>
       )}
 
       {/* Emoji fallback */}
       {!Icon && emoji && (
-        <span aria-hidden style={{ fontSize: 14, flexShrink: 0 }}>
+        <span aria-hidden style={{ fontSize: 16, flexShrink: 0 }}>
           {emoji}
         </span>
       )}
@@ -73,7 +74,7 @@ export default function Chip({ label, selected, onClick, Icon, iconColor, iconBo
       {selected && (
         <span
           style={{
-            fontSize: 12,
+            fontSize: 14,
             lineHeight: 1,
             color: "#10b981",
             fontWeight: 700,
