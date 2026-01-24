@@ -137,7 +137,15 @@ export default function Discovery() {
   const loadConnections = async () => {
     try {
       // Check if user has a household before fetching connections
-      const profile = await getMyProfile().catch(() => null);
+      // Silently handle 404s - user may not have completed onboarding
+      const profile = await getMyProfile().catch((err) => {
+        // Suppress 404 errors - expected for new users
+        if (err.message?.includes('NOT_FOUND') || err.message?.includes('404')) {
+          return null;
+        }
+        throw err;
+      });
+      
       if (!profile?.household_id) {
         // User hasn't completed onboarding yet - skip connections fetch silently
         setConnectedHouseholdIds([]);
@@ -148,6 +156,7 @@ export default function Discovery() {
       setConnectedHouseholdIds(connections);
     } catch (err) {
       // Silently fail - user might not have completed onboarding yet
+      console.debug('Could not load connections:', err);
       setConnectedHouseholdIds([]);
     }
   };
