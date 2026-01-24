@@ -12,6 +12,8 @@ type DiscoverTab = 'nearby' | 'connected';
 // Session storage keys for filter persistence
 const FILTER_STORAGE_KEY = 'discovery_filters';
 
+type LocationPrecision = 'all' | 'precise' | 'approximate';
+
 // Helper to load filters from sessionStorage
 const loadSavedFilters = () => {
   try {
@@ -22,6 +24,7 @@ const loadSavedFilters = () => {
         selectedTypes: new Set<HouseholdType>(parsed.selectedTypes || []),
         ageMin: parsed.ageMin ?? 0,
         ageMax: parsed.ageMax ?? 18,
+        locationPrecision: (parsed.locationPrecision || 'all') as LocationPrecision,
       };
     }
   } catch (error) {
@@ -31,6 +34,7 @@ const loadSavedFilters = () => {
     selectedTypes: new Set<HouseholdType>(),
     ageMin: 0,
     ageMax: 18,
+    locationPrecision: 'all' as LocationPrecision,
   };
 };
 
@@ -49,6 +53,7 @@ export default function Discovery() {
   const [selectedTypes, setSelectedTypes] = useState<Set<HouseholdType>>(savedFilters.selectedTypes);
   const [ageMin, setAgeMin] = useState<number>(savedFilters.ageMin);
   const [ageMax, setAgeMax] = useState<number>(savedFilters.ageMax);
+  const [locationPrecision, setLocationPrecision] = useState<LocationPrecision>(savedFilters.locationPrecision);
 
   // Connected household IDs from API
   const [connectedHouseholdIds, setConnectedHouseholdIds] = useState<string[]>([]);
@@ -84,12 +89,13 @@ export default function Discovery() {
         selectedTypes: Array.from(selectedTypes),
         ageMin,
         ageMax,
+        locationPrecision,
       };
       sessionStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filtersToSave));
     } catch (error) {
       console.error('Error saving filters:', error);
     }
-  }, [selectedTypes, ageMin, ageMax]);
+  }, [selectedTypes, ageMin, ageMax, locationPrecision]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -226,6 +232,15 @@ export default function Discovery() {
       const mappedType = mapToFilterType(h.householdType);
       const matchesType = mappedType && selectedTypes.has(mappedType);
       if (!matchesType) return false;
+    }
+    
+    // Filter by location precision
+    if (locationPrecision !== 'all') {
+      const isPrecise = h.location_precision === 'street';
+      const isApproximate = h.location_precision === 'zipcode';
+      
+      if (locationPrecision === 'precise' && !isPrecise) return false;
+      if (locationPrecision === 'approximate' && !isApproximate) return false;
     }
     
     // Filter by age range (only if "Family w/ Kids" is selected)
@@ -1019,10 +1034,11 @@ export default function Discovery() {
           </h2>
         </div>
 
-        {/* Distance Accuracy Legend - Compact for mobile */}
+        {/* Distance Accuracy Legend + Location Precision Filter */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
+          justifyContent: 'space-between',
           gap: 12,
           padding: '8px 12px',
           background: '#f8fafc',
@@ -1032,35 +1048,101 @@ export default function Discovery() {
           color: '#64748b',
           flexWrap: 'wrap'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <div style={{
-              padding: '2px 5px',
-              borderRadius: 3,
-              background: '#dcfce7',
-              border: '1px solid #86efac',
-              fontSize: 10,
-              fontWeight: 600,
-              color: '#166534',
-              whiteSpace: 'nowrap'
-            }}>
-              ~0.2mi
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{
+                padding: '2px 5px',
+                borderRadius: 3,
+                background: '#dcfce7',
+                border: '1px solid #86efac',
+                fontSize: 10,
+                fontWeight: 600,
+                color: '#166534',
+                whiteSpace: 'nowrap'
+              }}>
+                ~0.2mi
+              </div>
+              <span style={{ fontSize: 10 }}>Precise</span>
             </div>
-            <span style={{ fontSize: 10 }}>Precise</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{
+                padding: '2px 5px',
+                borderRadius: 3,
+                background: '#fef3c7',
+                border: '1px solid #fbbf24',
+                fontSize: 10,
+                fontWeight: 600,
+                color: '#92400e',
+                whiteSpace: 'nowrap'
+              }}>
+                ~0.3mi*
+              </div>
+              <span style={{ fontSize: 10 }}>Approx</span>
+            </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <div style={{
-              padding: '2px 5px',
-              borderRadius: 3,
-              background: '#fef3c7',
-              border: '1px solid #fbbf24',
-              fontSize: 10,
-              fontWeight: 600,
-              color: '#92400e',
-              whiteSpace: 'nowrap'
-            }}>
-              ~0.3mi*
-            </div>
-            <span style={{ fontSize: 10 }}>Approx</span>
+          
+          {/* Location Precision Filter Toggle */}
+          <div style={{ 
+            display: 'flex', 
+            gap: 4,
+            padding: '2px',
+            background: '#e2e8f0',
+            borderRadius: 4,
+          }}>
+            <button
+              onClick={() => setLocationPrecision('all')}
+              style={{
+                padding: '3px 8px',
+                fontSize: 10,
+                fontWeight: 600,
+                borderRadius: 3,
+                border: 'none',
+                background: locationPrecision === 'all' ? '#ffffff' : 'transparent',
+                color: locationPrecision === 'all' ? '#0f172a' : '#64748b',
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+                whiteSpace: 'nowrap',
+                boxShadow: locationPrecision === 'all' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none'
+              }}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setLocationPrecision('precise')}
+              style={{
+                padding: '3px 8px',
+                fontSize: 10,
+                fontWeight: 600,
+                borderRadius: 3,
+                border: 'none',
+                background: locationPrecision === 'precise' ? '#dcfce7' : 'transparent',
+                color: locationPrecision === 'precise' ? '#166534' : '#64748b',
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+                whiteSpace: 'nowrap',
+                boxShadow: locationPrecision === 'precise' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none'
+              }}
+            >
+              Precise
+            </button>
+            <button
+              onClick={() => setLocationPrecision('approximate')}
+              style={{
+                padding: '3px 8px',
+                fontSize: 10,
+                fontWeight: 600,
+                borderRadius: 3,
+                border: 'none',
+                background: locationPrecision === 'approximate' ? '#fef3c7' : 'transparent',
+                color: locationPrecision === 'approximate' ? '#92400e' : '#64748b',
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+                whiteSpace: 'nowrap',
+                boxShadow: locationPrecision === 'approximate' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none'
+              }}
+            >
+              Approx
+            </button>
           </div>
         </div>
 
