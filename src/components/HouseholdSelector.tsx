@@ -544,8 +544,15 @@ export function HouseholdSelector({
               <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
             </svg>
             Share…
-            <span style={{ fontSize: 12, opacity: 0.9, fontWeight: 500 }}>
-              (recommended)
+            <span style={{ 
+              fontSize: 11, 
+              fontWeight: 600, 
+              background: "rgba(255, 255, 255, 0.25)",
+              padding: "2px 8px",
+              borderRadius: 6,
+              color: "white"
+            }}>
+              recommended
             </span>
           </button>
 
