@@ -31,30 +31,43 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase
-let app: FirebaseApp;
-let auth: Auth;
+// Check if Firebase config is complete
+const isFirebaseConfigured = Boolean(
+  firebaseConfig.apiKey &&
+  firebaseConfig.authDomain &&
+  firebaseConfig.projectId
+);
 
-try {
-  app = initializeApp(firebaseConfig);
-  auth = getAuth(app);
-  
-  // 🔧 Connect to Firebase Auth Emulator in development
-  // This allows local testing without real OAuth providers
-  if (import.meta.env.DEV) {
-    try {
-      connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
-      console.log('🔧 Connected to Firebase Auth Emulator (http://localhost:9099)');
-    } catch (error) {
-      // Emulator already connected or not available - that's okay
-      console.log('ℹ️ Firebase Auth Emulator not available or already connected');
+// Initialize Firebase
+let app: FirebaseApp | null = null;
+let auth: Auth | null = null;
+
+if (isFirebaseConfigured) {
+  try {
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    
+    // 🔧 Connect to Firebase Auth Emulator in development
+    // This allows local testing without real OAuth providers
+    if (import.meta.env.DEV) {
+      try {
+        connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
+        console.log('🔧 Connected to Firebase Auth Emulator (http://localhost:9099)');
+      } catch (error) {
+        // Emulator already connected or not available - that's okay
+        console.log('ℹ️ Firebase Auth Emulator not available or already connected');
+      }
     }
+    
+    console.log('✅ Firebase initialized successfully');
+  } catch (error) {
+    console.error('❌ Firebase initialization error:', error);
+    // Don't throw - allow app to work without Firebase
+    console.warn('⚠️ App will function without authentication');
   }
-  
-  console.log('✅ Firebase initialized successfully');
-} catch (error) {
-  console.error('❌ Firebase initialization error:', error);
-  throw error;
+} else {
+  console.warn('⚠️ Firebase not configured - app will function without authentication');
+  console.log('ℹ️ Set VITE_FIREBASE_* environment variables to enable OAuth');
 }
 
 // OAuth Provider instances
@@ -130,6 +143,9 @@ async function signInWithEmulatorTestUser(provider: string): Promise<UserCredent
  * In production: uses real Google OAuth popup
  */
 export async function signInWithGoogle(): Promise<UserCredential> {
+  if (!auth) {
+    throw new Error('Firebase Auth not initialized. Configure VITE_FIREBASE_* environment variables.');
+  }
   // Use test user in emulator, real OAuth in production
   if (import.meta.env.DEV) {
     return signInWithEmulatorTestUser('google');
@@ -143,6 +159,9 @@ export async function signInWithGoogle(): Promise<UserCredential> {
  * In production: uses real Apple OAuth popup
  */
 export async function signInWithApple(): Promise<UserCredential> {
+  if (!auth) {
+    throw new Error('Firebase Auth not initialized. Configure VITE_FIREBASE_* environment variables.');
+  }
   if (import.meta.env.DEV) {
     return signInWithEmulatorTestUser('apple');
   }
@@ -155,6 +174,9 @@ export async function signInWithApple(): Promise<UserCredential> {
  * In production: uses real Facebook OAuth popup
  */
 export async function signInWithFacebook(): Promise<UserCredential> {
+  if (!auth) {
+    throw new Error('Firebase Auth not initialized. Configure VITE_FIREBASE_* environment variables.');
+  }
   if (import.meta.env.DEV) {
     return signInWithEmulatorTestUser('facebook');
   }
@@ -167,6 +189,9 @@ export async function signInWithFacebook(): Promise<UserCredential> {
  * In production: uses real Microsoft OAuth popup
  */
 export async function signInWithMicrosoft(): Promise<UserCredential> {
+  if (!auth) {
+    throw new Error('Firebase Auth not initialized. Configure VITE_FIREBASE_* environment variables.');
+  }
   if (import.meta.env.DEV) {
     return signInWithEmulatorTestUser('microsoft');
   }
@@ -177,13 +202,22 @@ export async function signInWithMicrosoft(): Promise<UserCredential> {
  * Sign out current user
  */
 export async function signOut(): Promise<void> {
+  if (!auth) {
+    console.warn('Firebase Auth not initialized');
+    return;
+  }
   return firebaseSignOut(auth);
 }
 
 /**
  * Get current user's ID token for API authentication
+ * Returns null if Firebase is not configured or user not signed in
  */
 export async function getIdToken(): Promise<string | null> {
+  if (!auth) {
+    console.debug('Firebase Auth not initialized - no token available');
+    return null;
+  }
   const user = auth.currentUser;
   if (!user) {
     return null;
@@ -195,6 +229,9 @@ export async function getIdToken(): Promise<string | null> {
  * Get current user
  */
 export function getCurrentUser() {
+  if (!auth) {
+    return null;
+  }
   return auth.currentUser;
 }
 
