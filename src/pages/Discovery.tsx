@@ -541,28 +541,28 @@ export default function Discovery() {
               Discover
             </h1>
             
-            {/* Bottom row: Badge and Button with better spacing */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              {/* Nearby/Connected Count Badge */}
+            {/* Bottom row: Badge and Button - Compact for mobile */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {/* Nearby/Connected Count Badge - Smaller */}
               <div style={{ 
                 display: 'flex', 
                 alignItems: 'center', 
-                gap: 8,
-                padding: '10px 16px',
-                borderRadius: 12,
+                gap: 6,
+                padding: '6px 12px',
+                borderRadius: 8,
                 background: '#f0fdf4',
-                border: '2px solid #d1fae5',
-                fontSize: 14,
+                border: '1.5px solid #d1fae5',
+                fontSize: 12,
                 fontWeight: 700,
                 color: '#047857',
                 flex: '0 0 auto'
               }}>
-                <Sparkles size={16} />
+                <Sparkles size={14} />
                 <span>{filteredHouseholds.length} {activeTab === 'connected' ? 'connected' : 'nearby'}</span>
               </div>
 
-              {/* Create Event Dropdown */}
-              <div style={{ position: 'relative', flex: '1 1 auto', minWidth: '140px' }} data-dropdown="create-event">
+              {/* Create Event Dropdown - Smaller */}
+              <div style={{ position: 'relative', flex: '1 1 auto', minWidth: '120px' }} data-dropdown="create-event">
                 <button
                   onClick={() => setShowCreateDropdown(!showCreateDropdown)}
                   style={{
@@ -570,33 +570,33 @@ export default function Discovery() {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: 8,
-                    padding: '12px 16px',
-                    borderRadius: 12,
-                    border: '2px solid #10b981',
+                    gap: 6,
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    border: '1.5px solid #10b981',
                     background: '#10b981',
                     color: '#ffffff',
-                    fontSize: 15,
+                    fontSize: 13,
                     fontWeight: 700,
                     cursor: 'pointer',
                     transition: 'all 0.2s',
-                    boxShadow: '0 2px 8px rgba(16, 185, 129, 0.2)'
+                    boxShadow: '0 1px 4px rgba(16, 185, 129, 0.2)'
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.transform = 'translateY(-1px)';
-                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.3)';
+                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(16, 185, 129, 0.3)';
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(16, 185, 129, 0.2)';
+                    e.currentTarget.style.boxShadow = '0 1px 4px rgba(16, 185, 129, 0.2)';
                   }}
                 >
-                  <Calendar size={18} />
+                  <Calendar size={15} />
                   <span>New Event</span>
                   <motion.div
                     animate={{ rotate: showCreateDropdown ? 180 : 0 }}
                     transition={{ duration: 0.2 }}
-                    style={{ display: 'flex', alignItems: 'center', marginLeft: 'auto' }}
+                    style={{ display: 'flex', alignItems: 'center', marginLeft: 'auto', fontSize: 10 }}
                   >
                     ▼
                   </motion.div>
@@ -720,19 +720,19 @@ export default function Discovery() {
             </div>
           </div>
 
-          {/* Tabs - Better mobile spacing */}
-          <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+          {/* Tabs - Compact for mobile */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
             <button
               onClick={() => setActiveTab('nearby')}
               style={{
                 flex: 1,
-                padding: '14px 20px',
-                borderRadius: 12,
-                border: '2px solid',
+                padding: '10px 14px',
+                borderRadius: 8,
+                border: '1.5px solid',
                 borderColor: activeTab === 'nearby' ? '#10b981' : '#e5e7eb',
                 background: activeTab === 'nearby' ? '#10b981' : '#ffffff',
                 color: activeTab === 'nearby' ? '#ffffff' : '#6b7280',
-                fontSize: 15,
+                fontSize: 13,
                 fontWeight: 700,
                 cursor: 'pointer',
                 transition: 'all 0.2s'
@@ -744,13 +744,13 @@ export default function Discovery() {
               onClick={() => setActiveTab('connected')}
               style={{
                 flex: 1,
-                padding: '14px 20px',
-                borderRadius: 12,
-                border: '2px solid',
+                padding: '10px 14px',
+                borderRadius: 8,
+                border: '1.5px solid',
                 borderColor: activeTab === 'connected' ? '#10b981' : '#e5e7eb',
                 background: activeTab === 'connected' ? '#10b981' : '#ffffff',
                 color: activeTab === 'connected' ? '#ffffff' : '#6b7280',
-                fontSize: 15,
+                fontSize: 13,
                 fontWeight: 700,
                 cursor: 'pointer',
                 transition: 'all 0.2s'
