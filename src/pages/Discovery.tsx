@@ -760,21 +760,36 @@ export default function Discovery() {
             </button>
           </div>
 
-          {/* Filters */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {/* Household Type Filter - Icon-based chips with better spacing */}
+          {/* Filters - Compact Horizontal Layout for Mobile */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {/* Household Type Filter - Horizontal scrollable chips */}
             <div>
               <div style={{ 
-                fontSize: 13, 
+                fontSize: 11, 
                 fontWeight: 700, 
-                color: '#6b7280', 
-                marginBottom: 12,
+                color: '#9ca3af', 
+                marginBottom: 8,
                 textTransform: 'uppercase',
                 letterSpacing: '0.05em'
               }}>
                 Household Type
               </div>
-              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ 
+                display: 'flex', 
+                gap: 8, 
+                overflowX: 'auto',
+                WebkitOverflowScrolling: 'touch',
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none',
+                paddingBottom: 4
+              }}>
+                <style dangerouslySetInnerHTML={{
+                  __html: `
+                    div::-webkit-scrollbar {
+                      display: none;
+                    }
+                  `
+                }} />
                 {(Object.keys(HOUSEHOLD_TYPE_META) as HouseholdType[]).map(type => {
                   const { Icon, iconColor, iconBorder } = HOUSEHOLD_TYPE_META[type];
                   return (
@@ -792,25 +807,26 @@ export default function Discovery() {
               </div>
             </div>
 
-            {/* Age Range Filter - Only show if "Family w/ Kids" is selected */}
+            {/* Age Range Filter - Compact version for mobile */}
             {selectedTypes.has("Family w/ Kids") && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ duration: 0.2 }}
+                style={{ paddingTop: 4 }}
               >
                 <div style={{ 
-                  fontSize: 13, 
-                  fontWeight: 600, 
-                  color: '#6b7280', 
-                  marginBottom: 10,
+                  fontSize: 11, 
+                  fontWeight: 700, 
+                  color: '#9ca3af', 
+                  marginBottom: 8,
                   textTransform: 'uppercase',
                   letterSpacing: '0.05em'
                 }}>
                   Kids' Ages: {ageMin}–{ageMax} years
                 </div>
-                <div style={{ paddingLeft: 8, paddingRight: 8 }}>
+                <div style={{ paddingLeft: 4, paddingRight: 4 }}>
                   <DualAgeRange
                     min={0}
                     max={18}
@@ -829,8 +845,8 @@ export default function Discovery() {
         </div>
       </div>
 
-      {/* Content */}
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: 24 }}>
+      {/* Content - Reduced padding for mobile */}
+      <div style={{ maxWidth: 900, margin: '0 auto', padding: '16px 16px 24px' }}>
         {/* Happening Now Section */}
         {!eventsLoading && events.length > 0 && (
           <div style={{ marginBottom: 32 }}>
@@ -1003,45 +1019,48 @@ export default function Discovery() {
           </h2>
         </div>
 
-        {/* Distance Accuracy Legend */}
+        {/* Distance Accuracy Legend - Compact for mobile */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 16,
-          padding: '10px 14px',
+          gap: 12,
+          padding: '8px 12px',
           background: '#f8fafc',
-          borderRadius: 8,
-          marginBottom: 16,
-          fontSize: 12,
-          color: '#64748b'
+          borderRadius: 6,
+          marginBottom: 12,
+          fontSize: 11,
+          color: '#64748b',
+          flexWrap: 'wrap'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <div style={{
-              padding: '2px 6px',
-              borderRadius: 4,
+              padding: '2px 5px',
+              borderRadius: 3,
               background: '#dcfce7',
               border: '1px solid #86efac',
-              fontSize: 11,
+              fontSize: 10,
               fontWeight: 600,
-              color: '#166534'
+              color: '#166534',
+              whiteSpace: 'nowrap'
             }}>
-              ~0.2 miles
+              ~0.2mi
             </div>
-            <span>Precise location (street address)</span>
+            <span style={{ fontSize: 10 }}>Precise</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <div style={{
-              padding: '2px 6px',
-              borderRadius: 4,
+              padding: '2px 5px',
+              borderRadius: 3,
               background: '#fef3c7',
               border: '1px solid #fbbf24',
-              fontSize: 11,
+              fontSize: 10,
               fontWeight: 600,
-              color: '#92400e'
+              color: '#92400e',
+              whiteSpace: 'nowrap'
             }}>
-              ~0.3 miles*
+              ~0.3mi*
             </div>
-            <span>Approximate (ZIP code only)</span>
+            <span style={{ fontSize: 10 }}>Approx</span>
           </div>
         </div>
 
