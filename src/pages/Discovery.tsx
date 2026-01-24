@@ -561,8 +561,8 @@ export default function Discovery() {
                 <span>{filteredHouseholds.length} {activeTab === 'connected' ? 'connected' : 'nearby'}</span>
               </div>
 
-              {/* Create Event Dropdown - Smaller */}
-              <div style={{ position: 'relative', flex: '1 1 auto', minWidth: '120px' }} data-dropdown="create-event">
+              {/* Create Event Dropdown - Icon only for mobile */}
+              <div style={{ position: 'relative', flex: '1 1 auto', minWidth: '100px', maxWidth: '140px' }} data-dropdown="create-event">
                 <button
                   onClick={() => setShowCreateDropdown(!showCreateDropdown)}
                   style={{
@@ -592,7 +592,7 @@ export default function Discovery() {
                   }}
                 >
                   <Calendar size={15} />
-                  <span>New Event</span>
+                  <span>Event</span>
                   <motion.div
                     animate={{ rotate: showCreateDropdown ? 180 : 0 }}
                     transition={{ duration: 0.2 }}
