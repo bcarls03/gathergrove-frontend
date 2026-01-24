@@ -65,7 +65,7 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
     };
   }
   
-  // PRODUCTION MODE: Use Firebase OAuth token
+  // PRODUCTION MODE: Use Firebase OAuth token (optional for public endpoints)
   try {
     const token = await getIdToken();
     if (token) {
@@ -74,11 +74,11 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
       };
     }
   } catch (error) {
-    console.warn('Failed to get Firebase token in production:', error);
+    console.debug('No Firebase token available (user not signed in):', error);
   }
   
-  // Fallback (shouldn't happen in production)
-  throw new Error("Authentication required");
+  // Return empty headers for unauthenticated requests (public endpoints like /households work without auth)
+  return {};
 }
 
 api.interceptors.request.use(
