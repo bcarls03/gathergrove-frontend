@@ -26,17 +26,34 @@ interface InviteContext {
 interface HouseholdSelectorProps {
   selectedIds: Set<string>;
   onSelectionChange: (ids: Set<string>) => void;
+  onSelectedNamesChange?: (names: string[]) => void; // Callback to update parent with selected household names
   inviteContext?: InviteContext; // Pass invite context from navigation state
+  selectedPhoneNumbers?: Set<string>;
+  onPhoneNumbersChange?: (numbers: Set<string>) => void;
 }
 
 export function HouseholdSelector({ 
   selectedIds, 
   onSelectionChange,
-  inviteContext 
+  onSelectedNamesChange,
+  inviteContext,
+  selectedPhoneNumbers,
+  onPhoneNumbersChange
 }: HouseholdSelectorProps) {
   const [availableHouseholds, setAvailableHouseholds] = useState<GGHousehold[]>([]);
   const [loading, setLoading] = useState(false);
   const [showOthers, setShowOthers] = useState(false);
+
+  // Update parent with selected household names whenever selection changes
+  useEffect(() => {
+    if (onSelectedNamesChange && availableHouseholds.length > 0) {
+      const names = Array.from(selectedIds)
+        .map(id => availableHouseholds.find(h => h.id === id))
+        .filter((h): h is GGHousehold => h !== undefined)
+        .map(h => getHouseholdName(h));
+      onSelectedNamesChange(names);
+    }
+  }, [selectedIds, availableHouseholds, onSelectedNamesChange]);
 
   useEffect(() => {
     const loadHouseholds = async () => {

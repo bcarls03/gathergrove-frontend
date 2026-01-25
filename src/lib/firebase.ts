@@ -47,15 +47,14 @@ if (isFirebaseConfigured) {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
     
-    // 🔧 Connect to Firebase Auth Emulator in development
-    // This allows local testing without real OAuth providers
-    if (import.meta.env.DEV) {
+    // 🔧 Connect to Firebase Auth Emulator in development ONLY if explicitly enabled
+    // Set VITE_USE_FIREBASE_EMULATOR=true in .env.local to use emulator
+    if (import.meta.env.DEV && import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true') {
       try {
         connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
         console.log('🔧 Connected to Firebase Auth Emulator (http://localhost:9099)');
       } catch (error) {
-        // Emulator already connected or not available - that's okay
-        console.log('ℹ️ Firebase Auth Emulator not available or already connected');
+        console.warn('⚠️ Firebase Auth Emulator connection failed:', error);
       }
     }
     

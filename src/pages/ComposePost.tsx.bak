@@ -81,11 +81,13 @@ type CategoryMeta = {
 const DEFAULT_CATEGORY_ID: EventCategory = "neighborhood";
 
 const CATEGORY_OPTIONS: CategoryMeta[] = [
-  { id: "neighborhood", emoji: "🏡", label: "Neighborhood", description: "Community gatherings, block parties, neighborhood events" },
-  { id: "playdate", emoji: "🤸", label: "Playdate", description: "Family hangouts, kids playing together, park meetups" },
-  { id: "babysitting", emoji: "👶", label: "Babysitting", description: "Babysitter requests, childcare needs" },
-  { id: "pet", emoji: "🐶", label: "Pets", description: "Dog playdates, pet sitting, lost/found pets" },
-  { id: "celebrations", emoji: "🎉", label: "Celebrations", description: "Birthdays, holidays, milestones" },
+  { id: "neighborhood", emoji: "🏡", label: "Neighborhood", description: "Block parties, driveway hangs, cul-de-sac meetups" },
+  { id: "playdate", emoji: "🤸", label: "Playdate", description: "Kids playing together, park meetups, family fun" },
+  { id: "help", emoji: "🤝", label: "Help & favors", description: "Borrow tools, give a hand, share rides" },
+  { id: "pet", emoji: "🐶", label: "Pets", description: "Dog playtimes, lost/found pets, pet sitting" },
+  { id: "food", emoji: "🍕", label: "Food & Dining", description: "Potlucks, BBQs, restaurant meetups, cooking together" },
+  { id: "celebrations", emoji: "🎉", label: "Celebrations", description: "Birthdays, holidays, milestones, parties" },
+  { id: "sports", emoji: "⚽", label: "Sports & Fitness", description: "Pickup games, group runs, workout buddies" },
   { id: "other", emoji: "✨", label: "Other", description: "Anything that doesn’t fit above" },
 ];
 

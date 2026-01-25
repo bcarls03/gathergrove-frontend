@@ -239,11 +239,9 @@ export type GGHousehold = {
 export type EventCategory = 
   | "neighborhood" 
   | "playdate" 
-  | "help" 
+  | "babysitting"
   | "pet" 
-  | "food" 
   | "celebrations" 
-  | "sports" 
   | "other";
 
 export type EventVisibility = "private" | "link_only" | "public";

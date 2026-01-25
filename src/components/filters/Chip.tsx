@@ -28,19 +28,18 @@ export default function Chip({ label, selected, onClick, Icon, iconColor, iconBo
       style={{
         padding: "8px 14px",
         borderRadius: 999,
-        border: selected ? "1.5px solid #10b981" : "1.5px solid rgba(148,163,184,0.4)",
+        border: selected ? "2px solid #10b981" : "1.5px solid rgba(148,163,184,0.4)",
         fontSize: 12,
         fontWeight: 700,
         display: "inline-flex",
         alignItems: "center",
         gap: 7,
-        background: "#ffffff",
+        background: selected ? "#f0fdf4" : "#ffffff",
         color: "#0f172a",
         cursor: "pointer",
         transition: "all 0.15s ease",
         outline: "none",
         boxShadow: selected ? "0 3px 9px rgba(16,185,129,0.2)" : "0 1.5px 4px rgba(0,0,0,0.05)",
-        transform: selected ? "translateY(-1px)" : "none",
         minHeight: '36px', // Better touch target for mobile
       }}
     >
@@ -55,11 +54,11 @@ export default function Chip({ label, selected, onClick, Icon, iconColor, iconBo
             height: 22,
             borderRadius: 999,
             background: "#ffffff",
-            border: `1.5px solid ${iconBorder || "#e5e7eb"}`,
+            border: `1.5px solid ${selected ? "#10b981" : (iconBorder || "#e5e7eb")}`,
             flexShrink: 0,
           }}
         >
-          <Icon size={13} color={iconColor || "#374151"} />
+          <Icon size={13} color={selected ? "#10b981" : (iconColor || "#374151")} />
         </span>
       )}
 

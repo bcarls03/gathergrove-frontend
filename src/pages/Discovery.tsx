@@ -1,7 +1,7 @@
 // src/pages/Discovery.tsx
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Heart, Home, MapPin, Sparkles, UserPlus, Calendar, MessageCircle, Zap, Clock } from 'lucide-react';
+import { Users, Heart, Home, MapPin, Sparkles, UserPlus, Calendar, MessageCircle, Zap, Clock, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { fetchHouseholds, fetchEvents, getMyProfile, type GGHousehold, type GGEvent } from '../lib/api';
 import { fetchConnections, sendConnectionRequest } from '../lib/api/connections';
@@ -64,6 +64,9 @@ export default function Discovery() {
   
   // Per-card invite dropdown state (tracks which card's dropdown is open)
   const [inviteDropdownOpen, setInviteDropdownOpen] = useState<string | null>(null);
+  
+  // State for dismissing growth message
+  const [growthMessageDismissed, setGrowthMessageDismissed] = useState(false);
 
   // Helper: Toggle item in Set
   const toggleInSet = <T,>(set: Set<T>, item: T): Set<T> => {
@@ -556,8 +559,8 @@ export default function Discovery() {
               Discover
             </h1>
             
-            {/* Bottom row: Badge and Button - Compact for mobile */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {/* Bottom row: Badge and Button - Centered */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
               {/* Nearby/Connected Count Badge - Smaller */}
               <div style={{ 
                 display: 'flex', 
@@ -576,8 +579,8 @@ export default function Discovery() {
                 <span>{filteredHouseholds.length} {activeTab === 'connected' ? 'connected' : 'nearby'}</span>
               </div>
 
-              {/* Create Event Dropdown - Icon only for mobile */}
-              <div style={{ position: 'relative', flex: '1 1 auto', minWidth: '100px', maxWidth: '140px' }} data-dropdown="create-event">
+              {/* Create Event Dropdown - Centered */}
+              <div style={{ position: 'relative', flex: '0 0 auto', minWidth: '120px' }} data-dropdown="create-event">
                 <button
                   onClick={() => setShowCreateDropdown(!showCreateDropdown)}
                   style={{
@@ -735,8 +738,8 @@ export default function Discovery() {
             </div>
           </div>
 
-          {/* Tabs - Centered and compact for mobile */}
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+          {/* Tabs - Centered with more spacing above */}
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 24, marginBottom: 16 }}>
             <div style={{ display: 'flex', gap: 8, maxWidth: 400 }}>
               <button
                 onClick={() => setActiveTab('nearby')}
@@ -781,7 +784,7 @@ export default function Discovery() {
 
           {/* Filters - Compact Horizontal Layout for Mobile */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {/* Household Type Filter - Horizontal scrollable chips */}
+            {/* Household Type Filter - Centered horizontal scrollable chips */}
             <div>
               <div style={{ 
                 fontSize: 11, 
@@ -789,7 +792,8 @@ export default function Discovery() {
                 color: '#9ca3af', 
                 marginBottom: 8,
                 textTransform: 'uppercase',
-                letterSpacing: '0.05em'
+                letterSpacing: '0.05em',
+                textAlign: 'center'
               }}>
                 Household Type
               </div>
@@ -800,7 +804,8 @@ export default function Discovery() {
                 WebkitOverflowScrolling: 'touch',
                 scrollbarWidth: 'none',
                 msOverflowStyle: 'none',
-                paddingBottom: 4
+                paddingBottom: 4,
+                justifyContent: 'center'
               }}>
                 <style dangerouslySetInnerHTML={{
                   __html: `
@@ -1055,35 +1060,37 @@ export default function Discovery() {
             color: '#64748b',
             flexWrap: 'wrap'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
               <div style={{
-                padding: '2px 5px',
-                borderRadius: 3,
+                padding: '3px 7px',
+                borderRadius: 4,
                 background: '#dcfce7',
-                border: '1px solid #86efac',
-                fontSize: 10,
-                fontWeight: 600,
+                border: '1.5px solid #86efac',
+                fontSize: 11,
+                fontWeight: 700,
                 color: '#166534',
                 whiteSpace: 'nowrap'
               }}>
                 ~0.2mi
               </div>
-              <span style={{ fontSize: 10 }}>Precise</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#475569' }}>Precise</span>
+              <span style={{ fontSize: 10, color: '#94a3b8', fontStyle: 'italic' }}>(exact address)</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
               <div style={{
-                padding: '2px 5px',
-                borderRadius: 3,
+                padding: '3px 7px',
+                borderRadius: 4,
                 background: '#fef3c7',
-                border: '1px solid #fbbf24',
-                fontSize: 10,
-                fontWeight: 600,
+                border: '1.5px solid #fbbf24',
+                fontSize: 11,
+                fontWeight: 700,
                 color: '#92400e',
                 whiteSpace: 'nowrap'
               }}>
                 ~0.3mi*
               </div>
-              <span style={{ fontSize: 10 }}>Approx</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#475569' }}>Approx</span>
+              <span style={{ fontSize: 10, color: '#94a3b8', fontStyle: 'italic' }}>(ZIP only)</span>
             </div>
           </div>
         </div>
@@ -1180,22 +1187,118 @@ export default function Discovery() {
           </div>
         )}
 
+        {/* Growth Banner - Show when sparse results (1-6) and small community (<12 total) */}
+        {!loading && !error && !growthMessageDismissed && 
+         filteredHouseholds.length >= 1 && filteredHouseholds.length <= 6 && 
+         households.length < 12 && 
+         activeTab === 'nearby' && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            style={{
+              background: '#f9fafb',
+              border: '1px solid #e5e7eb',
+              borderRadius: 10,
+              padding: '10px 36px 10px 12px',
+              marginBottom: 12,
+              textAlign: 'left',
+              position: 'relative',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10
+            }}
+          >
+            {/* Close button */}
+            <button
+              onClick={() => setGrowthMessageDismissed(true)}
+              style={{
+                position: 'absolute',
+                top: 6,
+                right: 6,
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 4,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 4,
+                color: '#6b7280',
+                opacity: 0.5,
+                transition: 'opacity 0.2s'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+              onMouseLeave={(e) => e.currentTarget.style.opacity = '0.5'}
+              aria-label="Dismiss message"
+            >
+              <X size={14} />
+            </button>
+            
+            <div style={{ fontSize: 24, flexShrink: 0 }}>🌱</div>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 2 }}>
+                  Your neighborhood is growing!
+                </div>
+                <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.4 }}>
+                  Invite friends nearby to build your community faster.
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  // TODO: Add invite flow
+                  alert('Invite feature coming soon! Share GatherGrove with your neighbors.');
+                }}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 6,
+                  border: '1.5px solid #10b981',
+                  background: '#10b981',
+                  color: '#ffffff',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#059669';
+                  e.currentTarget.style.borderColor = '#059669';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = '#10b981';
+                  e.currentTarget.style.borderColor = '#10b981';
+                }}
+              >
+                <UserPlus size={12} />
+                Invite
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Empty State */}
         {!loading && !error && filteredHouseholds.length === 0 && (
           <div style={{ textAlign: 'center', padding: 64 }}>
             <div style={{ fontSize: 48, marginBottom: 16 }}>
-              {activeTab === 'connected' ? '👋' : '🏘️'}
+              {activeTab === 'connected' ? '👋' : '�'}
             </div>
             <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: '#111827' }}>
               {activeTab === 'connected' 
                 ? 'No connections yet' 
-                : 'No households found'}
+                : 'Still building your neighborhood'}
             </h3>
-            <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 16 }}>
+            <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 16, lineHeight: 1.6 }}>
               {activeTab === 'connected'
                 ? 'Connect with neighbors from the Nearby tab to start messaging and coordinating events'
-                : 'Try adjusting your filters or check back later'}
+                : 'Be the first! Invite neighbors to join GatherGrove and start building your community.'}
             </p>
-            {activeTab === 'connected' && (
+            {activeTab === 'connected' ? (
               <button
                 onClick={() => setActiveTab('nearby')}
                 style={{
@@ -1206,17 +1309,43 @@ export default function Discovery() {
                   color: '#ffffff',
                   fontSize: 14,
                   fontWeight: 600,
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6
                 }}
               >
                 Browse Nearby Neighbors
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  // TODO: Add invite flow
+                  alert('Invite feature coming soon! Share GatherGrove with your neighbors.');
+                }}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: 10,
+                  border: '2px solid #10b981',
+                  background: '#10b981',
+                  color: '#ffffff',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6
+                }}
+              >
+                <UserPlus size={16} />
+                Invite Neighbors
               </button>
             )}
           </div>
         )}
 
         {/* Household Cards */}
-        <div style={{ display: 'grid', gap: 16 }}>
+        <div style={{ display: 'grid', gap: 10 }}>
           {filteredHouseholds.map((household) => {
             const kidsAges = getKidsAges(household);
             const householdName = getHouseholdName(household);
@@ -1229,8 +1358,8 @@ export default function Discovery() {
                 animate={{ opacity: 1, y: 0 }}
                 style={{
                   background: '#ffffff',
-                  borderRadius: 16,
-                  padding: 20,
+                  borderRadius: 12,
+                  padding: 12,
                   border: '2px solid #e5e7eb',
                   cursor: 'pointer',
                   transition: 'all 0.2s'
@@ -1241,9 +1370,9 @@ export default function Discovery() {
                 }}
               >
                 {/* Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 16 }}>
-                  <div>
-                    <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: '#111827' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 10 }}>
+                  <div style={{ flex: 1 }}>
+                    <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, color: '#111827' }}>
                       {householdName}
                     </h3>
                     
@@ -1252,39 +1381,39 @@ export default function Discovery() {
                       <div style={{ 
                         display: 'flex', 
                         alignItems: 'center', 
-                        gap: 6, 
-                        marginBottom: 8
+                        gap: 4, 
+                        marginBottom: 6
                       }}>
                         <div style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 4,
-                          padding: '3px 8px',
-                          borderRadius: 6,
+                          gap: 3,
+                          padding: '2px 6px',
+                          borderRadius: 5,
                           background: household.location_precision === 'zipcode' ? '#fef3c7' : '#dcfce7',
                           border: household.location_precision === 'zipcode' ? '1px solid #fbbf24' : '1px solid #86efac',
-                          fontSize: 12,
+                          fontSize: 11,
                           fontWeight: 600,
                           color: household.location_precision === 'zipcode' ? '#92400e' : '#166534'
                         }}>
-                          <MapPin size={12} />
+                          <MapPin size={11} />
                           {getDistanceText(household)}
                         </div>
                       </div>
                     )}
                     
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       {/* Household Type Badge */}
                       <div
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: 6,
-                          padding: '4px 10px',
-                          borderRadius: 8,
+                          gap: 4,
+                          padding: '3px 8px',
+                          borderRadius: 6,
                           background: getHouseholdTypeColor(household.householdType) + '15',
                           color: getHouseholdTypeColor(household.householdType),
-                          fontSize: 13,
+                          fontSize: 12,
                           fontWeight: 600
                         }}
                       >
@@ -1294,8 +1423,8 @@ export default function Discovery() {
                       
                       {/* Neighborhood */}
                       {household.neighborhood && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#6b7280', fontSize: 13 }}>
-                          <MapPin size={14} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 3, color: '#6b7280', fontSize: 12 }}>
+                          <MapPin size={12} />
                           {household.neighborhood}
                         </div>
                       )}
@@ -1305,16 +1434,16 @@ export default function Discovery() {
                         <div style={{
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: 4,
-                          padding: '4px 10px',
-                          borderRadius: 8,
+                          gap: 3,
+                          padding: '3px 8px',
+                          borderRadius: 6,
                           background: '#f0fdf4',
                           border: '1px solid #d1fae5',
-                          fontSize: 12,
+                          fontSize: 11,
                           fontWeight: 600,
                           color: '#047857'
                         }}>
-                          <UserPlus size={12} />
+                          <UserPlus size={11} />
                           Connected
                         </div>
                       )}
@@ -1324,11 +1453,11 @@ export default function Discovery() {
 
                 {/* Adults */}
                 {household.adultNames && household.adultNames.length > 0 && (
-                  <div style={{ marginBottom: 12 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>
+                  <div style={{ marginBottom: 8 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 3 }}>
                       Adults:
                     </div>
-                    <div style={{ fontSize: 14, color: '#374151' }}>
+                    <div style={{ fontSize: 13, color: '#374151' }}>
                       {household.adultNames.join(', ')}
                     </div>
                   </div>
@@ -1336,22 +1465,22 @@ export default function Discovery() {
 
                 {/* Kids */}
                 {kidsAges.length > 0 && (
-                  <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 3 }}>
                       Kids:
                     </div>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                       {kidsAges.map((age, idx) => {
                         const isMatch = isAgeInFilterRange(age);
                         return (
                           <div
                             key={idx}
                             style={{
-                              padding: '4px 10px',
-                              borderRadius: 8,
+                              padding: '3px 8px',
+                              borderRadius: 6,
                               background: isMatch ? '#10b981' : '#f0fdf4',
                               border: isMatch ? '2px solid #059669' : '1px solid #d1fae5',
-                              fontSize: 13,
+                              fontSize: 12,
                               fontWeight: isMatch ? 700 : 600,
                               color: isMatch ? '#ffffff' : '#047857',
                               boxShadow: isMatch ? '0 2px 8px rgba(16, 185, 129, 0.3)' : 'none',
@@ -1368,33 +1497,33 @@ export default function Discovery() {
                 )}
 
                 {/* Action Buttons */}
-                <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
+                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                   {/* Invite to Event with dropdown */}
                   <div style={{ flex: 1, position: 'relative' }} data-dropdown="invite-event">
                     <button
                       onClick={(e) => handleInviteToEvent(household, e)}
                       style={{
                         width: '100%',
-                        padding: '10px 16px',
-                        borderRadius: 10,
+                        padding: '8px 12px',
+                        borderRadius: 8,
                         border: '2px solid #10b981',
                         background: '#10b981',
                         color: '#ffffff',
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: 600,
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: 6
+                        gap: 4
                       }}
                     >
-                      <Calendar size={16} />
+                      <Calendar size={14} />
                       Invite to Event
                       <motion.div
                         animate={{ rotate: inviteDropdownOpen === household.id ? 180 : 0 }}
                         transition={{ duration: 0.2 }}
-                        style={{ display: 'flex', marginLeft: 4 }}
+                        style={{ display: 'flex', marginLeft: 2 }}
                       >
                         ▼
                       </motion.div>
@@ -1510,21 +1639,21 @@ export default function Discovery() {
                       }}
                       style={{
                         flex: 1,
-                        padding: '10px 16px',
-                        borderRadius: 10,
+                        padding: '8px 12px',
+                        borderRadius: 8,
                         border: '2px solid #3b82f6',
                         background: '#3b82f6',
                         color: '#ffffff',
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: 600,
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: 6
+                        gap: 4
                       }}
                     >
-                      <MessageCircle size={16} />
+                      <MessageCircle size={14} />
                       Message
                     </button>
                   ) : (
@@ -1536,22 +1665,22 @@ export default function Discovery() {
                       disabled={isConnecting(household.id)}
                       style={{
                         flex: 1,
-                        padding: '10px 16px',
-                        borderRadius: 10,
+                        padding: '8px 12px',
+                        borderRadius: 8,
                         border: '2px solid #3b82f6',
                         background: '#ffffff',
                         color: '#3b82f6',
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: 600,
                         cursor: isConnecting(household.id) ? 'not-allowed' : 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: 6,
+                        gap: 4,
                         opacity: isConnecting(household.id) ? 0.6 : 1
                       }}
                     >
-                      <UserPlus size={16} />
+                      <UserPlus size={14} />
                       {isConnecting(household.id) ? 'Connecting...' : 'Connect'}
                     </button>
                   )}
