@@ -174,8 +174,50 @@ export default function Discovery() {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchHouseholds();
-      setHouseholds(data);
+      // TEMPORARY: Mock data for testing filtered-empty state
+      const mockData: GGHousehold[] = [
+        {
+          id: 'test-1',
+          householdType: 'family_with_kids',
+          neighborhood: 'Oak Ridge',
+          location_precision: 'street',
+          kids: [{ birthYear: 2018, birthMonth: 5 }],
+          uid: 'test-uid-1',
+        },
+        {
+          id: 'test-2',
+          householdType: 'family_with_kids',
+          neighborhood: 'Oak Ridge',
+          location_precision: 'street',
+          kids: [{ birthYear: 2016, birthMonth: 8 }],
+          uid: 'test-uid-2',
+        },
+        {
+          id: 'test-3',
+          householdType: 'family_with_kids',
+          neighborhood: 'Riverside',
+          location_precision: 'street',
+          kids: [{ birthYear: 2017, birthMonth: 11 }],
+          uid: 'test-uid-3',
+        },
+        {
+          id: 'test-4',
+          householdType: 'couple',
+          neighborhood: 'Riverside',
+          location_precision: 'street',
+          uid: 'test-uid-4',
+        },
+        {
+          id: 'test-5',
+          householdType: 'single',
+          neighborhood: 'Hillside',
+          location_precision: 'street',
+          uid: 'test-uid-5',
+        },
+      ];
+      setHouseholds(mockData);
+      // const data = await fetchHouseholds();
+      // setHouseholds(data);
     } catch (err) {
       console.error('Failed to load households:', err);
       setError('Failed to load households');
@@ -1187,10 +1229,9 @@ export default function Discovery() {
           </div>
         )}
 
-        {/* Growth Banner - Show when sparse results (1-6) and small community (<12 total) */}
+        {/* Growth Banner - Show when filtered results are sparse (1-4) */}
         {!loading && !error && !growthMessageDismissed && 
-         filteredHouseholds.length >= 1 && filteredHouseholds.length <= 6 && 
-         households.length < 12 && 
+         filteredHouseholds.length >= 1 && filteredHouseholds.length <= 4 && 
          activeTab === 'nearby' && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
@@ -1199,14 +1240,14 @@ export default function Discovery() {
             style={{
               background: '#f9fafb',
               border: '1px solid #e5e7eb',
-              borderRadius: 10,
-              padding: '10px 36px 10px 12px',
+              borderRadius: 8,
+              padding: '8px 32px 8px 10px',
               marginBottom: 12,
               textAlign: 'left',
               position: 'relative',
               display: 'flex',
               alignItems: 'center',
-              gap: 10
+              gap: 8
             }}
           >
             {/* Close button */}
@@ -1235,13 +1276,13 @@ export default function Discovery() {
               <X size={14} />
             </button>
             
-            <div style={{ fontSize: 24, flexShrink: 0 }}>🌱</div>
+            <div style={{ fontSize: 20, flexShrink: 0 }}>🌱</div>
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 2 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#111827', marginBottom: 1 }}>
                   Your neighborhood is growing!
                 </div>
-                <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.4 }}>
+                <div style={{ fontSize: 11, color: '#6b7280', lineHeight: 1.3 }}>
                   Invite friends nearby to build your community faster.
                 </div>
               </div>
@@ -1251,13 +1292,13 @@ export default function Discovery() {
                   alert('Invite feature coming soon! Share GatherGrove with your neighbors.');
                 }}
                 style={{
-                  padding: '6px 12px',
+                  padding: '5px 10px',
                   borderRadius: 6,
                   border: '1.5px solid #10b981',
-                  background: '#10b981',
-                  color: '#ffffff',
-                  fontSize: 12,
-                  fontWeight: 700,
+                  background: 'transparent',
+                  color: '#10b981',
+                  fontSize: 11,
+                  fontWeight: 600,
                   cursor: 'pointer',
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -1267,60 +1308,133 @@ export default function Discovery() {
                   transition: 'all 0.2s'
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = '#059669';
-                  e.currentTarget.style.borderColor = '#059669';
+                  e.currentTarget.style.background = '#f0fdf4';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = '#10b981';
-                  e.currentTarget.style.borderColor = '#10b981';
+                  e.currentTarget.style.background = 'transparent';
                 }}
               >
-                <UserPlus size={12} />
+                <UserPlus size={11} />
                 Invite
               </button>
             </div>
           </motion.div>
         )}
 
-        {/* Empty State */}
-        {!loading && !error && filteredHouseholds.length === 0 && (
-          <div style={{ textAlign: 'center', padding: 64 }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>
-              {activeTab === 'connected' ? '👋' : '�'}
-            </div>
-            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: '#111827' }}>
-              {activeTab === 'connected' 
-                ? 'No connections yet' 
-                : 'Still building your neighborhood'}
-            </h3>
-            <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 16, lineHeight: 1.6 }}>
-              {activeTab === 'connected'
-                ? 'Connect with neighbors from the Nearby tab to start messaging and coordinating events'
-                : 'Be the first! Invite neighbors to join GatherGrove and start building your community.'}
-            </p>
-            {activeTab === 'connected' ? (
-              <button
-                onClick={() => setActiveTab('nearby')}
-                style={{
-                  padding: '10px 20px',
-                  borderRadius: 10,
-                  border: '2px solid #10b981',
-                  background: '#10b981',
-                  color: '#ffffff',
-                  fontSize: 14,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6
-                }}
-              >
-                Browse Nearby Neighbors
-              </button>
-            ) : (
+
+        {/* Empty State - TWO STATES: True Empty vs Filtered Empty */}
+        {!loading && !error && filteredHouseholds.length === 0 && (() => {
+          const hasFiltersActive = selectedTypes.size > 0 || locationPrecision !== 'all';
+          // Check against the unfiltered list for the current tab to determine true vs filtered empty
+          const unfilteredCount = activeTab === 'connected' ? connectedHouseholds.length : nearbyHouseholds.length;
+          const isFilteredEmpty = hasFiltersActive && unfilteredCount > 0;
+
+          if (activeTab === 'connected') {
+            // Connected tab empty state (unchanged)
+            return (
+              <div style={{ textAlign: 'center', padding: 64 }}>
+                <div style={{ fontSize: 48, marginBottom: 16 }}>👋</div>
+                <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: '#111827' }}>
+                  No connections yet
+                </h3>
+                <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 16, lineHeight: 1.6 }}>
+                  Connect with neighbors from the Nearby tab to start messaging and coordinating events
+                </p>
+                <button
+                  onClick={() => setActiveTab('nearby')}
+                  style={{
+                    padding: '10px 20px',
+                    borderRadius: 10,
+                    border: '2px solid #10b981',
+                    background: '#10b981',
+                    color: '#ffffff',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
+                >
+                  Browse Nearby Neighbors
+                </button>
+              </div>
+            );
+          }
+
+          if (isFilteredEmpty) {
+            // FILTERED EMPTY: User has households, but none match filters
+            return (
+              <div style={{ textAlign: 'center', padding: 64 }}>
+                <div style={{ fontSize: 48, marginBottom: 16 }}>🔍</div>
+                <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: '#111827' }}>
+                  No neighbors match your filters
+                </h3>
+                <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 16, lineHeight: 1.6 }}>
+                  Try adjusting your filters or invite more neighbors to grow your community.
+                </p>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center' }}>
+                  <button
+                    onClick={() => {
+                      setSelectedTypes(new Set());
+                      setLocationPrecision('all');
+                      setAgeMin(0);
+                      setAgeMax(18);
+                    }}
+                    style={{
+                      padding: '10px 20px',
+                      borderRadius: 10,
+                      border: '2px solid #10b981',
+                      background: '#10b981',
+                      color: '#ffffff',
+                      fontSize: 14,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6
+                    }}
+                  >
+                    Clear Filters
+                  </button>
+                  <button
+                    onClick={() => {
+                      alert('Invite feature coming soon! Share GatherGrove with your neighbors.');
+                    }}
+                    style={{
+                      padding: '10px 20px',
+                      borderRadius: 10,
+                      border: '2px solid #e5e7eb',
+                      background: '#ffffff',
+                      color: '#6b7280',
+                      fontSize: 14,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6
+                    }}
+                  >
+                    <UserPlus size={16} />
+                    Invite Neighbors
+                  </button>
+                </div>
+              </div>
+            );
+          }
+
+          // TRUE EMPTY: No households at all
+          return (
+            <div style={{ textAlign: 'center', padding: 64 }}>
+              <div style={{ fontSize: 48, marginBottom: 16 }}>🌱</div>
+              <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: '#111827' }}>
+                Still building your neighborhood
+              </h3>
+              <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 16, lineHeight: 1.6 }}>
+                Be the first! Invite neighbors to join GatherGrove and start building your community.
+              </p>
               <button
                 onClick={() => {
-                  // TODO: Add invite flow
                   alert('Invite feature coming soon! Share GatherGrove with your neighbors.');
                 }}
                 style={{
@@ -1340,9 +1454,9 @@ export default function Discovery() {
                 <UserPlus size={16} />
                 Invite Neighbors
               </button>
-            )}
-          </div>
-        )}
+            </div>
+          );
+        })()}
 
         {/* Household Cards */}
         <div style={{ display: 'grid', gap: 10 }}>
@@ -1506,16 +1620,25 @@ export default function Discovery() {
                         width: '100%',
                         padding: '8px 12px',
                         borderRadius: 8,
-                        border: '2px solid #10b981',
-                        background: '#10b981',
-                        color: '#ffffff',
+                        border: '2px solid #e5e7eb',
+                        background: '#ffffff',
+                        color: '#6b7280',
                         fontSize: 13,
                         fontWeight: 600,
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: 4
+                        gap: 4,
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = '#d1d5db';
+                        e.currentTarget.style.background = '#f9fafb';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = '#e5e7eb';
+                        e.currentTarget.style.background = '#ffffff';
                       }}
                     >
                       <Calendar size={14} />
