@@ -631,19 +631,6 @@ export default function ComposePost() {
                       onChange={(e) => setDetails(e.target.value)}
                     />
                   </div>
-
-                  <div style={{ marginBottom: 10 }}>
-                    <label className="gg-label">Who can see this event?</label>
-                    <select 
-                      className="gg-input" 
-                      value={visibility} 
-                      onChange={(e) => setVisibility(e.target.value as EventVisibility)}
-                    >
-                      <option value="private">Private (neighbors only)</option>
-                      <option value="link_only">Shareable link (anyone with link)</option>
-                      <option value="public">Public (discoverable by all)</option>
-                    </select>
-                  </div>
                 </div>
               )}
 
