@@ -636,6 +636,15 @@ export default function ComposePost() {
 
               {kind === "happening" && (
                 <div className="gg-card-section">
+                  <div className="gg-label">Title (optional)</div>
+                  <input
+                    className="gg-input"
+                    placeholder="e.g., Sledding at our house!"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                  />
+                  
+                  <div style={{ marginTop: 10 }}>
                   <div className="gg-label">Details</div>
                   <textarea
                     className="composer-textarea"
@@ -643,6 +652,7 @@ export default function ComposePost() {
                     value={details}
                     onChange={(e) => setDetails(e.target.value)}
                   />
+                  </div>
                   
                   {/* ✅ NEW: Location input for happening now */}
                   <div style={{ marginTop: 10 }}>
@@ -704,7 +714,7 @@ export default function ComposePost() {
                 <div className={`full-preview-card ${kind === "happening" ? "happening-now" : ""}`}>
                   <div className="full-preview-title-row">
                     <div className="full-preview-title">
-                      {kind === "happening" ? "🎉 Happening Now" : (title.trim() || "Your event title")}
+                      {kind === "happening" ? (title.trim() || "Something happening now") : (title.trim() || "Your event title")}
                     </div>
                     <div className={`full-preview-pill ${kind === "happening" ? "happening" : "future"}`}>
                       {kind === "happening" ? "Now" : "Upcoming"}
