@@ -453,6 +453,19 @@ export function HouseholdSelector({
 
   return (
     <div className="gg-card-section">
+      {/* ✅ Section label: In-app delivery */}
+      <div style={{
+        fontSize: 14,
+        fontWeight: 700,
+        color: "#0f172a",
+        marginBottom: 8,
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+      }}>
+        📱 Invite on GatherGrove (in-app notification)
+      </div>
+      
       <div className="gg-label">
         Who to invite ({selectedIds.size} selected)
       </div>
@@ -656,6 +669,19 @@ export function HouseholdSelector({
         paddingTop: 24, 
         borderTop: "2px solid #e5e7eb" 
       }}>
+        {/* ✅ Section label: Off-platform delivery */}
+        <div style={{
+          fontSize: 14,
+          fontWeight: 700,
+          color: "#0f172a",
+          marginBottom: 12,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        }}>
+          💬 Invite someone not on GatherGrove
+        </div>
+        
         <div style={{ 
           fontSize: 14, 
           fontWeight: 600, 
