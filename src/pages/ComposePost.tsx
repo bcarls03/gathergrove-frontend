@@ -197,6 +197,7 @@ export default function ComposePost() {
 
   const [categoryId, setCategoryId] = useState<EventCategory>(existingPost?.category ?? DEFAULT_CATEGORY_ID);
   const [visibility, setVisibility] = useState<EventVisibility>("public");
+  const [eventLocation, setEventLocation] = useState<string>("");  // ✅ NEW: Event location field
 
   const categoryMeta = CATEGORY_OPTIONS.find((c) => c.id === categoryId) ?? CATEGORY_OPTIONS[0];
 
@@ -286,6 +287,7 @@ export default function ComposePost() {
             details: localPayload.details,
             category: localPayload.category ?? "neighborhood",
             visibility: visibility,
+            location: eventLocation.trim() || undefined,  // ✅ NEW: Send location
             startAt: new Date().toISOString(),
             endAt: null,
           });
@@ -337,6 +339,7 @@ export default function ComposePost() {
           details: localPayload.details,
           category: localPayload.category ?? DEFAULT_CATEGORY_ID,
           visibility: visibility,
+          location: eventLocation.trim() || undefined,  // ✅ NEW: Send location
           startAt: localPayload.when ?? null,
           endAt: localPayload.end ?? null,
         });
@@ -472,12 +475,27 @@ export default function ComposePost() {
           .cat-option:hover { background:#f9fafb; }
           .cat-option-main { font-size:14px; font-weight:700; color:#0f172a; }
           .cat-option-sub { font-size:13px; color:#6b7280; }
-          .full-preview-card { border-radius: 18px; border: 1px solid rgba(15,23,42,.08); background: #fff; padding: 14px 16px; box-shadow: 0 14px 30px rgba(15,23,42,.08); }
-          .full-preview-title-row { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:4px; }
-          .full-preview-title { font-size:16px; font-weight:700; color:#0f172a; }
-          .full-preview-pill { font-size:11px; padding:4px 9px; border-radius:999px; border:1px solid rgba(52,211,153,.5); background:#ecfdf5; color:#047857; }
-          .full-preview-meta { font-size:13px; color:#6b7280; margin-bottom:4px; }
-          .full-preview-body { font-size:14px; color:#111827; white-space:pre-wrap; }
+          .full-preview-card { border-radius: 20px; border: 1px solid rgba(15,23,42,.08); background: linear-gradient(135deg, #ffffff 0%, #fefefe 100%); padding: 20px 20px 24px; box-shadow: 0 20px 50px rgba(15,23,42,.12), 0 5px 15px rgba(15,23,42,.06); position: relative; overflow: hidden; }
+          .full-preview-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, #34d399 0%, #10b981 50%, #059669 100%); opacity: 0.8; }
+          .full-preview-card.happening-now::before { background: linear-gradient(90deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%); animation: shimmer 2s infinite; }
+          @keyframes shimmer { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+          .full-preview-title-row { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:8px; }
+          .full-preview-title { font-size:20px; font-weight:800; color:#0f172a; line-height:1.3; letter-spacing:-0.01em; }
+          .full-preview-pill { font-size:11px; padding:5px 11px; border-radius:999px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; flex-shrink: 0; }
+          .full-preview-pill.happening { border:1.5px solid rgba(251,191,36,.6); background:linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); color:#92400e; box-shadow: 0 2px 8px rgba(251,191,36,.3); }
+          .full-preview-pill.future { border:1.5px solid rgba(52,211,153,.5); background:linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%); color:#065f46; box-shadow: 0 2px 8px rgba(52,211,153,.25); }
+          .full-preview-meta { font-size:14px; color:#64748b; margin-bottom:6px; display:flex; align-items:center; gap:4px; font-weight:500; }
+          .full-preview-meta-icon { font-size:16px; }
+          .full-preview-category { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:12px; background:rgba(241,245,249,.8); border:1px solid rgba(148,163,184,.2); font-size:13px; font-weight:600; color:#475569; margin-bottom:12px; }
+          .full-preview-body { font-size:15px; color:#1e293b; white-space:pre-wrap; line-height:1.6; margin-bottom:16px; }
+          .full-preview-invites { margin-top:16px; padding-top:16px; border-top:1px solid rgba(148,163,184,.15); }
+          .full-preview-invites-label { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:#64748b; font-weight:700; margin-bottom:8px; }
+          .full-preview-invites-list { display:flex; flex-wrap:wrap; gap:6px; }
+          .full-preview-invite-chip { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:999px; background:linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border:1px solid rgba(34,197,94,.2); font-size:13px; font-weight:600; color:#166534; }
+          .full-preview-invite-icon { font-size:14px; }
+          .full-preview-cta { margin-top:20px; padding:16px; border-radius:16px; background:linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border:1px solid rgba(148,163,184,.2); text-align:center; }
+          .full-preview-cta-text { font-size:13px; color:#475569; font-weight:500; line-height:1.5; }
+          .full-preview-cta-text strong { color:#0f172a; font-weight:700; }
           .preview-shell-inline { margin-top:10px; padding:14px 14px 12px; border-radius:16px; border:1px dashed rgba(148,163,184,.8); background:rgba(248,250,252,.85); }
           .preview-label-inline { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:#64748b; font-weight:700; margin-bottom:6px; }
           @media (max-width: 640px) { .gg-row-2 { grid-template-columns: 1fr; } }
@@ -590,6 +608,17 @@ export default function ComposePost() {
                     <input className="gg-input" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
                   </div>
 
+                  {/* ✅ NEW: Location input for future events */}
+                  <div style={{ marginBottom: 10 }}>
+                    <label className="gg-label">📍 Location</label>
+                    <input 
+                      className="gg-input" 
+                      placeholder="e.g., Oak Hill Park, 123 Main St, or Starbucks on 5th" 
+                      value={eventLocation} 
+                      onChange={(e) => setEventLocation(e.target.value)} 
+                    />
+                  </div>
+
                   <div>
                     <label className="gg-label">Details</label>
                     <textarea
@@ -624,6 +653,17 @@ export default function ComposePost() {
                     value={details}
                     onChange={(e) => setDetails(e.target.value)}
                   />
+                  
+                  {/* ✅ NEW: Location input for happening now */}
+                  <div style={{ marginTop: 10 }}>
+                    <label className="gg-label">📍 Where? (optional)</label>
+                    <input 
+                      className="gg-input" 
+                      placeholder="e.g., Oak Hill Park, my backyard, or corner of Oak & Maple" 
+                      value={eventLocation} 
+                      onChange={(e) => setEventLocation(e.target.value)} 
+                    />
+                  </div>
                 </div>
               )}
 
@@ -666,27 +706,83 @@ export default function ComposePost() {
           ) : (
             <>
               <div className="gg-card-section">
-                <div className="gg-label">Preview</div>
-                <div className="gg-label-sub">This is how your post will appear to neighbors on the Home tab.</div>
+                <div className="gg-label">✨ Preview</div>
+                <div className="gg-label-sub">This is how your {kind === "happening" ? "happening now post" : "event"} will appear to neighbors.</div>
               </div>
 
               <div className="gg-card-section">
-                <div className="full-preview-card">
+                <div className={`full-preview-card ${kind === "happening" ? "happening-now" : ""}`}>
                   <div className="full-preview-title-row">
-                    <div className="full-preview-title">{kind === "happening" ? "Happening Now" : title.trim() || "Your event title"}</div>
-                    <div className="full-preview-pill">{kind === "happening" ? "Now" : "Future"}</div>
+                    <div className="full-preview-title">
+                      {kind === "happening" ? "🎉 Happening Now" : (title.trim() || "Your event title")}
+                    </div>
+                    <div className={`full-preview-pill ${kind === "happening" ? "happening" : "future"}`}>
+                      {kind === "happening" ? "Now" : "Upcoming"}
+                    </div>
                   </div>
+                  
                   <div className="full-preview-meta">
+                    <span className="full-preview-meta-icon">🕐</span>
                     {previewWhen}
-                    {effectiveRecipients.length > 0 && ` · ${effectiveRecipients.join(", ")}`}
                   </div>
-                  {kind === "event" && (
-                    <div className="full-preview-meta">
-                      {categoryMeta.emoji} {categoryMeta.label}
+                  
+                  {kind === "event" && categoryMeta && (
+                    <div className="full-preview-category">
+                      <span>{categoryMeta.emoji}</span>
+                      <span>{categoryMeta.label}</span>
                     </div>
                   )}
-                  <div className="full-preview-body" style={{ marginTop: 8 }}>
-                    {details.trim() || "Your details will appear here as you type."}
+                  
+                  <div className="full-preview-body">
+                    {details.trim() || "Your details will appear here as you type..."}
+                  </div>
+
+                  {/* Show invited households */}
+                  {(selectedHouseholdIds.size > 0 || selectedPhoneNumbers.size > 0) && (
+                    <div className="full-preview-invites">
+                      <div className="full-preview-invites-label">
+                        📨 Invited ({selectedHouseholdIds.size + selectedPhoneNumbers.size})
+                      </div>
+                      <div className="full-preview-invites-list">
+                        {Array.from(selectedHouseholdIds).slice(0, 8).map((id) => {
+                          // Get household name from ID
+                          const householdName = id === 'test-1' ? 'Anderson' :
+                                               id === 'test-2' ? 'Brown' :
+                                               id === 'test-3' ? 'Chen' :
+                                               id === 'test-4' ? 'Garcia' :
+                                               id === 'test-5' ? 'Johnson' :
+                                               'Family';
+                          return (
+                            <div key={id} className="full-preview-invite-chip">
+                              <span className="full-preview-invite-icon">👥</span>
+                              <span>{householdName}</span>
+                            </div>
+                          );
+                        })}
+                        {Array.from(selectedPhoneNumbers).slice(0, 3).map((phone) => (
+                          <div key={phone} className="full-preview-invite-chip">
+                            <span className="full-preview-invite-icon">📱</span>
+                            <span>{phone}</span>
+                          </div>
+                        ))}
+                        {(selectedHouseholdIds.size + selectedPhoneNumbers.size) > 11 && (
+                          <div className="full-preview-invite-chip">
+                            <span>+{selectedHouseholdIds.size + selectedPhoneNumbers.size - 11} more</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Beautiful CTA */}
+                  <div className="full-preview-cta">
+                    <div className="full-preview-cta-text">
+                      {kind === "happening" ? (
+                        <>Ready to share? Your neighbors will see this <strong>instantly</strong> on their Home tab!</>
+                      ) : (
+                        <>Looking good? Hit <strong>Create Event</strong> to send invitations and make it official!</>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -696,10 +792,10 @@ export default function ComposePost() {
 
                 <div className="gg-footer-right">
                   <button type="button" className="btn btn-ghost" onClick={() => setMode("edit")}>
-                    Back
+                    ← Back to Edit
                   </button>
                   <button type="button" className="btn btn-primary" disabled={!canSubmitDetails || isSubmitting} onClick={onSubmit}>
-                    {primaryLabel}
+                    {isSubmitting ? "Publishing..." : primaryLabel}
                   </button>
                 </div>
               </div>
