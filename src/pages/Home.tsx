@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import { Clock, Zap } from "lucide-react";
 import { getViewer } from "../lib/viewer";
 import { neighborhoodDisplayLabel } from "../lib/neighborhood";
 import { loadNeighbors } from "../lib/profile";
@@ -217,6 +218,46 @@ function viewerLabelOrDefault() {
 }
 
 /* ---------- Helpers ---------- */
+
+// Helper functions for Happening Now event display
+function getEventTimeDisplay(event: Post): string {
+  if (event.when) return event.when;
+  if (event.ts) {
+    const start = new Date(event.ts);
+    const now = new Date();
+    const diffMinutes = Math.floor((now.getTime() - start.getTime()) / 60000);
+    
+    if (diffMinutes < 5) return 'Just started';
+    if (diffMinutes < 60) return `Started ${diffMinutes}m ago`;
+    const diffHours = Math.floor(diffMinutes / 60);
+    return `Started ${diffHours}h ago`;
+  }
+  return 'Happening now';
+}
+
+function getEventCategoryColor(category?: string) {
+  switch (category) {
+    case 'playdate': return '#ec4899';
+    case 'neighborhood': return '#3b82f6';
+    case 'celebrations': return '#a855f7';
+    case 'sports': return '#f59e0b';
+    case 'food': return '#10b981';
+    case 'pet': return '#8b5cf6';
+    default: return '#6b7280';
+  }
+}
+
+function getEventCategoryLabel(category?: string) {
+  switch (category) {
+    case 'playdate': return '🎪 Playdate';
+    case 'neighborhood': return '🏡 Neighborhood';
+    case 'celebrations': return '🎉 Celebrations';
+    case 'sports': return '⚽ Sports';
+    case 'food': return '🍕 Food';
+    case 'pet': return '🐶 Pets';
+    default: return '✨ Other';
+  }
+}
 
 function isPostRelevantToViewer(post: Post, viewer: any | null): boolean {
   if (!viewer) return true;
@@ -1398,6 +1439,166 @@ export default function Home() {
         
         return null;
       })()}
+
+      {/* -------- ⚡ HAPPENING NOW SECTION -------- */}
+      {happeningNow.length > 0 && (
+        <section className="home-section" style={{ marginBottom: 24 }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 16,
+            paddingBottom: 12,
+            borderBottom: '2px solid #fef3c7'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ 
+                fontSize: 22, 
+                background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                fontWeight: 800,
+                lineHeight: 1
+              }}>
+                ⚡
+              </div>
+              <h2 style={{ 
+                fontSize: 19, 
+                fontWeight: 800, 
+                margin: 0, 
+                color: '#111827',
+                letterSpacing: '-0.01em'
+              }}>
+                Happening Now
+              </h2>
+              <span style={{
+                fontSize: 11,
+                padding: '3px 10px',
+                borderRadius: 999,
+                background: '#fef3c7',
+                color: '#92400e',
+                border: '1.5px solid #fbbf24',
+                fontWeight: 800,
+                letterSpacing: '0.02em'
+              }}>
+                {happeningNow.length} ACTIVE
+              </span>
+            </div>
+          </div>
+
+          {/* Event Cards Grid */}
+          <div style={{ display: 'grid', gap: 12 }}>
+            {happeningNow.map((event) => (
+              <motion.div
+                key={event.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                style={{
+                  background: '#ffffff',
+                  border: '2px solid #fb923c',
+                  borderRadius: 12,
+                  padding: 16,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                whileHover={{ 
+                  borderColor: '#f59e0b',
+                  boxShadow: '0 4px 12px rgba(251, 146, 60, 0.25)',
+                  y: -2
+                }}
+                onClick={() => handleRsvp(event, 'going')}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: '#111827' }}>
+                      {event.title || 'Happening Now'}
+                    </h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                      {/* Category Badge */}
+                      {event.category && (
+                        <div
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            padding: '4px 10px',
+                            borderRadius: 8,
+                            background: getEventCategoryColor(event.category) + '15',
+                            color: getEventCategoryColor(event.category),
+                            fontSize: 13,
+                            fontWeight: 600
+                          }}
+                        >
+                          {getEventCategoryLabel(event.category)}
+                        </div>
+                      )}
+                      
+                      {/* Time Badge - "Started Xm ago" */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#6b7280', fontSize: 13 }}>
+                        <Clock size={14} />
+                        {getEventTimeDisplay(event)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Join Button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRsvp(event, 'going');
+                    }}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: 8,
+                      border: '2px solid #f59e0b',
+                      background: '#f59e0b',
+                      color: '#ffffff',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.background = '#d97706';
+                      e.currentTarget.style.borderColor = '#d97706';
+                      e.currentTarget.style.transform = 'scale(1.05)';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.background = '#f59e0b';
+                      e.currentTarget.style.borderColor = '#f59e0b';
+                      e.currentTarget.style.transform = 'scale(1)';
+                    }}
+                  >
+                    <Zap size={14} />
+                    Join Now
+                  </button>
+                </div>
+
+                {/* Event Details */}
+                {event.details && (
+                  <p style={{ 
+                    fontSize: 14, 
+                    color: '#6b7280', 
+                    margin: 0,
+                    lineHeight: 1.5,
+                    marginTop: 8
+                  }}>
+                    {event.details.length > 120 
+                      ? event.details.substring(0, 120) + '...' 
+                      : event.details
+                    }
+                  </p>
+                )}
+              </motion.div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* -------- 2) Invited Events -------- */}
       <section className="home-section">
