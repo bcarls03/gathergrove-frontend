@@ -942,11 +942,24 @@ export default function ComposePost() {
               <p style={{ 
                 fontSize: "18px", 
                 color: "#475569", 
-                marginBottom: "0",
+                marginBottom: "8px",
                 fontWeight: "600"
               }}>
                 {createdEventTitle}
               </p>
+              
+              {/* Subtle timing indicator */}
+              {isHappeningNow && (
+                <p style={{
+                  fontSize: "13px",
+                  color: "#94a3b8",
+                  margin: "0",
+                  fontWeight: "500",
+                  marginTop: "8px"
+                }}>
+                  Live for the next 24 hours
+                </p>
+              )}
             </div>
 
             <div style={{
@@ -960,11 +973,19 @@ export default function ComposePost() {
                 fontSize: "12px", 
                 fontWeight: "700", 
                 color: "#64748b", 
-                marginBottom: "12px", 
+                marginBottom: "4px", 
                 textTransform: "uppercase", 
                 letterSpacing: "0.08em" 
               }}>
-                📤 Share this event
+                📤 Event Link
+              </div>
+              <div style={{
+                fontSize: "13px",
+                color: "#94a3b8",
+                marginBottom: "12px",
+                fontWeight: "500"
+              }}>
+                Share this with anyone to invite them
               </div>
               <div style={{
                 display: "flex",
@@ -975,21 +996,17 @@ export default function ComposePost() {
                 borderRadius: "12px",
                 border: "1px solid #bfdbfe",
               }}>
-                <input
-                  type="text"
-                  readOnly
-                  value={`${window.location.origin}${shareableLink}`}
-                  style={{
-                    flex: 1,
-                    border: "none",
-                    background: "none",
-                    fontSize: "13px",
-                    color: "#475569",
-                    outline: "none",
-                    fontFamily: "monospace",
-                  }}
-                  onClick={(e) => (e.target as HTMLInputElement).select()}
-                />
+                <div style={{
+                  flex: 1,
+                  fontSize: "14px",
+                  color: "#1e40af",
+                  fontWeight: "600",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap"
+                }}>
+                  gathergrove.app{shareableLink}
+                </div>
                 <button
                   type="button"
                   onClick={() => {
