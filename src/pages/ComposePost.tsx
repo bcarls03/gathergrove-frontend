@@ -216,6 +216,16 @@ export default function ComposePost() {
 
   const resolvedNeighborLabel = (n: Neighbor) => (n.label ?? n.lastName ?? "").toString();
 
+  // ✅ Modal styling based on event type
+  const isHappeningNow = createdEventType === "happening";
+  const modalEmoji = isHappeningNow ? "⚡" : "🎉";
+  const modalGradient = isHappeningNow 
+    ? "linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%)"
+    : "linear-gradient(135deg, #34d399 0%, #10b981 50%, #059669 100%)";
+  const modalShimmer = isHappeningNow 
+    ? `@keyframes shimmer { 0%, 100% { opacity: 0.5; } 50% { opacity: 0.9; } }`
+    : "";
+
   const canSubmitDetails =
     kind === "happening"
       ? details.trim().length > 0
@@ -850,72 +860,62 @@ export default function ComposePost() {
       </div>
 
       {/* ✅ Success Modal */}
-      {showSuccessModal && shareableLink && (() => {
-        const isHappeningNow = createdEventType === "happening";
-        const emoji = isHappeningNow ? "⚡" : "🎉";
-        const gradientColor = isHappeningNow 
-          ? "linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%)"
-          : "linear-gradient(135deg, #34d399 0%, #10b981 50%, #059669 100%)";
-        const shimmer = isHappeningNow 
-          ? `@keyframes shimmer { 0%, 100% { opacity: 0.5; } 50% { opacity: 0.9; } }`
-          : "";
-        
-        return (
+      {showSuccessModal && shareableLink && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(0, 0, 0, 0.6)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 9999,
+          padding: "20px",
+          backdropFilter: "blur(4px)",
+        }}>
           <div style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.6)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 9999,
-            padding: "20px",
-            backdropFilter: "blur(4px)",
+            backgroundColor: "#fff",
+            borderRadius: "24px",
+            padding: "40px 32px 32px",
+            maxWidth: "480px",
+            width: "100%",
+            boxShadow: "0 25px 70px rgba(0,0,0,0.35)",
+            animation: "slideUp 0.3s ease-out",
+            position: "relative",
+            overflow: "hidden",
           }}>
+            {/* Top accent bar matching event type */}
             <div style={{
-              backgroundColor: "#fff",
-              borderRadius: "24px",
-              padding: "40px 32px 32px",
-              maxWidth: "480px",
-              width: "100%",
-              boxShadow: "0 25px 70px rgba(0,0,0,0.35)",
-              animation: "slideUp 0.3s ease-out",
-              position: "relative",
-              overflow: "hidden",
-            }}>
-              {/* Top accent bar matching event type */}
-              <div style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                height: "6px",
-                background: gradientColor,
-                opacity: 0.9,
-                animation: isHappeningNow ? "shimmer 3s ease-in-out infinite" : "none",
-              }} />
-              
-              <style>{`
-                @keyframes slideUp {
-                  from { opacity: 0; transform: translateY(20px); }
-                  to { opacity: 1; transform: translateY(0); }
-                }
-                @keyframes checkmark {
-                  from { transform: scale(0.8); opacity: 0; }
-                  to { transform: scale(1); opacity: 1; }
-                }
-                ${shimmer}
-              `}</style>
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: "6px",
+              background: modalGradient,
+              opacity: 0.9,
+              animation: isHappeningNow ? "shimmer 3s ease-in-out infinite" : "none",
+            }} />
+            
+            <style>{`
+              @keyframes slideUp {
+                from { opacity: 0; transform: translateY(20px); }
+                to { opacity: 1; transform: translateY(0); }
+              }
+              @keyframes checkmark {
+                from { transform: scale(0.8); opacity: 0; }
+                to { transform: scale(1); opacity: 1; }
+              }
+              ${modalShimmer}
+            `}</style>
             
             <div style={{ textAlign: "center", marginBottom: "32px" }}>
               <div style={{ 
                 fontSize: "56px", 
                 marginBottom: "16px",
                 animation: "checkmark 0.4s ease-out 0.1s both"
-              }}>{emoji}</div>
+              }}>{modalEmoji}</div>
               
               {isHappeningNow && (
                 <div style={{
@@ -1097,8 +1097,7 @@ export default function ComposePost() {
             </div>
           </div>
         </div>
-        );
-      })()}
+      )}
     </div>
   );
 }
