@@ -467,23 +467,17 @@ export default function Discovery() {
   };
 
   const handleInviteToEventType = (household: GGHousehold, type: 'now' | 'future') => {
-    // Build invite context from current Discover state
+    // ✅ Build invite context matching HouseholdSelector's new interface
     const hasActiveFilters = selectedTypes.size > 0;
     
     const inviteContext = {
       clickedHouseholdId: household.id || '',
       clickedHouseholdName: getHouseholdName(household),
-      // ONLY pass filtered households as suggestions if filters are active
-      // Otherwise pass empty array so all households show in "other" section
-      suggestedHouseholds: hasActiveFilters ? filteredHouseholds.map(h => ({
-        id: h.id || '',
-        name: getHouseholdName(h),
-        neighborhood: h.neighborhood || null,
-        householdType: h.householdType || null,
-        kidsAges: getKidsAges(h),
-        kids: h.kids || [],
-      })) : [],
-      // Store filter context (for display/debugging)
+      // ✅ Use visibleHouseholdIds (single source of truth)
+      visibleHouseholdIds: hasActiveFilters 
+        ? filteredHouseholds.map(h => h.id || '').filter(id => id !== '')
+        : [],
+      // Store filter context (for display badges and logic)
       filterContext: {
         types: Array.from(selectedTypes),
         ageRange: selectedTypes.has("Family w/ Kids") ? { min: ageMin, max: ageMax } : null,

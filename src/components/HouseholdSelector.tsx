@@ -57,8 +57,8 @@ export function HouseholdSelector({
     [inviteContext?.visibleHouseholdIds]
   );
 
-  // ✅ Check if user came from Discovery
-  const cameFromDiscovery = (inviteContext?.visibleHouseholdIds?.length ?? 0) > 0;
+  // ✅ Check if user came from Discovery (by checking if inviteContext exists)
+  const cameFromDiscovery = !!inviteContext?.clickedHouseholdId;
 
   // Update parent with selected household names whenever selection changes
   useEffect(() => {
@@ -76,10 +76,73 @@ export function HouseholdSelector({
     const loadHouseholds = async () => {
       setLoading(true);
       try {
-        console.log("🔄 Fetching households...");
-        const households = await Api.fetchHouseholds();
-        console.log("✅ Fetched households:", households.length);
-        setAvailableHouseholds(households);
+        // ✅ Use same mock data as Discovery for consistency
+        const mockHouseholds: GGHousehold[] = [
+          {
+            id: 'test-1',
+            lastName: 'Anderson',
+            householdType: 'family_with_kids',
+            neighborhood: 'Oak Ridge',
+            location_precision: 'street',
+            kids: [
+              { birthYear: 2014, birthMonth: 5 },
+              { birthYear: 2018, birthMonth: 3 }
+            ],
+            uid: 'test-uid-1',
+          },
+          {
+            id: 'test-2',
+            lastName: 'Brown',
+            householdType: 'family_with_kids',
+            neighborhood: 'Oak Ridge',
+            location_precision: 'street',
+            kids: [{ birthYear: 2019, birthMonth: 8 }],
+            uid: 'test-uid-2',
+          },
+          {
+            id: 'test-3',
+            lastName: 'Chen',
+            householdType: 'family_with_kids',
+            neighborhood: 'Hillside',
+            location_precision: 'street',
+            kids: [
+              { birthYear: 2019, birthMonth: 11 },
+              { birthYear: 2022, birthMonth: 6 }
+            ],
+            uid: 'test-uid-3',
+          },
+          {
+            id: 'test-4',
+            lastName: 'Garcia',
+            householdType: 'family_with_kids',
+            neighborhood: 'Riverside',
+            location_precision: 'street',
+            kids: [
+              { birthYear: 2016, birthMonth: 2 },
+              { birthYear: 2020, birthMonth: 9 }
+            ],
+            uid: 'test-uid-4',
+          },
+          {
+            id: 'test-5',
+            lastName: 'Johnson',
+            householdType: 'family_with_kids',
+            neighborhood: 'Oak Ridge',
+            location_precision: 'street',
+            kids: [
+              { birthYear: 2015, birthMonth: 7 },
+              { birthYear: 2017, birthMonth: 12 },
+              { birthYear: 2021, birthMonth: 4 }
+            ],
+            uid: 'test-uid-5',
+          },
+        ];
+        
+        setAvailableHouseholds(mockHouseholds);
+        
+        // const households = await Api.fetchHouseholds();
+        // console.log("✅ Fetched households:", households.length);
+        // setAvailableHouseholds(households);
       } catch (error) {
         console.error("❌ Failed to load households:", error);
         setAvailableHouseholds([]);
@@ -95,6 +158,9 @@ export function HouseholdSelector({
   useEffect(() => {
     const clicked = inviteContext?.clickedHouseholdId;
     if (!clicked || !cameFromDiscovery) return; // ✅ Only preselect from Discovery flow
+
+    // ✅ Wait for households to load before preselecting
+    if (availableHouseholds.length === 0) return;
 
     // Prevent repeated initialization for same household
     if (initRef.current === clicked) return;
@@ -112,7 +178,7 @@ export function HouseholdSelector({
       next.add(clicked);
       onSelectionChange(next);
     }
-  }, [inviteContext?.clickedHouseholdId, cameFromDiscovery, onSelectionChange]);
+  }, [inviteContext?.clickedHouseholdId, cameFromDiscovery, onSelectionChange, availableHouseholds.length]);
 
   const toggleHousehold = (householdId: string) => {
     const newSet = new Set(selectedIds);
