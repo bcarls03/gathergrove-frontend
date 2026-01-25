@@ -174,10 +174,11 @@ export default function Discovery() {
     setLoading(true);
     setError(null);
     try {
-      // TEMPORARY: Mock data for testing filtered-empty state
+      // ✅ Mock data with lastName fields for consistency with invite selector
       const mockData: GGHousehold[] = [
         {
           id: 'test-1',
+          lastName: 'Anderson',
           householdType: 'family_with_kids',
           neighborhood: 'Oak Ridge',
           location_precision: 'street',
@@ -186,6 +187,7 @@ export default function Discovery() {
         },
         {
           id: 'test-2',
+          lastName: 'Brown',
           householdType: 'family_with_kids',
           neighborhood: 'Oak Ridge',
           location_precision: 'street',
@@ -194,6 +196,7 @@ export default function Discovery() {
         },
         {
           id: 'test-3',
+          lastName: 'Chen',
           householdType: 'family_with_kids',
           neighborhood: 'Riverside',
           location_precision: 'street',
@@ -202,6 +205,7 @@ export default function Discovery() {
         },
         {
           id: 'test-4',
+          lastName: 'Davis',
           householdType: 'couple',
           neighborhood: 'Riverside',
           location_precision: 'street',
@@ -209,6 +213,7 @@ export default function Discovery() {
         },
         {
           id: 'test-5',
+          lastName: 'Evans',
           householdType: 'single',
           neighborhood: 'Hillside',
           location_precision: 'street',
@@ -414,8 +419,9 @@ export default function Discovery() {
   };
 
   const getHouseholdName = (household: GGHousehold): string => {
+    // ✅ Match HouseholdSelector: show lastName directly for consistency
     if (household.lastName) {
-      return `The ${household.lastName} Family`;
+      return household.lastName;
     }
     if (household.adultNames && household.adultNames.length > 0) {
       const names = household.adultNames.filter(n => n && n.trim());

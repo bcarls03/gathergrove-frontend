@@ -1,22 +1,14 @@
 // src/components/HouseholdSelector.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import * as Api from "../lib/api";
 import type { GGHousehold } from "../lib/api";
 
-interface SuggestedHousehold {
-  id: string;
-  name: string;
-  neighborhood: string | null;
-  householdType: string | null;
-  kidsAges: number[];
-  kids: any[];
-}
-
+// ✅ Simplified InviteContext - removed suggestedHouseholds (single source of truth)
 interface InviteContext {
   clickedHouseholdId: string;
   clickedHouseholdName: string;
-  suggestedHouseholds: SuggestedHousehold[];
-  filterContext: {
+  visibleHouseholdIds?: string[]; // ✅ The actual filtered list from Discovery
+  filterContext?: {
     types: string[];
     ageRange: { min: number; max: number } | null;
     hasFilters: boolean;
@@ -26,11 +18,21 @@ interface InviteContext {
 interface HouseholdSelectorProps {
   selectedIds: Set<string>;
   onSelectionChange: (ids: Set<string>) => void;
-  onSelectedNamesChange?: (names: string[]) => void; // Callback to update parent with selected household names
-  inviteContext?: InviteContext; // Pass invite context from navigation state
+  onSelectedNamesChange?: (names: string[]) => void;
+  inviteContext?: InviteContext;
   selectedPhoneNumbers?: Set<string>;
   onPhoneNumbersChange?: (numbers: Set<string>) => void;
+  eventInviteLink?: string; // ✅ Pass from parent after event is created
+  eventTitle?: string;
 }
+
+// ✅ Canonical type labels matching actual enum values
+const TYPE_LABELS: Record<string, string> = {
+  'family_with_kids': 'Family w/ Kids',
+  'empty_nesters': 'Empty Nesters',
+  'singles_couples': 'Singles/Couples',
+  'young_professionals': 'Young Professionals',
+};
 
 export function HouseholdSelector({ 
   selectedIds, 
@@ -38,11 +40,25 @@ export function HouseholdSelector({
   onSelectedNamesChange,
   inviteContext,
   selectedPhoneNumbers,
-  onPhoneNumbersChange
+  onPhoneNumbersChange,
+  eventInviteLink,
+  eventTitle = "GatherGrove Event",
 }: HouseholdSelectorProps) {
   const [availableHouseholds, setAvailableHouseholds] = useState<GGHousehold[]>([]);
   const [loading, setLoading] = useState(false);
   const [showOthers, setShowOthers] = useState(false);
+  
+  // ✅ Track initialization to prevent repeated preselect
+  const initRef = useRef<string | null>(null);
+
+  // ✅ Normalize visibleHouseholdIds to Set once
+  const visibleSet = useMemo(
+    () => new Set(inviteContext?.visibleHouseholdIds || []),
+    [inviteContext?.visibleHouseholdIds]
+  );
+
+  // ✅ Check if user came from Discovery
+  const cameFromDiscovery = (inviteContext?.visibleHouseholdIds?.length ?? 0) > 0;
 
   // Update parent with selected household names whenever selection changes
   useEffect(() => {
@@ -50,31 +66,53 @@ export function HouseholdSelector({
       const names = Array.from(selectedIds)
         .map(id => availableHouseholds.find(h => h.id === id))
         .filter((h): h is GGHousehold => h !== undefined)
-        .map(h => getHouseholdName(h));
+        .map(h => h.lastName || "Unknown Household");
       onSelectedNamesChange(names);
     }
   }, [selectedIds, availableHouseholds, onSelectedNamesChange]);
 
+  // Load households
   useEffect(() => {
     const loadHouseholds = async () => {
       setLoading(true);
       try {
+        console.log("🔄 Fetching households...");
         const households = await Api.fetchHouseholds();
+        console.log("✅ Fetched households:", households.length);
         setAvailableHouseholds(households);
-
-        // If we have invite context, pre-select ONLY the clicked household
-        if (inviteContext?.clickedHouseholdId) {
-          onSelectionChange(new Set([inviteContext.clickedHouseholdId]));
-        }
       } catch (error) {
-        console.error("Failed to load households:", error);
+        console.error("❌ Failed to load households:", error);
+        setAvailableHouseholds([]);
       } finally {
         setLoading(false);
       }
     };
 
     loadHouseholds();
-  }, [inviteContext, onSelectionChange]);
+  }, []);
+
+  // ✅ FIX #3: Preselect clicked household (only if came from Discovery, with ref guard)
+  useEffect(() => {
+    const clicked = inviteContext?.clickedHouseholdId;
+    if (!clicked || !cameFromDiscovery) return; // ✅ Only preselect from Discovery flow
+
+    // Prevent repeated initialization for same household
+    if (initRef.current === clicked) return;
+    initRef.current = clicked;
+
+    // If nothing selected → set clicked
+    if (selectedIds.size === 0) {
+      onSelectionChange(new Set([clicked]));
+      return;
+    }
+
+    // If some selected → add clicked (if not already there)
+    if (!selectedIds.has(clicked)) {
+      const next = new Set(selectedIds);
+      next.add(clicked);
+      onSelectionChange(next);
+    }
+  }, [inviteContext?.clickedHouseholdId, cameFromDiscovery, onSelectionChange]);
 
   const toggleHousehold = (householdId: string) => {
     const newSet = new Set(selectedIds);
@@ -84,10 +122,6 @@ export function HouseholdSelector({
       newSet.add(householdId);
     }
     onSelectionChange(newSet);
-  };
-
-  const getHouseholdName = (household: GGHousehold): string => {
-    return household.lastName || "Unknown Household";
   };
 
   const getKidsAges = (household: GGHousehold): number[] => {
@@ -104,41 +138,6 @@ export function HouseholdSelector({
       .sort((a, b) => b - a);
   };
 
-  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-    const R = 3958.8; // Earth's radius in miles
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-              Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  };
-
-  const getDistanceText = (household: GGHousehold): string | null => {
-    const userLat = 45.5152;
-    const userLon = -122.6784;
-    
-    const lat = (household as any).latitude;
-    const lon = (household as any).longitude;
-    
-    if (lat && lon) {
-      const distance = calculateDistance(userLat, userLon, lat, lon);
-      const isZipOnly = household.location_precision === 'zipcode';
-      
-      if (distance < 0.1) {
-        return isZipOnly ? '< 0.1 miles*' : '< 0.1 miles';
-      }
-      return isZipOnly ? `~${distance.toFixed(1)} miles*` : `~${distance.toFixed(1)} miles`;
-    }
-    return null;
-  };
-
-  const getAdultsText = (household: GGHousehold): string | null => {
-    if (!household.adultNames || household.adultNames.length === 0) return null;
-    return household.adultNames.join(', ');
-  };
-
   const selectAll = () => {
     const allIds = new Set(availableHouseholds.map(h => h.id).filter((id): id is string => !!id));
     onSelectionChange(allIds);
@@ -148,11 +147,12 @@ export function HouseholdSelector({
     onSelectionChange(new Set());
   };
 
-  // Share/invite helpers (works on iOS + Android + Desktop)
-  const shareInvite = async (inviteLink: string, eventTitle: string) => {
-    const shareText = `You're invited to "${eventTitle}" on GatherGrove! 🎉\n\nRSVP here: ${inviteLink}`;
+  // ✅ Share/invite helpers (safe - only work when eventInviteLink exists)
+  const shareInvite = async () => {
+    if (!eventInviteLink) return;
     
-    // Try native share (works on mobile + modern desktop)
+    const shareText = `You're invited to "${eventTitle}" on GatherGrove! 🎉\n\nRSVP here: ${eventInviteLink}`;
+    
     if (navigator.share) {
       try {
         await navigator.share({
@@ -161,30 +161,32 @@ export function HouseholdSelector({
         });
         return true;
       } catch (error: any) {
-        // User cancelled or error - fall through to alternatives
         if (error.name !== 'AbortError') {
           console.log('Share failed:', error);
         }
       }
     }
     
-    return false; // Share not available or failed
+    return false;
   };
 
-  const sendViaSMS = (inviteLink: string, eventTitle: string) => {
-    const message = `You're invited to "${eventTitle}" on GatherGrove! 🎉\n\nRSVP: ${inviteLink}`;
+  const sendViaSMS = () => {
+    if (!eventInviteLink) return;
+    
+    const message = `You're invited to "${eventTitle}" on GatherGrove! 🎉\n\nRSVP: ${eventInviteLink}`;
     const smsLink = `sms:?body=${encodeURIComponent(message)}`;
     window.open(smsLink, '_blank');
   };
 
-  const copyInviteLink = async (inviteLink: string) => {
+  const copyInviteLink = async () => {
+    if (!eventInviteLink) return;
+    
     try {
-      await navigator.clipboard.writeText(inviteLink);
+      await navigator.clipboard.writeText(eventInviteLink);
       alert('✅ Link copied to clipboard!');
     } catch (error) {
-      // Fallback for older browsers
       const textArea = document.createElement('textarea');
-      textArea.value = inviteLink;
+      textArea.value = eventInviteLink;
       textArea.style.position = 'fixed';
       textArea.style.opacity = '0';
       document.body.appendChild(textArea);
@@ -193,7 +195,7 @@ export function HouseholdSelector({
         document.execCommand('copy');
         alert('✅ Link copied to clipboard!');
       } catch (err) {
-        alert('❌ Could not copy link. Please copy manually:\n\n' + inviteLink);
+        alert('❌ Could not copy link. Please copy manually:\n\n' + eventInviteLink);
       }
       document.body.removeChild(textArea);
     }
@@ -202,67 +204,85 @@ export function HouseholdSelector({
   const allSelected = availableHouseholds.length > 0 && 
     selectedIds.size === availableHouseholds.filter(h => h.id).length;
 
-  // Helper to get calculated distance for sorting
-  const getCalculatedDistance = (household: GGHousehold): number => {
-    const userLat = 45.5152;
-    const userLon = -122.6784;
-    const lat = (household as any).latitude;
-    const lon = (household as any).longitude;
-    
-    if (lat && lon) {
-      return calculateDistance(userLat, userLon, lat, lon);
-    }
-    return Infinity; // Put households without location at the end
+  // ✅ FIX #2: Smart 3-tier sorting using ?? for distance (handles 0, null, undefined)
+  const sortedHouseholds = useMemo(() => {
+    const clicked = inviteContext?.clickedHouseholdId;
+
+    return [...availableHouseholds].sort((a, b) => {
+      // 1. Clicked household always first
+      if (a.id === clicked) return -1;
+      if (b.id === clicked) return 1;
+
+      // 2. Suggested (from visibleSet) next
+      const aIsSuggested = visibleSet.has(a.id || '');
+      const bIsSuggested = visibleSet.has(b.id || '');
+      if (aIsSuggested && !bIsSuggested) return -1;
+      if (!aIsSuggested && bIsSuggested) return 1;
+
+      // 3. Within same group: sort by distance (✅ using ?? to handle 0, null, undefined)
+      const aDist = (a as any).distance ?? 999;
+      const bDist = (b as any).distance ?? 999;
+      return aDist - bDist;
+    });
+  }, [availableHouseholds, inviteContext?.clickedHouseholdId, visibleSet]);
+
+  // ✅ Group households: suggested vs others (single source of truth: visibleSet)
+  const suggestedHouseholds = sortedHouseholds.filter(
+    h => h.id === inviteContext?.clickedHouseholdId || visibleSet.has(h.id || '')
+  );
+  const otherHouseholds = sortedHouseholds.filter(
+    h => h.id !== inviteContext?.clickedHouseholdId && !visibleSet.has(h.id || '')
+  );
+  
+  const hasSuggestions = cameFromDiscovery && 
+                        inviteContext?.filterContext?.hasFilters && 
+                        suggestedHouseholds.length > 0;
+
+  const shouldShowSections = availableHouseholds.length >= 30;
+
+  const isSuggested = (householdId: string) => {
+    return householdId === inviteContext?.clickedHouseholdId || visibleSet.has(householdId);
   };
 
-  // Sort households by distance
-  const sortedByDistance = [...availableHouseholds].sort((a, b) => {
-    return getCalculatedDistance(a) - getCalculatedDistance(b);
-  });
-
-  // Group households into suggested vs others
-  const suggestedIds = new Set(inviteContext?.suggestedHouseholds?.map(h => h.id) || []);
-  const suggestedHouseholds = sortedByDistance.filter(h => suggestedIds.has(h.id || ''));
-  const otherHouseholds = sortedByDistance.filter(h => !suggestedIds.has(h.id || ''));
-  
-  const hasSuggestions = inviteContext?.filterContext?.hasFilters && suggestedHouseholds.length > 0;
-
-  const renderHouseholdCard = (household: GGHousehold) => {
+  const renderHouseholdCard = (household: GGHousehold, isRecommended: boolean = false) => {
     const householdId = household.id;
     if (!householdId) return null;
     
     const kidsAges = getKidsAges(household);
-    const adultsText = getAdultsText(household);
-    const distanceText = getDistanceText(household);
+    const isClickedHousehold = householdId === inviteContext?.clickedHouseholdId;
+    const isSelected = selectedIds.has(householdId);
     
     return (
       <label
         key={householdId}
+        onClick={() => toggleHousehold(householdId)} // ✅ Clicking card toggles
         style={{
           display: "flex",
           alignItems: "flex-start",
           padding: "16px",
-          border: "1px solid #e2e8f0",
+          border: `1px solid ${isSelected ? '#3b82f6' : '#e2e8f0'}`,
           borderRadius: "12px",
           cursor: "pointer",
-          backgroundColor: selectedIds.has(householdId) ? "#f0fdf4" : "#fff",
+          backgroundColor: isSelected ? '#eff6ff' : '#fff',
           transition: "all 0.2s",
+          position: "relative",
         }}
         onMouseEnter={(e) => {
-          if (!selectedIds.has(householdId)) {
+          if (!isSelected) {
             e.currentTarget.style.backgroundColor = "#f8fafc";
           }
         }}
         onMouseLeave={(e) => {
-          if (!selectedIds.has(householdId)) {
+          if (!isSelected) {
             e.currentTarget.style.backgroundColor = "#fff";
           }
         }}
       >
+        {/* ✅ FIX #1: ReadOnly checkbox that toggles via label click */}
         <input
           type="checkbox"
-          checked={selectedIds.has(householdId)}
-          onChange={() => toggleHousehold(householdId)}
+          checked={isSelected}
+          readOnly
           style={{
             width: "18px",
             height: "18px",
@@ -273,31 +293,63 @@ export function HouseholdSelector({
           }}
         />
         <div style={{ flex: 1, minWidth: 0 }}>
-          {/* Header with name and distance */}
-          <div style={{ marginBottom: "8px" }}>
-            <div style={{ fontWeight: "600", color: "#1e293b", fontSize: "15px", marginBottom: "4px" }}>
-              {getHouseholdName(household)}
-            </div>
-            {distanceText && (
-              <div style={{ fontSize: "12px", color: "#64748b", display: "flex", alignItems: "center", gap: "4px" }}>
-                📍 {distanceText}
-              </div>
+          {/* Badges in top-right */}
+          <div style={{ position: "absolute", top: 10, right: 10, display: "flex", gap: 6 }}>
+            {isClickedHousehold && (
+              <span style={{
+                fontSize: 11,
+                padding: "3px 8px",
+                borderRadius: 999,
+                background: "#dbeafe",
+                color: "#1e40af",
+                fontWeight: 600,
+              }}>
+                👆 Clicked
+              </span>
             )}
-            {household.neighborhood && (
-              <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>
-                {household.neighborhood}
-              </div>
+            {isRecommended && !isClickedHousehold && (
+              <span style={{
+                fontSize: 11,
+                padding: "3px 8px",
+                borderRadius: 999,
+                background: "#f1f5f9",
+                border: "1px solid #cbd5e1",
+                color: "#475569",
+                fontWeight: 600,
+              }}>
+                ✓ Match
+              </span>
             )}
           </div>
+          
+          {/* Household name */}
+          <div style={{ fontWeight: "600", color: "#1e293b", fontSize: "15px", marginBottom: "4px", paddingRight: isRecommended ? "70px" : "0" }}>
+            {household.lastName || 'Unknown Household'}
+          </div>
+          
+          {/* Distance (from API if available) */}
+          {(household as any).distance != null && (
+            <div style={{ fontSize: "12px", color: "#64748b", marginBottom: 4 }}>
+              � ~{((household as any).distance as number).toFixed(1)} mi
+              {household.location_precision === 'zipcode' && '*'}
+            </div>
+          )}
+          
+          {/* Neighborhood */}
+          {household.neighborhood && (
+            <div style={{ fontSize: "12px", color: "#64748b", marginBottom: 8 }}>
+              {household.neighborhood}
+            </div>
+          )}
 
           {/* Adults */}
-          {adultsText && (
+          {household.adultNames && household.adultNames.length > 0 && (
             <div style={{ marginBottom: "8px" }}>
               <div style={{ fontSize: "11px", fontWeight: "600", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "2px" }}>
                 Adults:
               </div>
               <div style={{ fontSize: "13px", color: "#374151" }}>
-                {adultsText}
+                {household.adultNames.join(', ')}
               </div>
             </div>
           )}
@@ -407,92 +459,128 @@ export function HouseholdSelector({
       </div>
 
       {loading ? (
-        <div style={{ padding: "20px", textAlign: "center", color: "#94a3b8" }}>
-          Loading households...
+        <div style={{ padding: "20px", textAlign: "center" }}>
+          <div style={{ color: "#94a3b8", marginBottom: 8 }}>Loading households...</div>
+          <div style={{ fontSize: 12, color: "#cbd5e1" }}>
+            Check browser console (F12) if this takes more than 5 seconds
+          </div>
         </div>
       ) : availableHouseholds.length === 0 ? (
-        <div style={{ padding: "20px", textAlign: "center", color: "#94a3b8" }}>
-          No households available
+        <div style={{ padding: "20px", textAlign: "center" }}>
+          <div style={{ color: "#94a3b8", marginBottom: 8 }}>No households available</div>
+          <div style={{ fontSize: 12, color: "#cbd5e1" }}>
+            Check browser console (F12) for error details
+          </div>
         </div>
       ) : (
         <div style={{ marginTop: "12px" }}>
-          {/* Suggested Section (if we have suggestions from filters) */}
-          {hasSuggestions && (
-            <div style={{ marginBottom: 16 }}>
-              <div style={{
-                fontSize: 13,
-                fontWeight: 600,
-                color: "#059669",
-                marginBottom: 8,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6
-              }}>
-                <span style={{ fontSize: 16 }}>✨</span>
-                Suggested ({suggestedHouseholds.length})
-              </div>
-              
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {suggestedHouseholds.map(renderHouseholdCard)}
-              </div>
-            </div>
-          )}
-          
-          {/* Other Households (collapsed by default if we have suggestions) */}
-          {otherHouseholds.length > 0 && (
-            <div>
+          {/* ✅ Single list if <30 households, sectioned if >=30 */}
+          {shouldShowSections ? (
+            // Large list (30+): show sections
+            <>
               {hasSuggestions && (
-                <button
-                  type="button"
-                  onClick={() => setShowOthers(!showOthers)}
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    marginBottom: showOthers ? 8 : 0,
-                    border: '1px dashed #e5e7eb',
-                    borderRadius: 8,
-                    background: '#f9fafb',
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{
                     fontSize: 13,
                     fontWeight: 600,
-                    color: '#6b7280',
-                    cursor: 'pointer',
+                    color: "#475569",
+                    marginBottom: 8,
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
-                    transition: 'all 0.15s',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#f3f4f6';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = '#f9fafb';
-                  }}
-                >
-                  <span>Other nearby households ({otherHouseholds.length})</span>
-                  <span style={{ fontSize: 11 }}>{showOthers ? '▲' : '▼'}</span>
-                </button>
-              )}
-              
-              {(showOthers || !hasSuggestions) && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  {otherHouseholds.map(renderHouseholdCard)}
+                    gap: 6
+                  }}>
+                    <span style={{ fontSize: 16 }}>✨</span>
+                    Suggested ({suggestedHouseholds.length})
+                  </div>
+                  
+                  {/* ✅ Filter context banner with human-readable labels */}
+                  {inviteContext?.filterContext && (
+                    <div style={{
+                      padding: "10px 12px",
+                      background: "#f8fafc",
+                      border: "1px solid #e2e8f0",
+                      borderRadius: 8,
+                      fontSize: 12,
+                      color: "#475569",
+                      marginBottom: 10,
+                      lineHeight: 1.5
+                    }}>
+                      <strong>Based on your Discovery filters:</strong>
+                      <div style={{ marginTop: 4 }}>
+                        {inviteContext.filterContext.types && inviteContext.filterContext.types.length > 0 && (
+                          <div>• {inviteContext.filterContext.types.map(t => TYPE_LABELS[t] ?? t).join(", ")}</div>
+                        )}
+                        {inviteContext.filterContext.ageRange && (
+                          <div>• Kids ages {inviteContext.filterContext.ageRange.min}-{inviteContext.filterContext.ageRange.max}</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    {suggestedHouseholds.map(h => renderHouseholdCard(h, true))}
+                  </div>
                 </div>
               )}
+              
+              {/* Other Households (collapsed by default) */}
+              {otherHouseholds.length > 0 && (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setShowOthers(!showOthers)}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      marginBottom: showOthers ? 8 : 0,
+                      border: '1px dashed #e5e7eb',
+                      borderRadius: 8,
+                      background: '#f9fafb',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: '#6b7280',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <span>Other nearby households ({otherHouseholds.length})</span>
+                    <span style={{ fontSize: 11 }}>{showOthers ? '▲' : '▼'}</span>
+                  </button>
+                  
+                  {showOthers && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      {otherHouseholds.map(h => renderHouseholdCard(h, false))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            // ✅ Small list (<30): single unified list with "Match" badges
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              {hasSuggestions && inviteContext?.filterContext && (
+                <div style={{
+                  padding: "10px 12px",
+                  background: "#f8fafc",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: 8,
+                  fontSize: 12,
+                  color: "#475569",
+                  marginBottom: 4,
+                  lineHeight: 1.5
+                }}>
+                  <strong>Suggested based on:</strong>
+                  {' '}
+                  {inviteContext.filterContext.types?.map(t => TYPE_LABELS[t] ?? t).join(", ")}
+                  {inviteContext.filterContext.ageRange && 
+                    ` • Ages ${inviteContext.filterContext.ageRange.min}-${inviteContext.filterContext.ageRange.max}`}
+                </div>
+              )}
+              {sortedHouseholds.map(h => renderHouseholdCard(h, isSuggested(h.id || '')))}
             </div>
           )}
-          
-          {/* Distance accuracy note */}
-          <div style={{
-            marginTop: 16,
-            padding: '8px 12px',
-            background: '#f8fafc',
-            borderRadius: 8,
-            fontSize: 11,
-            color: '#64748b',
-            lineHeight: 1.4
-          }}>
-            <strong>*</strong> Distance is approximate (based on ZIP code only). Neighbors with full addresses show more accurate distances.
-          </div>
         </div>
       )}
 
@@ -518,42 +606,44 @@ export function HouseholdSelector({
           Share your event with neighbors, friends, or family — they can RSVP without creating an account.
         </div>
 
-        {/* Three action buttons */}
+        {/* ✅ FIX #4: Always show Share section, but disable if no link */}
+        {!eventInviteLink && (
+          <div style={{
+            padding: "12px 14px",
+            background: "#fef3c7",
+            border: "1px solid #fde68a",
+            borderRadius: 8,
+            fontSize: 13,
+            color: "#92400e",
+            marginBottom: 12,
+          }}>
+            💡 <strong>Save your event first</strong> to generate the invite link
+          </div>
+        )}
+
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {/* Share button (uses native share sheet on mobile) */}
           <button
             type="button"
-            onClick={() => {
-              const inviteLink = window.location.href;
-              const eventTitle = "GatherGrove Event";
-              shareInvite(inviteLink, eventTitle);
-            }}
+            onClick={shareInvite}
+            disabled={!eventInviteLink}
             style={{
               padding: "14px 16px",
-              background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-              color: "white",
+              background: eventInviteLink ? "linear-gradient(135deg, #10b981 0%, #059669 100%)" : "#e5e7eb",
+              color: eventInviteLink ? "white" : "#94a3b8",
               border: "none",
               borderRadius: 10,
               fontWeight: 600,
               fontSize: 15,
-              cursor: "pointer",
+              cursor: eventInviteLink ? "pointer" : "not-allowed",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               gap: 10,
-              boxShadow: "0 3px 10px rgba(16, 185, 129, 0.3)",
-              transition: "all 0.2s ease"
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translateY(-2px)";
-              e.currentTarget.style.boxShadow = "0 5px 15px rgba(16, 185, 129, 0.4)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow = "0 3px 10px rgba(16, 185, 129, 0.3)";
+              boxShadow: eventInviteLink ? "0 3px 10px rgba(16, 185, 129, 0.3)" : "none",
+              opacity: eventInviteLink ? 1 : 0.6,
             }}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <circle cx="18" cy="5" r="3"></circle>
               <circle cx="6" cy="12" r="3"></circle>
               <circle cx="18" cy="19" r="3"></circle>
@@ -561,86 +651,65 @@ export function HouseholdSelector({
               <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
             </svg>
             Share…
-            <span style={{ 
-              fontSize: 11, 
-              fontWeight: 600, 
-              background: "rgba(255, 255, 255, 0.25)",
-              padding: "2px 8px",
-              borderRadius: 6,
-              color: "white"
-            }}>
-              recommended
-            </span>
+            {eventInviteLink && (
+              <span style={{ 
+                fontSize: 11, 
+                background: "rgba(255, 255, 255, 0.25)",
+                padding: "2px 8px",
+                borderRadius: 6,
+              }}>
+                recommended
+              </span>
+            )}
           </button>
 
-          {/* Send Text button */}
           <button
             type="button"
-            onClick={() => {
-              const inviteLink = window.location.href;
-              const eventTitle = "GatherGrove Event";
-              sendViaSMS(inviteLink, eventTitle);
-            }}
+            onClick={sendViaSMS}
+            disabled={!eventInviteLink}
             style={{
               padding: "12px 16px",
               background: "white",
-              color: "#059669",
-              border: "2px solid #10b981",
+              color: eventInviteLink ? "#059669" : "#94a3b8",
+              border: `2px solid ${eventInviteLink ? "#10b981" : "#e5e7eb"}`,
               borderRadius: 10,
               fontWeight: 600,
               fontSize: 14,
-              cursor: "pointer",
+              cursor: eventInviteLink ? "pointer" : "not-allowed",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               gap: 8,
-              transition: "all 0.15s ease"
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "#f0fdf4";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "white";
+              opacity: eventInviteLink ? 1 : 0.6,
             }}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
             </svg>
             Send Text
           </button>
 
-          {/* Copy Link button */}
           <button
             type="button"
-            onClick={() => {
-              const inviteLink = window.location.href;
-              copyInviteLink(inviteLink);
-            }}
+            onClick={copyInviteLink}
+            disabled={!eventInviteLink}
             style={{
               padding: "12px 16px",
               background: "white",
-              color: "#64748b",
-              border: "1px solid #e2e8f0",
+              color: eventInviteLink ? "#64748b" : "#94a3b8",
+              border: `1px solid ${eventInviteLink ? "#e2e8f0" : "#e5e7eb"}`,
               borderRadius: 10,
               fontWeight: 600,
               fontSize: 14,
-              cursor: "pointer",
+              cursor: eventInviteLink ? "pointer" : "not-allowed",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               gap: 8,
-              transition: "all 0.15s ease"
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "#f8fafc";
-              e.currentTarget.style.borderColor = "#cbd5e1";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "white";
-              e.currentTarget.style.borderColor = "#e2e8f0";
+              opacity: eventInviteLink ? 1 : 0.6,
             }}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
             </svg>
