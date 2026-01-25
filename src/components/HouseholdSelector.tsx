@@ -682,18 +682,6 @@ export function HouseholdSelector({
           💬 Invite someone not on GatherGrove
         </div>
         
-        <div style={{ 
-          fontSize: 14, 
-          fontWeight: 600, 
-          color: "#1e293b",
-          marginBottom: 8,
-          display: "flex",
-          alignItems: "center",
-          gap: 8
-        }}>
-          � Invite Anyone
-        </div>
-        
         <div style={{ fontSize: 13, color: "#64748b", marginBottom: 16 }}>
           Share your event with neighbors, friends, or family — they can RSVP without creating an account.
         </div>
@@ -709,7 +697,7 @@ export function HouseholdSelector({
             color: "#92400e",
             marginBottom: 12,
           }}>
-            💡 <strong>Save your event first</strong> to generate the invite link
+            💡 <strong>Post your event first</strong> to generate the invite link
           </div>
         )}
 
