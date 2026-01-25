@@ -726,6 +726,13 @@ export default function ComposePost() {
                     {previewWhen}
                   </div>
                   
+                  {eventLocation.trim() && (
+                    <div className="full-preview-meta">
+                      <span className="full-preview-meta-icon">📍</span>
+                      {eventLocation.trim()}
+                    </div>
+                  )}
+                  
                   {kind === "event" && categoryMeta && (
                     <div className="full-preview-category">
                       <span>{categoryMeta.emoji}</span>
