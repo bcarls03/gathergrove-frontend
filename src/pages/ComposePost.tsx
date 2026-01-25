@@ -207,6 +207,11 @@ export default function ComposePost() {
   const [selectedHouseholdIds, setSelectedHouseholdIds] = useState<Set<string>>(new Set());
   const [selectedPhoneNumbers, setSelectedPhoneNumbers] = useState<Set<string>>(new Set());
 
+  // ✅ NEW: Success modal state
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [shareableLink, setShareableLink] = useState<string | null>(null);
+  const [createdEventTitle, setCreatedEventTitle] = useState<string>("");
+
   const resolvedNeighborLabel = (n: Neighbor) => (n.label ?? n.lastName ?? "").toString();
 
   const canSubmitDetails =
@@ -283,7 +288,7 @@ export default function ComposePost() {
         try {
           const res = await (Api as any).createEvent?.({
             type: "now",
-            title: "Happening Now",
+            title: title.trim() || "Happening Now",  // ✅ Use custom title if provided
             details: localPayload.details,
             category: localPayload.category ?? "neighborhood",
             visibility: visibility,
@@ -294,6 +299,7 @@ export default function ComposePost() {
 
           const backend = res?.data ?? res;
           const backendId = backend?.id;
+          const shareLink = backend?.shareable_link || backend?.shareableLink;  // ✅ Capture shareable link
 
           if (backendId) {
             const updated = loadPosts().map((p) => (p.id !== tempId ? p : { ...p, id: backendId, backendId }));
@@ -301,6 +307,14 @@ export default function ComposePost() {
 
             // Send invitations if households or phone numbers are selected
             await sendInvitations(backendId);
+            
+            // ✅ Show success modal with share link instead of navigating away
+            if (shareLink) {
+              setCreatedEventTitle(title.trim() || "Happening Now");
+              setShareableLink(shareLink);
+              setShowSuccessModal(true);
+              return;  // Don't navigate yet
+            }
           }
         } catch (err: any) {
           console.error("Failed to create backend happening", err?.response?.data ?? err);
@@ -346,6 +360,7 @@ export default function ComposePost() {
 
         const backend = res?.data ?? res;
         const backendId = backend?.id;
+        const shareLink = backend?.shareable_link || backend?.shareableLink;  // ✅ Capture shareable link
 
         if (backendId) {
           const updated = loadPosts().map((p) => (p.id !== tempId ? p : { ...p, id: backendId, backendId }));
@@ -353,6 +368,15 @@ export default function ComposePost() {
 
           // Send invitations if households or phone numbers are selected
           await sendInvitations(backendId);
+          
+          // ✅ Show success modal with share link instead of navigating away
+          if (shareLink) {
+            setCreatedEventTitle(localPayload.title || "Future Event");
+            setShareableLink(shareLink);
+            setShowSuccessModal(true);
+            setIsSubmitting(false);
+            return;  // Don't navigate yet
+          }
         }
       } catch (err: any) {
         console.error("Failed to create backend future event", err?.response?.data ?? err);
@@ -820,6 +844,148 @@ export default function ComposePost() {
           )}
         </div>
       </div>
+
+      {/* ✅ Success Modal */}
+      {showSuccessModal && shareableLink && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(0, 0, 0, 0.5)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 9999,
+          padding: "20px",
+        }}>
+          <div style={{
+            backgroundColor: "#fff",
+            borderRadius: "20px",
+            padding: "32px",
+            maxWidth: "500px",
+            width: "100%",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+          }}>
+            <div style={{ textAlign: "center", marginBottom: "24px" }}>
+              <div style={{ fontSize: "48px", marginBottom: "16px" }}>🎉</div>
+              <h2 style={{ fontSize: "24px", fontWeight: "800", color: "#0f172a", marginBottom: "8px" }}>
+                Event Posted!
+              </h2>
+              <p style={{ fontSize: "15px", color: "#64748b", marginBottom: "0" }}>
+                {createdEventTitle}
+              </p>
+            </div>
+
+            <div style={{
+              backgroundColor: "#f8fafc",
+              borderRadius: "12px",
+              padding: "16px",
+              marginBottom: "24px",
+            }}>
+              <div style={{ fontSize: "13px", fontWeight: "700", color: "#64748b", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                Share this event
+              </div>
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                backgroundColor: "#fff",
+                padding: "12px",
+                borderRadius: "8px",
+                border: "1px solid #e2e8f0",
+              }}>
+                <input
+                  type="text"
+                  readOnly
+                  value={`${window.location.origin}${shareableLink}`}
+                  style={{
+                    flex: 1,
+                    border: "none",
+                    background: "none",
+                    fontSize: "14px",
+                    color: "#0f172a",
+                    outline: "none",
+                  }}
+                  onClick={(e) => (e.target as HTMLInputElement).select()}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}${shareableLink}`);
+                    alert("Link copied!");
+                  }}
+                  style={{
+                    padding: "8px 16px",
+                    backgroundColor: "#3b82f6",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "6px",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    flexShrink: 0,
+                  }}
+                >
+                  Copy
+                </button>
+              </div>
+            </div>
+
+            <div style={{
+              display: "flex",
+              gap: "12px",
+            }}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (navigator.share) {
+                    navigator.share({
+                      title: createdEventTitle,
+                      text: `Join me: ${createdEventTitle}`,
+                      url: `${window.location.origin}${shareableLink}`,
+                    }).catch(() => {});
+                  }
+                }}
+                style={{
+                  flex: 1,
+                  padding: "12px 24px",
+                  backgroundColor: "#10b981",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "12px",
+                  fontSize: "15px",
+                  fontWeight: "700",
+                  cursor: "pointer",
+                }}
+              >
+                📱 Share via SMS
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSuccessModal(false);
+                  navigate("/");
+                }}
+                style={{
+                  flex: 1,
+                  padding: "12px 24px",
+                  backgroundColor: "#f1f5f9",
+                  color: "#0f172a",
+                  border: "none",
+                  borderRadius: "12px",
+                  fontSize: "15px",
+                  fontWeight: "700",
+                  cursor: "pointer",
+                }}
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
