@@ -729,7 +729,7 @@ export default function Discovery() {
                       </div>
                     </button>
 
-                    {/* Plan Event Option */}
+                    {/* Future Event Option */}
                     <button
                       onClick={() => {
                         setShowCreateDropdown(false);
@@ -766,7 +766,7 @@ export default function Discovery() {
                         </div>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 2 }}>
-                            Plan Event
+                            Future Event
                           </div>
                           <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.3 }}>
                             Schedule for later
