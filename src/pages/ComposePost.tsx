@@ -477,17 +477,20 @@ export default function ComposePost() {
           .cat-option-sub { font-size:13px; color:#6b7280; }
           .full-preview-card { border-radius: 20px; border: 1px solid rgba(15,23,42,.08); background: linear-gradient(135deg, #ffffff 0%, #fefefe 100%); padding: 20px 20px 24px; box-shadow: 0 20px 50px rgba(15,23,42,.12), 0 5px 15px rgba(15,23,42,.06); position: relative; overflow: hidden; }
           .full-preview-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, #34d399 0%, #10b981 50%, #059669 100%); opacity: 0.8; }
-          .full-preview-card.happening-now::before { background: linear-gradient(90deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%); animation: shimmer 2s infinite; }
-          @keyframes shimmer { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
-          .full-preview-title-row { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:8px; }
+          .full-preview-card.happening-now::before { background: linear-gradient(90deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%); animation: shimmer 3s ease-in-out infinite; }
+          @keyframes shimmer { 0%, 100% { opacity: 0.5; } 50% { opacity: 0.9; } }
+          .full-preview-title-row { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:4px; }
           .full-preview-title { font-size:20px; font-weight:800; color:#0f172a; line-height:1.3; letter-spacing:-0.01em; }
           .full-preview-pill { font-size:11px; padding:5px 11px; border-radius:999px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; flex-shrink: 0; }
           .full-preview-pill.happening { border:1.5px solid rgba(251,191,36,.6); background:linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); color:#92400e; box-shadow: 0 2px 8px rgba(251,191,36,.3); }
           .full-preview-pill.future { border:1.5px solid rgba(52,211,153,.5); background:linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%); color:#065f46; box-shadow: 0 2px 8px rgba(52,211,153,.25); }
-          .full-preview-meta { font-size:14px; color:#64748b; margin-bottom:6px; display:flex; align-items:center; gap:4px; font-weight:500; }
+          .full-preview-host { font-size:13px; color:#64748b; margin-bottom:10px; display:flex; align-items:center; gap:6px; font-weight:500; }
+          .full-preview-host-icon { font-size:15px; }
+          .full-preview-meta { font-size:14px; color:#64748b; margin-bottom:5px; display:flex; align-items:center; gap:6px; font-weight:500; }
           .full-preview-meta-icon { font-size:16px; }
+          .full-preview-divider { height:1px; background:linear-gradient(90deg, transparent 0%, rgba(148,163,184,.15) 50%, transparent 100%); margin:14px 0; }
           .full-preview-category { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:12px; background:rgba(241,245,249,.8); border:1px solid rgba(148,163,184,.2); font-size:13px; font-weight:600; color:#475569; margin-bottom:12px; }
-          .full-preview-body { font-size:15px; color:#1e293b; white-space:pre-wrap; line-height:1.6; margin-bottom:16px; }
+          .full-preview-body { font-size:15px; color:#1e293b; white-space:pre-wrap; line-height:1.6; margin-bottom:0; }
           .full-preview-invites { margin-top:16px; padding-top:16px; border-top:1px solid rgba(148,163,184,.15); }
           .full-preview-invites-label { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:#64748b; font-weight:700; margin-bottom:8px; }
           .full-preview-invites-list { display:flex; flex-wrap:wrap; gap:6px; }
@@ -721,6 +724,12 @@ export default function ComposePost() {
                     </div>
                   </div>
                   
+                  {/* Host name */}
+                  <div className="full-preview-host">
+                    <span className="full-preview-host-icon">👤</span>
+                    <span>Hosted by {createdBy.label}</span>
+                  </div>
+                  
                   <div className="full-preview-meta">
                     <span className="full-preview-meta-icon">🕐</span>
                     {previewWhen}
@@ -740,6 +749,9 @@ export default function ComposePost() {
                       <span>{categoryMeta.label}</span>
                     </div>
                   )}
+                  
+                  {/* Subtle divider */}
+                  <div className="full-preview-divider"></div>
                   
                   <div className="full-preview-body">
                     {details.trim() || "Your details will appear here as you type..."}
