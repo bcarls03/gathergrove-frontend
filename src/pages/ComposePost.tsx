@@ -970,10 +970,10 @@ export default function ComposePost() {
                 display: "flex",
                 alignItems: "center",
                 gap: "8px",
-                backgroundColor: "#fff",
+                backgroundColor: "#eff6ff",
                 padding: "14px 16px",
                 borderRadius: "12px",
-                border: "2px solid #e2e8f0",
+                border: "1px solid #bfdbfe",
               }}>
                 <input
                   type="text"
@@ -1026,6 +1026,37 @@ export default function ComposePost() {
               <button
                 type="button"
                 onClick={() => {
+                  setShowSuccessModal(false);
+                  navigate("/");
+                }}
+                style={{
+                  padding: "16px 24px",
+                  backgroundColor: "#3b82f6",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "14px",
+                  fontSize: "16px",
+                  fontWeight: "700",
+                  cursor: "pointer",
+                  boxShadow: "0 4px 12px rgba(59, 130, 246, 0.3)",
+                  transition: "all 0.2s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.boxShadow = "0 6px 16px rgba(59, 130, 246, 0.4)";
+                  e.currentTarget.style.backgroundColor = "#2563eb";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(59, 130, 246, 0.3)";
+                  e.currentTarget.style.backgroundColor = "#3b82f6";
+                }}
+              >
+                Done
+              </button>
+              <button
+                type="button"
+                onClick={() => {
                   if (navigator.share) {
                     navigator.share({
                       title: createdEventTitle,
@@ -1039,15 +1070,14 @@ export default function ComposePost() {
                   }
                 }}
                 style={{
-                  padding: "16px 24px",
-                  backgroundColor: "#10b981",
-                  color: "#fff",
-                  border: "none",
+                  padding: "14px 24px",
+                  backgroundColor: "#fff",
+                  color: "#10b981",
+                  border: "2px solid #10b981",
                   borderRadius: "14px",
-                  fontSize: "16px",
-                  fontWeight: "700",
+                  fontSize: "15px",
+                  fontWeight: "600",
                   cursor: "pointer",
-                  boxShadow: "0 4px 12px rgba(16, 185, 129, 0.3)",
                   transition: "all 0.2s",
                   display: "flex",
                   alignItems: "center",
@@ -1055,44 +1085,14 @@ export default function ComposePost() {
                   gap: "10px",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "translateY(-2px)";
-                  e.currentTarget.style.boxShadow = "0 6px 16px rgba(16, 185, 129, 0.4)";
+                  e.currentTarget.style.backgroundColor = "#f0fdf4";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(16, 185, 129, 0.3)";
+                  e.currentTarget.style.backgroundColor = "#fff";
                 }}
               >
-                <span style={{ fontSize: "20px" }}>📱</span>
+                <span style={{ fontSize: "18px" }}>📱</span>
                 Share via Text/SMS
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowSuccessModal(false);
-                  navigate("/");
-                }}
-                style={{
-                  padding: "14px 24px",
-                  backgroundColor: "#fff",
-                  color: "#64748b",
-                  border: "2px solid #e2e8f0",
-                  borderRadius: "14px",
-                  fontSize: "15px",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  transition: "all 0.2s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "#cbd5e1";
-                  e.currentTarget.style.color = "#475569";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "#e2e8f0";
-                  e.currentTarget.style.color = "#64748b";
-                }}
-              >
-                Done
               </button>
             </div>
           </div>
