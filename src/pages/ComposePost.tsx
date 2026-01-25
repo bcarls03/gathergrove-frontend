@@ -726,10 +726,11 @@ export default function ComposePost() {
                     {previewWhen}
                   </div>
                   
-                  {eventLocation.trim() && (
+                  {/* Show location if entered */}
+                  {eventLocation && eventLocation.trim() && (
                     <div className="full-preview-meta">
                       <span className="full-preview-meta-icon">📍</span>
-                      {eventLocation.trim()}
+                      {eventLocation}
                     </div>
                   )}
                   
