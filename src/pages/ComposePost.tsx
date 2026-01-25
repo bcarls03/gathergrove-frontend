@@ -211,6 +211,8 @@ export default function ComposePost() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [shareableLink, setShareableLink] = useState<string | null>(null);
   const [createdEventTitle, setCreatedEventTitle] = useState<string>("");
+  const [createdEventType, setCreatedEventType] = useState<"happening" | "event">("happening");
+  const [copyFeedback, setCopyFeedback] = useState(false);
 
   const resolvedNeighborLabel = (n: Neighbor) => (n.label ?? n.lastName ?? "").toString();
 
@@ -311,6 +313,7 @@ export default function ComposePost() {
             // ✅ Show success modal with share link instead of navigating away
             if (shareLink) {
               setCreatedEventTitle(title.trim() || "Happening Now");
+              setCreatedEventType("happening");
               setShareableLink(shareLink);
               setShowSuccessModal(true);
               return;  // Don't navigate yet
@@ -372,6 +375,7 @@ export default function ComposePost() {
           // ✅ Show success modal with share link instead of navigating away
           if (shareLink) {
             setCreatedEventTitle(localPayload.title || "Future Event");
+            setCreatedEventType("event");
             setShareableLink(shareLink);
             setShowSuccessModal(true);
             setIsSubmitting(false);
@@ -846,55 +850,130 @@ export default function ComposePost() {
       </div>
 
       {/* ✅ Success Modal */}
-      {showSuccessModal && shareableLink && (
-        <div style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: "rgba(0, 0, 0, 0.5)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 9999,
-          padding: "20px",
-        }}>
+      {showSuccessModal && shareableLink && (() => {
+        const isHappeningNow = createdEventType === "happening";
+        const emoji = isHappeningNow ? "⚡" : "🎉";
+        const gradientColor = isHappeningNow 
+          ? "linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%)"
+          : "linear-gradient(135deg, #34d399 0%, #10b981 50%, #059669 100%)";
+        const shimmer = isHappeningNow 
+          ? `@keyframes shimmer { 0%, 100% { opacity: 0.5; } 50% { opacity: 0.9; } }`
+          : "";
+        
+        return (
           <div style={{
-            backgroundColor: "#fff",
-            borderRadius: "20px",
-            padding: "32px",
-            maxWidth: "500px",
-            width: "100%",
-            boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: "20px",
+            backdropFilter: "blur(4px)",
           }}>
-            <div style={{ textAlign: "center", marginBottom: "24px" }}>
-              <div style={{ fontSize: "48px", marginBottom: "16px" }}>🎉</div>
-              <h2 style={{ fontSize: "24px", fontWeight: "800", color: "#0f172a", marginBottom: "8px" }}>
+            <div style={{
+              backgroundColor: "#fff",
+              borderRadius: "24px",
+              padding: "40px 32px 32px",
+              maxWidth: "480px",
+              width: "100%",
+              boxShadow: "0 25px 70px rgba(0,0,0,0.35)",
+              animation: "slideUp 0.3s ease-out",
+              position: "relative",
+              overflow: "hidden",
+            }}>
+              {/* Top accent bar matching event type */}
+              <div style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                height: "6px",
+                background: gradientColor,
+                opacity: 0.9,
+                animation: isHappeningNow ? "shimmer 3s ease-in-out infinite" : "none",
+              }} />
+              
+              <style>{`
+                @keyframes slideUp {
+                  from { opacity: 0; transform: translateY(20px); }
+                  to { opacity: 1; transform: translateY(0); }
+                }
+                @keyframes checkmark {
+                  from { transform: scale(0.8); opacity: 0; }
+                  to { transform: scale(1); opacity: 1; }
+                }
+                ${shimmer}
+              `}</style>
+            
+            <div style={{ textAlign: "center", marginBottom: "32px" }}>
+              <div style={{ 
+                fontSize: "56px", 
+                marginBottom: "16px",
+                animation: "checkmark 0.4s ease-out 0.1s both"
+              }}>{emoji}</div>
+              
+              {isHappeningNow && (
+                <div style={{
+                  fontSize: "18px",
+                  fontWeight: "700",
+                  color: "#f59e0b",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  marginBottom: "8px",
+                }}>
+                  Happening Now
+                </div>
+              )}
+              
+              <h2 style={{ 
+                fontSize: "28px", 
+                fontWeight: "800", 
+                color: "#0f172a", 
+                marginBottom: "12px",
+                lineHeight: "1.2"
+              }}>
                 Event Posted!
               </h2>
-              <p style={{ fontSize: "15px", color: "#64748b", marginBottom: "0" }}>
+              <p style={{ 
+                fontSize: "18px", 
+                color: "#475569", 
+                marginBottom: "0",
+                fontWeight: "600"
+              }}>
                 {createdEventTitle}
               </p>
             </div>
 
             <div style={{
               backgroundColor: "#f8fafc",
-              borderRadius: "12px",
-              padding: "16px",
+              borderRadius: "16px",
+              padding: "20px",
               marginBottom: "24px",
+              border: "1px solid #e2e8f0",
             }}>
-              <div style={{ fontSize: "13px", fontWeight: "700", color: "#64748b", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                Share this event
+              <div style={{ 
+                fontSize: "12px", 
+                fontWeight: "700", 
+                color: "#64748b", 
+                marginBottom: "12px", 
+                textTransform: "uppercase", 
+                letterSpacing: "0.08em" 
+              }}>
+                📤 Share this event
               </div>
               <div style={{
                 display: "flex",
                 alignItems: "center",
                 gap: "8px",
                 backgroundColor: "#fff",
-                padding: "12px",
-                borderRadius: "8px",
-                border: "1px solid #e2e8f0",
+                padding: "14px 16px",
+                borderRadius: "12px",
+                border: "2px solid #e2e8f0",
               }}>
                 <input
                   type="text"
@@ -904,9 +983,10 @@ export default function ComposePost() {
                     flex: 1,
                     border: "none",
                     background: "none",
-                    fontSize: "14px",
-                    color: "#0f172a",
+                    fontSize: "13px",
+                    color: "#475569",
                     outline: "none",
+                    fontFamily: "monospace",
                   }}
                   onClick={(e) => (e.target as HTMLInputElement).select()}
                 />
@@ -914,27 +994,33 @@ export default function ComposePost() {
                   type="button"
                   onClick={() => {
                     navigator.clipboard.writeText(`${window.location.origin}${shareableLink}`);
-                    alert("Link copied!");
+                    setCopyFeedback(true);
+                    setTimeout(() => setCopyFeedback(false), 2000);
                   }}
                   style={{
                     padding: "8px 16px",
-                    backgroundColor: "#3b82f6",
+                    backgroundColor: copyFeedback ? "#10b981" : "#3b82f6",
                     color: "#fff",
                     border: "none",
-                    borderRadius: "6px",
+                    borderRadius: "8px",
                     fontSize: "13px",
-                    fontWeight: "600",
+                    fontWeight: "700",
                     cursor: "pointer",
                     flexShrink: 0,
+                    transition: "all 0.2s",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
                   }}
                 >
-                  Copy
+                  {copyFeedback ? "✓ Copied" : "Copy"}
                 </button>
               </div>
             </div>
 
             <div style={{
               display: "flex",
+              flexDirection: "column",
               gap: "12px",
             }}>
               <button
@@ -946,21 +1032,39 @@ export default function ComposePost() {
                       text: `Join me: ${createdEventTitle}`,
                       url: `${window.location.origin}${shareableLink}`,
                     }).catch(() => {});
+                  } else {
+                    // Fallback: Open SMS with pre-filled link
+                    const smsBody = encodeURIComponent(`Join me: ${createdEventTitle}\n${window.location.origin}${shareableLink}`);
+                    window.open(`sms:?body=${smsBody}`, '_blank');
                   }
                 }}
                 style={{
-                  flex: 1,
-                  padding: "12px 24px",
+                  padding: "16px 24px",
                   backgroundColor: "#10b981",
                   color: "#fff",
                   border: "none",
-                  borderRadius: "12px",
-                  fontSize: "15px",
+                  borderRadius: "14px",
+                  fontSize: "16px",
                   fontWeight: "700",
                   cursor: "pointer",
+                  boxShadow: "0 4px 12px rgba(16, 185, 129, 0.3)",
+                  transition: "all 0.2s",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "10px",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.boxShadow = "0 6px 16px rgba(16, 185, 129, 0.4)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(16, 185, 129, 0.3)";
                 }}
               >
-                📱 Share via SMS
+                <span style={{ fontSize: "20px" }}>📱</span>
+                Share via Text/SMS
               </button>
               <button
                 type="button"
@@ -969,15 +1073,23 @@ export default function ComposePost() {
                   navigate("/");
                 }}
                 style={{
-                  flex: 1,
-                  padding: "12px 24px",
-                  backgroundColor: "#f1f5f9",
-                  color: "#0f172a",
-                  border: "none",
-                  borderRadius: "12px",
+                  padding: "14px 24px",
+                  backgroundColor: "#fff",
+                  color: "#64748b",
+                  border: "2px solid #e2e8f0",
+                  borderRadius: "14px",
                   fontSize: "15px",
-                  fontWeight: "700",
+                  fontWeight: "600",
                   cursor: "pointer",
+                  transition: "all 0.2s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = "#cbd5e1";
+                  e.currentTarget.style.color = "#475569";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = "#e2e8f0";
+                  e.currentTarget.style.color = "#64748b";
                 }}
               >
                 Done
@@ -985,7 +1097,8 @@ export default function ComposePost() {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
