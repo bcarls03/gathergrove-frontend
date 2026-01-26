@@ -32,6 +32,7 @@ import { OnboardingPrivacy } from "./pages/OnboardingPrivacy.tsx";
 import OnboardingPreview from "./pages/OnboardingPreview.tsx";
 import OnboardingSave from "./pages/OnboardingSave.tsx";
 import PublicRSVP from "./pages/PublicRSVP.tsx";
+import PublicEventPage from "./pages/PublicEventPage.tsx";
 
 // Push notifications (Capacitor)
 import { initPushNotifications } from "./lib/notifications";
@@ -125,6 +126,9 @@ function AppShell() {
           
           {/* Public RSVP - No authentication required */}
           <Route path="/rsvp/:token" element={<PublicRSVP />} />
+          
+          {/* Public Event Page - Shareable event link for guest RSVPs */}
+          <Route path="/e/:eventId" element={<PublicEventPage />} />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />

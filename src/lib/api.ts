@@ -725,6 +725,18 @@ export async function fetchEventRsvps(eventId: string): Promise<EventRsvpBuckets
   }
 }
 
+/**
+ * Get a single event by ID (public endpoint - works for shareable links)
+ */
+export async function getEvent(eventId: string): Promise<GGEvent> {
+  try {
+    const res = await api.get(`/events/${eventId}`);
+    return res.data as GGEvent;
+  } catch (e) {
+    throw unwrapAxiosError(e);
+  }
+}
+
 /** Another legacy helper some pages may import */
 export async function getEventRsvps(eventId: string): Promise<any> {
   // Prefer buckets, fallback to summary
