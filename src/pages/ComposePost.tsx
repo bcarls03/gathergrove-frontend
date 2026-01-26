@@ -320,19 +320,19 @@ export default function ComposePost() {
             // Send invitations if households or phone numbers are selected
             await sendInvitations(backendId);
             
-            // ✅ Show success modal with share link instead of navigating away
-            if (shareLink) {
-              setCreatedEventTitle(title.trim() || "Happening Now");
-              setCreatedEventType("happening");
-              setShareableLink(shareLink);
-              setShowSuccessModal(true);
-              return;  // Don't navigate yet
-            }
+            // ✅ ALWAYS show success modal (generate fallback link if backend doesn't provide one)
+            const finalShareLink = shareLink || `/e/${backendId}`;
+            setCreatedEventTitle(title.trim() || "Happening Now");
+            setCreatedEventType("happening");
+            setShareableLink(finalShareLink);
+            setShowSuccessModal(true);
+            return;  // Don't navigate - stay on modal
           }
         } catch (err: any) {
           console.error("Failed to create backend happening", err?.response?.data ?? err);
         }
 
+        // Only navigate to home if event creation completely failed
         navigate("/");
         return;
       }
@@ -382,20 +382,20 @@ export default function ComposePost() {
           // Send invitations if households or phone numbers are selected
           await sendInvitations(backendId);
           
-          // ✅ Show success modal with share link instead of navigating away
-          if (shareLink) {
-            setCreatedEventTitle(localPayload.title || "Future Event");
-            setCreatedEventType("event");
-            setShareableLink(shareLink);
-            setShowSuccessModal(true);
-            setIsSubmitting(false);
-            return;  // Don't navigate yet
-          }
+          // ✅ ALWAYS show success modal (generate fallback link if backend doesn't provide one)
+          const finalShareLink = shareLink || `/e/${backendId}`;
+          setCreatedEventTitle(localPayload.title || "Future Event");
+          setCreatedEventType("event");
+          setShareableLink(finalShareLink);
+          setShowSuccessModal(true);
+          setIsSubmitting(false);
+          return;  // Don't navigate - stay on modal
         }
       } catch (err: any) {
         console.error("Failed to create backend future event", err?.response?.data ?? err);
       }
 
+      // Only navigate to home if event creation completely failed
       navigate("/");
     } finally {
       setIsSubmitting(false);
