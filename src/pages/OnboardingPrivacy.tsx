@@ -87,7 +87,7 @@ function OnboardingPrivacyInner() {
 
     try {
       // V16: Allow users to browse without creating a household
-      // If user is already linked to a household, just navigate to people
+      // If user is already linked to a household, just navigate to discovery
       // (they can unlink later from settings if desired)
       
       try {
@@ -105,12 +105,12 @@ function OnboardingPrivacyInner() {
         skipHousehold: true,
       });
 
-      // Navigate directly to People directory (browse mode)
-      navigate("/people");
+      // Navigate directly to Discovery page (browse mode)
+      navigate("/discovery");
     } catch (err: any) {
       console.error("Error saving preferences:", err);
       // Even if save fails, let them browse
-      navigate("/people");
+      navigate("/discovery");
     } finally {
       setLoading(false);
     }
