@@ -233,13 +233,13 @@ export default function ComposePost() {
 
   /* ---------- Send Invitations ---------- */
 
-  const sendInvitations = async (eventId: string) => {
+  const sendInvitations = async (eventId: string): Promise<string | null> => {
     // Build invitation payload with arrays of household IDs and phone numbers
     const household_ids = Array.from(selectedHouseholdIds);
     const phone_numbers = Array.from(selectedPhoneNumbers);
 
     // Only call API if there are invitations to send
-    if (household_ids.length === 0 && phone_numbers.length === 0) return;
+    if (household_ids.length === 0 && phone_numbers.length === 0) return null;
 
     try {
       const invitationPayload: Api.InvitationCreate = {
@@ -247,11 +247,15 @@ export default function ComposePost() {
         phone_numbers,
       };
       
-      await Api.createEventInvitations(eventId, invitationPayload);
+      const invitations = await Api.createEventInvitations(eventId, invitationPayload);
       console.log(`Successfully sent invitations to ${household_ids.length} household(s) and ${phone_numbers.length} phone number(s)`);
+      
+      // Return the first RSVP token for the shareable link
+      return invitations[0]?.rsvp_token || null;
     } catch (err: any) {
       console.error("Failed to send invitations:", err?.response?.data ?? err);
       // Don't block event creation if invitations fail
+      return null;
     }
   };
 
@@ -318,10 +322,10 @@ export default function ComposePost() {
             savePosts(updated);
 
             // Send invitations if households or phone numbers are selected
-            await sendInvitations(backendId);
+            const rsvpToken = await sendInvitations(backendId);
             
             // ✅ ALWAYS show success modal (generate fallback link if backend doesn't provide one)
-            const finalShareLink = shareLink || `/e/${backendId}`;
+            const finalShareLink = shareLink || `/e/${rsvpToken || backendId}`;
             setCreatedEventTitle(title.trim() || "Happening Now");
             setCreatedEventType("happening");
             setShareableLink(finalShareLink);
@@ -380,10 +384,10 @@ export default function ComposePost() {
           savePosts(updated);
 
           // Send invitations if households or phone numbers are selected
-          await sendInvitations(backendId);
+          const rsvpToken = await sendInvitations(backendId);
           
           // ✅ ALWAYS show success modal (generate fallback link if backend doesn't provide one)
-          const finalShareLink = shareLink || `/e/${backendId}`;
+          const finalShareLink = shareLink || `/e/${rsvpToken || backendId}`;
           setCreatedEventTitle(localPayload.title || "Future Event");
           setCreatedEventType("event");
           setShareableLink(finalShareLink);
@@ -669,6 +673,19 @@ export default function ComposePost() {
                       onChange={(e) => setDetails(e.target.value)}
                     />
                   </div>
+
+                  <div style={{ marginBottom: 10 }}>
+                    <label className="gg-label">Who can see this event?</label>
+                    <select 
+                      className="gg-input" 
+                      value={visibility} 
+                      onChange={(e) => setVisibility(e.target.value as EventVisibility)}
+                    >
+                      <option value="private">Private (neighbors only)</option>
+                      <option value="link_only">Shareable link (anyone with link)</option>
+                      <option value="public">Public (discoverable by all)</option>
+                    </select>
+                  </div>
                 </div>
               )}
 
@@ -683,14 +700,15 @@ export default function ComposePost() {
                   />
                   
                   <div style={{ marginTop: 10 }}>
-                  <div className="gg-label">Details</div>
-                  <textarea
-                    className="composer-textarea"
-                    placeholder="What’s happening right now? (Posts disappear after 24 hours.)"
-                    value={details}
-                    onChange={(e) => setDetails(e.target.value)}
-                  />
+                    <div className="gg-label">Details</div>
+                    <textarea
+                      className="composer-textarea"
+                      placeholder="What’s happening right now? (Posts disappear after 24 hours.)"
+                      value={details}
+                      onChange={(e) => setDetails(e.target.value)}
+                    />
                   </div>
+                  
                   
                   {/* ✅ NEW: Location input for happening now */}
                   <div style={{ marginTop: 10 }}>
@@ -847,10 +865,10 @@ export default function ComposePost() {
 
                 <div className="gg-footer-right">
                   <button type="button" className="btn btn-ghost" onClick={() => setMode("edit")}>
-                    ← Back to Edit
+                    Back
                   </button>
                   <button type="button" className="btn btn-primary" disabled={!canSubmitDetails || isSubmitting} onClick={onSubmit}>
-                    {isSubmitting ? "Publishing..." : primaryLabel}
+                    {primaryLabel}
                   </button>
                 </div>
               </div>
@@ -893,9 +911,10 @@ export default function ComposePost() {
               left: 0,
               right: 0,
               height: "6px",
-              background: modalGradient,
+              background: createdEventType === "happening" 
+                ? "linear-gradient(90deg, #fbbf24 0%, #f59e0b 100%)"
+                : "linear-gradient(90deg, #3b82f6 0%, #2563eb 100%)",
               opacity: 0.9,
-              animation: isHappeningNow ? "shimmer 3s ease-in-out infinite" : "none",
             }} />
             
             <style>{`
@@ -907,7 +926,6 @@ export default function ComposePost() {
                 from { transform: scale(0.8); opacity: 0; }
                 to { transform: scale(1); opacity: 1; }
               }
-              ${modalShimmer}
             `}</style>
             
             <div style={{ textAlign: "center", marginBottom: "32px" }}>
@@ -915,9 +933,9 @@ export default function ComposePost() {
                 fontSize: "56px", 
                 marginBottom: "16px",
                 animation: "checkmark 0.4s ease-out 0.1s both"
-              }}>{modalEmoji}</div>
+              }}>{createdEventType === "happening" ? "⚡" : "🎉"}</div>
               
-              {isHappeningNow && (
+              {createdEventType === "happening" && (
                 <div style={{
                   fontSize: "18px",
                   fontWeight: "700",
@@ -949,7 +967,7 @@ export default function ComposePost() {
               </p>
               
               {/* Subtle timing indicator */}
-              {isHappeningNow && (
+              {createdEventType === "happening" && (
                 <p style={{
                   fontSize: "13px",
                   color: "#94a3b8",
