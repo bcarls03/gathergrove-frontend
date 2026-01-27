@@ -628,22 +628,31 @@ export default function ComposePost() {
 
               {kind === "event" && (
                 <div className="gg-card-section">
-                  <div className="gg-label" style={{ marginBottom: 8 }}>
+                  <div className="gg-label" style={{ marginBottom: 4 }}>
                     Event details
+                  </div>
+                  <div className="gg-label-sub" style={{ marginBottom: 12 }}>
+                    Fields marked with <span style={{ color: '#dc2626', fontWeight: 700 }}>*</span> are required
                   </div>
 
                   <div style={{ marginBottom: 10 }}>
-                    <label className="gg-label">Title</label>
+                    <label className="gg-label">
+                      Title <span style={{ color: '#dc2626' }}>*</span>
+                    </label>
                     <input className="gg-input" placeholder="Title of the event" value={title} onChange={(e) => setTitle(e.target.value)} />
                   </div>
 
                   <div className="gg-row-2" style={{ marginBottom: 10 }}>
                     <div>
-                      <label className="gg-label">Select a date</label>
+                      <label className="gg-label">
+                        Select a date <span style={{ color: '#dc2626' }}>*</span>
+                      </label>
                       <input className="gg-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
                     </div>
                     <div>
-                      <label className="gg-label">Start time</label>
+                      <label className="gg-label">
+                        Start time <span style={{ color: '#dc2626' }}>*</span>
+                      </label>
                       <input className="gg-input" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
                     </div>
                   </div>
@@ -655,7 +664,7 @@ export default function ComposePost() {
 
                   {/* ✅ NEW: Location input for future events */}
                   <div style={{ marginBottom: 10 }}>
-                    <label className="gg-label">📍 Location</label>
+                    <label className="gg-label">📍 Location (optional)</label>
                     <input 
                       className="gg-input" 
                       placeholder="e.g., Oak Hill Park, 123 Main St, or Starbucks on 5th" 
@@ -665,7 +674,9 @@ export default function ComposePost() {
                   </div>
 
                   <div>
-                    <label className="gg-label">Details</label>
+                    <label className="gg-label">
+                      Details <span style={{ color: '#dc2626' }}>*</span>
+                    </label>
                     <textarea
                       className="composer-textarea"
                       placeholder="Details (e.g., BYOB, bring chairs, snacks, kids welcome, etc.)"
@@ -687,7 +698,9 @@ export default function ComposePost() {
                   />
                   
                   <div style={{ marginTop: 10 }}>
-                    <div className="gg-label">Details</div>
+                    <div className="gg-label">
+                      Details <span style={{ color: '#dc2626' }}>*</span>
+                    </div>
                     <textarea
                       className="composer-textarea"
                       placeholder="What’s happening right now? (Posts disappear after 24 hours.)"
