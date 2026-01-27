@@ -4,7 +4,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Calendar, Clock, MapPin, Users, Zap, CheckCircle } from 'lucide-react';
 import { getViewer } from '../lib/viewer';
-import * as Api from '../lib/api';
 import type { GGEvent, EventCategory } from '../lib/api';
 
 type RSVPChoice = 'going' | 'maybe' | 'cant';
