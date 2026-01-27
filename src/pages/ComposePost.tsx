@@ -673,19 +673,6 @@ export default function ComposePost() {
                       onChange={(e) => setDetails(e.target.value)}
                     />
                   </div>
-
-                  <div style={{ marginBottom: 10 }}>
-                    <label className="gg-label">Who can see this event?</label>
-                    <select 
-                      className="gg-input" 
-                      value={visibility} 
-                      onChange={(e) => setVisibility(e.target.value as EventVisibility)}
-                    >
-                      <option value="private">Private (neighbors only)</option>
-                      <option value="link_only">Shareable link (anyone with link)</option>
-                      <option value="public">Public (discoverable by all)</option>
-                    </select>
-                  </div>
                 </div>
               )}
 
@@ -933,7 +920,7 @@ export default function ComposePost() {
                 fontSize: "56px", 
                 marginBottom: "16px",
                 animation: "checkmark 0.4s ease-out 0.1s both"
-              }}>{createdEventType === "happening" ? "⚡" : "🎉"}</div>
+              }}>{createdEventType === "happening" ? "⚡" : "📅"}</div>
               
               {createdEventType === "happening" && (
                 <div style={{
