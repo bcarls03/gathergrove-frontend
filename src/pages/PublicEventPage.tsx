@@ -16,7 +16,7 @@ interface GuestRSVP {
 }
 
 export default function PublicEventPage() {
-  const { eventId } = useParams<{ eventId: string }>();
+  const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
   const [event, setEvent] = useState<GGEvent | null>(null);
   const [loading, setLoading] = useState(true);
@@ -33,26 +33,49 @@ export default function PublicEventPage() {
 
   useEffect(() => {
     loadEvent();
-  }, [eventId]);
+  }, [token]);
 
   const loadEvent = async () => {
-    if (!eventId) {
-      setError('Event ID is missing');
+    if (!token) {
+      setError('RSVP token is missing');
       setLoading(false);
       return;
     }
 
     try {
-      // Use API helper which handles auth automatically
-      const data = await Api.getEvent(eventId);
-      setEvent(data);
+      // Fetch event from backend using RSVP token (public endpoint, no auth required)
+      const response = await fetch(`http://localhost:8000/events/rsvp/${token}`);
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          setError('Event not found');
+        } else {
+          setError('Failed to load event');
+        }
+        setLoading(false);
+        return;
+      }
+
+      const data = await response.json();
+      // Convert PublicEventView format to GGEvent format for rendering
+      const ggEvent: GGEvent = {
+        id: data.id,
+        title: data.title,
+        details: data.details,
+        startAt: data.start_at,
+        endAt: data.end_at,
+        category: data.category as EventCategory,
+        visibility: data.visibility,
+        type: data.start_at ? 'future' : 'now',
+        createdBy: {
+          id: '',
+          label: data.host_name || 'A neighbor'
+        }
+      };
+      setEvent(ggEvent);
     } catch (err: any) {
       console.error('Error loading event:', err);
-      if (err.message?.includes('404') || err.message?.includes('not found')) {
-        setError('Event not found');
-      } else {
-        setError('Failed to load event');
-      }
+      setError('Failed to load event');
     } finally {
       setLoading(false);
     }
@@ -73,13 +96,20 @@ export default function PublicEventPage() {
   const handleSignedInRSVP = async (choice: RSVPChoice) => {
     setSubmitting(true);
     try {
-      const response = await fetch(`http://localhost:8000/api/events/${eventId}/rsvp`, {
+      if (!token) {
+        alert('Invalid RSVP link');
+        return;
+      }
+
+      // Convert choice to backend status format
+      const status = choice === 'going' ? 'accepted' : choice === 'maybe' ? 'tentative' : 'declined';
+      
+      const response = await fetch(`http://localhost:8000/events/rsvp/${token}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          // Add auth header if you have it
         },
-        body: JSON.stringify({ choice }),
+        body: JSON.stringify({ status }),
       });
 
       if (response.ok) {
@@ -105,17 +135,25 @@ export default function PublicEventPage() {
       return;
     }
 
+    if (!token) {
+      alert('Invalid RSVP link');
+      return;
+    }
+
     setSubmitting(true);
     try {
-      const response = await fetch(`http://localhost:8000/api/events/${eventId}/rsvp/guest`, {
+      // Convert choice to backend status format
+      const status = selectedChoice === 'going' ? 'accepted' : 
+                     selectedChoice === 'maybe' ? 'tentative' : 'declined';
+      
+      const response = await fetch(`http://localhost:8000/events/rsvp/${token}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: guestName.trim(),
-          phone: guestPhone.trim() || undefined,
-          choice: selectedChoice,
+          status,
+          guest_name: guestName.trim(),
         }),
       });
 
