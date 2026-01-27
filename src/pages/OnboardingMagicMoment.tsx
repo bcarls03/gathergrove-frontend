@@ -75,7 +75,7 @@ function OnboardingMagicMomentInner() {
 
   const handleBrowseNeighbors = () => {
     // Primary CTA: Go to browse neighbors page
-    navigate("/people");
+    navigate("/discovery");
   };
 
   // Generate dynamic headline based on data
