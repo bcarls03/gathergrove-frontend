@@ -175,7 +175,7 @@ export default function OnboardingAddressSimple() {
     } catch (err) {
       console.warn("Failed to save privacy settings, continuing anyway:", err);
     }
-    navigate('/people'); // Browse without location
+    navigate('/discovery'); // Browse without location
   };
 
   const handleSkipCancel = () => {
