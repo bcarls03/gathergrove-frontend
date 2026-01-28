@@ -23,7 +23,6 @@ import OnboardingAccess from "./pages/OnboardingAccess.tsx";
 import OnboardingAccessSimple from "./pages/OnboardingAccessSimple.tsx";
 import OnboardingProfile from "./pages/OnboardingProfile.tsx";
 import OnboardingAddressSimple from "./pages/OnboardingAddressSimple.tsx";
-import OnboardingMagicalMoment from "./pages/OnboardingMagicalMoment.tsx";
 import OnboardingMagicMoment from "./pages/OnboardingMagicMoment.tsx";
 import OnboardingHousehold from "./pages/OnboardingHousehold";
 import { OnboardingHouseholdType } from "./pages/OnboardingHouseholdType.tsx";
@@ -92,7 +91,7 @@ function AppShell() {
           <Route path="/onboarding/access-simple" element={<OnboardingAccessSimple />} />
           <Route path="/onboarding/profile" element={<OnboardingProfile />} />
           <Route path="/onboarding/address" element={<OnboardingAddressSimple />} />
-          <Route path="/onboarding/magical-moment" element={<OnboardingMagicalMoment />} />
+          <Route path="/onboarding/magical-moment" element={<Navigate to="/onboarding/magic-moment" replace />} />
           <Route path="/onboarding/magic-moment" element={<OnboardingMagicMoment />} />
           <Route
             path="/onboarding/household"
