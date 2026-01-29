@@ -6,6 +6,7 @@ import { loadNeighbors } from "../lib/profile";
 import * as Api from "../lib/api";
 import type { EventCategory, EventVisibility } from "../lib/api";
 import { HouseholdSelector } from "../components/HouseholdSelector";
+import type { HouseholdNameMap } from "../components/HouseholdSelector";
 
 /* ---------- Types ---------- */
 
@@ -206,7 +207,7 @@ export default function ComposePost() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedHouseholdIds, setSelectedHouseholdIds] = useState<Set<string>>(new Set());
   const [selectedPhoneNumbers, setSelectedPhoneNumbers] = useState<Set<string>>(new Set());
-  const [selectedHouseholdNames, setSelectedHouseholdNames] = useState<Map<string, string>>(new Map());
+  const [selectedHouseholdNames, setSelectedHouseholdNames] = useState<HouseholdNameMap>(new Map());
 
   // ✅ NEW: Success modal state
   const [showSuccessModal, setShowSuccessModal] = useState(false);

@@ -15,10 +15,17 @@ interface InviteContext {
   };
 }
 
+/**
+ * INVARIANT: Household names MUST be keyed by household ID (not array index).
+ * This Map guarantees stable ID→name lookup even when selection order changes.
+ * DO NOT change this to string[] - it will break Preview name rendering on toggle.
+ */
+export type HouseholdNameMap = Map<string, string>;
+
 interface HouseholdSelectorProps {
   selectedIds: Set<string>;
   onSelectionChange: (ids: Set<string>) => void;
-  onSelectedNamesChange?: (nameMap: Map<string, string>) => void;
+  onSelectedNamesChange?: (nameMap: HouseholdNameMap) => void;
   inviteContext?: InviteContext;
   selectedPhoneNumbers?: Set<string>;
   onPhoneNumbersChange?: (numbers: Set<string>) => void;
@@ -51,6 +58,19 @@ export function HouseholdSelector({
   // ✅ Track initialization to prevent repeated preselect
   const initRef = useRef<string | null>(null);
 
+  // ✅ Stable refs for callbacks to avoid dependency issues
+  const onSelectedNamesChangeRef = useRef(onSelectedNamesChange);
+  const onSelectionChangeRef = useRef(onSelectionChange);
+
+  // Keep refs updated
+  useEffect(() => {
+    onSelectedNamesChangeRef.current = onSelectedNamesChange;
+  }, [onSelectedNamesChange]);
+
+  useEffect(() => {
+    onSelectionChangeRef.current = onSelectionChange;
+  }, [onSelectionChange]);
+
   // ✅ Normalize visibleHouseholdIds to Set once
   const visibleSet = useMemo(
     () => new Set(inviteContext?.visibleHouseholdIds || []),
@@ -62,10 +82,10 @@ export function HouseholdSelector({
 
   // Update parent with selected household names whenever selection changes
   useEffect(() => {
-    if (onSelectedNamesChange && availableHouseholds.length > 0) {
+    if (onSelectedNamesChangeRef.current && availableHouseholds.length > 0) {
       const names = new Map(Array.from(selectedIds)
         .map(id => [id, availableHouseholds.find(h => h.id === id)?.lastName || "Unknown Household"]));
-      onSelectedNamesChange(names);
+      onSelectedNamesChangeRef.current(names);
     }
   }, [selectedIds, availableHouseholds]);
 
@@ -166,7 +186,7 @@ export function HouseholdSelector({
 
     // If nothing selected → set clicked
     if (selectedIds.size === 0) {
-      onSelectionChange(new Set([clicked]));
+      onSelectionChangeRef.current(new Set([clicked]));
       return;
     }
 
@@ -174,7 +194,7 @@ export function HouseholdSelector({
     if (!selectedIds.has(clicked)) {
       const next = new Set(selectedIds);
       next.add(clicked);
-      onSelectionChange(next);
+      onSelectionChangeRef.current(next);
     }
   }, [inviteContext?.clickedHouseholdId, cameFromDiscovery, selectedIds, availableHouseholds.length]);
 
@@ -185,7 +205,7 @@ export function HouseholdSelector({
     } else {
       newSet.add(householdId);
     }
-    onSelectionChange(newSet);
+    onSelectionChangeRef.current(newSet);
   };
 
   const getKidsAges = (household: GGHousehold): number[] => {
@@ -204,11 +224,11 @@ export function HouseholdSelector({
 
   const selectAll = () => {
     const allIds = new Set(availableHouseholds.map(h => h.id).filter((id): id is string => !!id));
-    onSelectionChange(allIds);
+    onSelectionChangeRef.current(allIds);
   };
 
   const deselectAll = () => {
-    onSelectionChange(new Set());
+    onSelectionChangeRef.current(new Set());
   };
 
   // ✅ Share/invite helpers (safe - only work when eventInviteLink exists)
