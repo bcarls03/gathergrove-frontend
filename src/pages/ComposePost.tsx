@@ -206,6 +206,7 @@ export default function ComposePost() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedHouseholdIds, setSelectedHouseholdIds] = useState<Set<string>>(new Set());
   const [selectedPhoneNumbers, setSelectedPhoneNumbers] = useState<Set<string>>(new Set());
+  const [selectedHouseholdNames, setSelectedHouseholdNames] = useState<Map<string, string>>(new Map());
 
   // ✅ NEW: Success modal state
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -729,6 +730,7 @@ export default function ComposePost() {
                 onSelectionChange={setSelectedHouseholdIds}
                 selectedPhoneNumbers={selectedPhoneNumbers}
                 onPhoneNumbersChange={setSelectedPhoneNumbers}
+                onSelectedNamesChange={setSelectedHouseholdNames}
                 inviteContext={inviteContext}
               />
 
@@ -817,21 +819,14 @@ export default function ComposePost() {
                         📨 Invited ({selectedHouseholdIds.size + selectedPhoneNumbers.size})
                       </div>
                       <div className="full-preview-invites-list">
-                        {Array.from(selectedHouseholdIds).slice(0, 8).map((id) => {
-                          // Get household name from ID
-                          const householdName = id === 'test-1' ? 'Anderson' :
-                                               id === 'test-2' ? 'Brown' :
-                                               id === 'test-3' ? 'Chen' :
-                                               id === 'test-4' ? 'Garcia' :
-                                               id === 'test-5' ? 'Johnson' :
-                                               'Family';
-                          return (
+                        {(() => {
+                          return Array.from(selectedHouseholdIds).slice(0, 8).map((id) => (
                             <div key={id} className="full-preview-invite-chip">
                               <span className="full-preview-invite-icon">👥</span>
-                              <span>{householdName}</span>
+                              <span>{selectedHouseholdNames.get(id) || 'Household'}</span>
                             </div>
-                          );
-                        })}
+                          ));
+                        })()}
                         {Array.from(selectedPhoneNumbers).slice(0, 3).map((phone) => (
                           <div key={phone} className="full-preview-invite-chip">
                             <span className="full-preview-invite-icon">📱</span>

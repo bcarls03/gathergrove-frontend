@@ -18,7 +18,7 @@ interface InviteContext {
 interface HouseholdSelectorProps {
   selectedIds: Set<string>;
   onSelectionChange: (ids: Set<string>) => void;
-  onSelectedNamesChange?: (names: string[]) => void;
+  onSelectedNamesChange?: (nameMap: Map<string, string>) => void;
   inviteContext?: InviteContext;
   selectedPhoneNumbers?: Set<string>;
   onPhoneNumbersChange?: (numbers: Set<string>) => void;
@@ -63,13 +63,11 @@ export function HouseholdSelector({
   // Update parent with selected household names whenever selection changes
   useEffect(() => {
     if (onSelectedNamesChange && availableHouseholds.length > 0) {
-      const names = Array.from(selectedIds)
-        .map(id => availableHouseholds.find(h => h.id === id))
-        .filter((h): h is GGHousehold => h !== undefined)
-        .map(h => h.lastName || "Unknown Household");
+      const names = new Map(Array.from(selectedIds)
+        .map(id => [id, availableHouseholds.find(h => h.id === id)?.lastName || "Unknown Household"]));
       onSelectedNamesChange(names);
     }
-  }, [selectedIds, availableHouseholds, onSelectedNamesChange]);
+  }, [selectedIds, availableHouseholds]);
 
   // Load households
   useEffect(() => {
@@ -138,11 +136,11 @@ export function HouseholdSelector({
           },
         ];
         
-        setAvailableHouseholds(mockHouseholds);
+        // setAvailableHouseholds(mockHouseholds);
         
-        // const households = await Api.fetchHouseholds();
-        // console.log("✅ Fetched households:", households.length);
-        // setAvailableHouseholds(households);
+        const households = await Api.fetchHouseholds();
+        console.log("✅ Fetched households:", households.length);
+        setAvailableHouseholds(households);
       } catch (error) {
         console.error("❌ Failed to load households:", error);
         setAvailableHouseholds([]);
@@ -178,7 +176,7 @@ export function HouseholdSelector({
       next.add(clicked);
       onSelectionChange(next);
     }
-  }, [inviteContext?.clickedHouseholdId, cameFromDiscovery, onSelectionChange, availableHouseholds.length]);
+  }, [inviteContext?.clickedHouseholdId, cameFromDiscovery, selectedIds, availableHouseholds.length]);
 
   const toggleHousehold = (householdId: string) => {
     const newSet = new Set(selectedIds);

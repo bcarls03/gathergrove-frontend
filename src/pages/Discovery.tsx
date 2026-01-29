@@ -174,55 +174,8 @@ export default function Discovery() {
     setLoading(true);
     setError(null);
     try {
-      // ✅ Mock data with lastName fields for consistency with invite selector
-      const mockData: GGHousehold[] = [
-        {
-          id: 'test-1',
-          lastName: 'Anderson',
-          householdType: 'family_with_kids',
-          neighborhood: 'Oak Ridge',
-          location_precision: 'street',
-          kids: [{ birthYear: 2018, birthMonth: 5 }],
-          uid: 'test-uid-1',
-        },
-        {
-          id: 'test-2',
-          lastName: 'Brown',
-          householdType: 'family_with_kids',
-          neighborhood: 'Oak Ridge',
-          location_precision: 'street',
-          kids: [{ birthYear: 2016, birthMonth: 8 }],
-          uid: 'test-uid-2',
-        },
-        {
-          id: 'test-3',
-          lastName: 'Chen',
-          householdType: 'family_with_kids',
-          neighborhood: 'Riverside',
-          location_precision: 'street',
-          kids: [{ birthYear: 2017, birthMonth: 11 }],
-          uid: 'test-uid-3',
-        },
-        {
-          id: 'test-4',
-          lastName: 'Davis',
-          householdType: 'couple',
-          neighborhood: 'Riverside',
-          location_precision: 'street',
-          uid: 'test-uid-4',
-        },
-        {
-          id: 'test-5',
-          lastName: 'Evans',
-          householdType: 'single',
-          neighborhood: 'Hillside',
-          location_precision: 'street',
-          uid: 'test-uid-5',
-        },
-      ];
-      setHouseholds(mockData);
-      // const data = await fetchHouseholds();
-      // setHouseholds(data);
+      const data = await fetchHouseholds();
+      setHouseholds(data);
     } catch (err) {
       console.error('Failed to load households:', err);
       setError('Failed to load households');
