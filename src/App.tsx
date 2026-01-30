@@ -125,7 +125,8 @@ function AppShell() {
           
           {/* Public RSVP - No authentication required */}
           <Route path="/rsvp/:token" element={<PublicRSVP />} />
-          <Route path="/e/:token" element={<PublicEventPage />} />
+          {/* Public event share links - :eventId is the event's UUID */}
+          <Route path="/e/:eventId" element={<PublicEventPage />} />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />

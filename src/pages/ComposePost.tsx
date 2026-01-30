@@ -197,7 +197,7 @@ export default function ComposePost() {
   const [endTime, setEndTime] = useState<string>(() => isoToTimeInputLocal(existingPost?.end));
 
   const [categoryId, setCategoryId] = useState<EventCategory>(existingPost?.category ?? DEFAULT_CATEGORY_ID);
-  const [visibility, setVisibility] = useState<EventVisibility>("public");
+  const [visibility, setVisibility] = useState<EventVisibility>("link_only");  // Default to link_only for privacy
   const [eventLocation, setEventLocation] = useState<string>("");  // ✅ NEW: Event location field
 
   const categoryMeta = CATEGORY_OPTIONS.find((c) => c.id === categoryId) ?? CATEGORY_OPTIONS[0];
@@ -327,7 +327,13 @@ export default function ComposePost() {
             const rsvpToken = await sendInvitations(backendId);
             
             // ✅ ALWAYS show success modal (generate fallback link if backend doesn't provide one)
+            // For dev, use window.location.origin; for production, backend provides full URL
             const finalShareLink = shareLink || `/e/${rsvpToken || backendId}`;
+            
+            if (import.meta.env.DEV) {
+              console.log('[ShareLink] base=', window.location.origin, 'path=', finalShareLink, 'eventId=', backendId, 'rsvpToken=', rsvpToken);
+            }
+            
             setCreatedEventTitle(title.trim() || "Happening Now");
             setCreatedEventType("happening");
             setShareableLink(finalShareLink);
@@ -1019,7 +1025,7 @@ export default function ComposePost() {
                   textOverflow: "ellipsis",
                   whiteSpace: "nowrap"
                 }}>
-                  gathergrove.app{shareableLink}
+                  {window.location.origin}{shareableLink}
                 </div>
                 <button
                   type="button"

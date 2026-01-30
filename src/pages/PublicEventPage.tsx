@@ -14,8 +14,30 @@ interface GuestRSVP {
   choice: RSVPChoice;
 }
 
+/**
+ * Adapter: Convert backend snake_case response to frontend GGEvent format.
+ * Contract: Backend /events/public/{event_id} returns snake_case ONLY.
+ * Security: Backend does NOT return host_user_id or neighborhoods for public endpoint.
+ */
+function publicEventToGGEvent(data: any): GGEvent {
+  return {
+    id: data.id,
+    title: data.title,
+    details: data.details,
+    startAt: data.start_at || undefined,
+    endAt: data.end_at || undefined,
+    category: data.category as EventCategory,
+    visibility: data.visibility,
+    type: data.type || (data.start_at ? 'future' : 'now'),
+    createdBy: {
+      id: '',  // Not exposed in public endpoint for privacy
+      label: 'A neighbor'  // Generic label for public viewers
+    }
+  };
+}
+
 export default function PublicEventPage() {
-  const { token } = useParams<{ token: string }>();
+  const { eventId } = useParams<{ eventId: string }>();
   const navigate = useNavigate();
   const [event, setEvent] = useState<GGEvent | null>(null);
   const [loading, setLoading] = useState(true);
@@ -26,27 +48,45 @@ export default function PublicEventPage() {
   const [selectedChoice, setSelectedChoice] = useState<RSVPChoice>('going');
   const [rsvpSubmitted, setRsvpSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  
+  // Debug instrumentation (DEV only)
+  const [debugInfo, setDebugInfo] = useState<{
+    url: string;
+    status: number;
+    keys: string[];
+  } | null>(null);
 
   const viewer = getViewer();
   const isSignedIn = !!viewer;
 
   useEffect(() => {
     loadEvent();
-  }, [token]);
+  }, [eventId]);
 
   const loadEvent = async () => {
-    if (!token) {
-      setError('RSVP token is missing');
+    if (!eventId) {
+      setError('Event ID is missing');
       setLoading(false);
       return;
     }
 
     try {
-      // Fetch event from backend using RSVP token (public endpoint, no auth required)
-      const response = await fetch(`http://localhost:8000/events/rsvp/${token}`);
+      // Fetch event from backend using event ID (public endpoint, no auth required)
+      // eventId from URL path /e/{event_id} is the event's UUID
+      const url = `http://localhost:8000/events/public/${eventId}`;
+      
+      const response = await fetch(url);
+      const status = response.status;
       
       if (!response.ok) {
-        if (response.status === 404) {
+        const bodyText = await response.text();
+        const bodyPreview = bodyText.substring(0, 120);
+        
+        if (import.meta.env.DEV) {
+          console.log(`[PublicEventPage] ERROR status=${status} body=${bodyPreview}`);
+        }
+        
+        if (status === 404) {
           setError('Event not found');
         } else {
           setError('Failed to load event');
@@ -56,21 +96,15 @@ export default function PublicEventPage() {
       }
 
       const data = await response.json();
-      // Convert PublicEventView format to GGEvent format for rendering
-      const ggEvent: GGEvent = {
-        id: data.id,
-        title: data.title,
-        details: data.details,
-        startAt: data.start_at,
-        endAt: data.end_at,
-        category: data.category as EventCategory,
-        visibility: data.visibility,
-        type: data.start_at ? 'future' : 'now',
-        createdBy: {
-          id: '',
-          label: data.host_name || 'A neighbor'
-        }
-      };
+      const keys = Object.keys(data);
+      const keysStr = keys.join(',');
+      
+      if (import.meta.env.DEV) {
+        console.log(`[PublicEventPage] OK status=${status} keys=${keysStr}`);
+        setDebugInfo({ url, status, keys });
+      }
+      
+      const ggEvent = publicEventToGGEvent(data);
       setEvent(ggEvent);
     } catch (err: any) {
       console.error('Error loading event:', err);
@@ -95,15 +129,16 @@ export default function PublicEventPage() {
   const handleSignedInRSVP = async (choice: RSVPChoice) => {
     setSubmitting(true);
     try {
-      if (!token) {
+      if (!eventId || !event) {
         alert('Invalid RSVP link');
         return;
       }
 
-      // Convert choice to backend status format
-      const status = choice === 'going' ? 'accepted' : choice === 'maybe' ? 'tentative' : 'declined';
+      // Backend expects: going | maybe | declined
+      const status = choice === 'cant' ? 'declined' : choice;
       
-      const response = await fetch(`http://localhost:8000/events/rsvp/${token}`, {
+      // Use event ID for RSVP endpoint
+      const response = await fetch(`http://localhost:8000/events/${event.id}/rsvp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -134,25 +169,26 @@ export default function PublicEventPage() {
       return;
     }
 
-    if (!token) {
+    if (!eventId || !event) {
       alert('Invalid RSVP link');
       return;
     }
 
     setSubmitting(true);
     try {
-      // Convert choice to backend status format
-      const status = selectedChoice === 'going' ? 'accepted' : 
-                     selectedChoice === 'maybe' ? 'tentative' : 'declined';
+      // Guest RSVP endpoint expects 'choice' field (going/maybe/declined)
+      // Map UI "cant" to backend "declined"
+      const choice = selectedChoice === 'cant' ? 'declined' : selectedChoice;
       
-      const response = await fetch(`http://localhost:8000/events/rsvp/${token}`, {
+      const response = await fetch(`http://localhost:8000/events/${event.id}/rsvp/guest`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          status,
-          guest_name: guestName.trim(),
+          choice: choice,
+          name: guestName.trim(),
+          phone: guestPhone.trim() || undefined,
         }),
       });
 
@@ -160,7 +196,8 @@ export default function PublicEventPage() {
         setRsvpSubmitted(true);
         setShowGuestForm(false);
       } else {
-        alert('Failed to submit RSVP. Please try again.');
+        const errData = await response.json().catch(() => ({}));
+        alert(errData.detail || 'Failed to submit RSVP. Please try again.');
       }
     } catch (err) {
       console.error('Error submitting guest RSVP:', err);
@@ -671,6 +708,40 @@ export default function PublicEventPage() {
             Join GatherGrove
           </button>
         </motion.div>
+      )}
+      
+      {/* Debug Footer (DEV only) */}
+      {import.meta.env.DEV && debugInfo && (
+        <div style={{
+          maxWidth: 600,
+          margin: '24px auto 0',
+          padding: '16px',
+          background: 'rgba(0, 0, 0, 0.7)',
+          borderRadius: 12,
+          fontSize: 12,
+          fontFamily: 'monospace',
+          color: '#10b981',
+          border: '1px solid rgba(16, 185, 129, 0.3)',
+        }}>
+          <div style={{ marginBottom: 8, fontWeight: 700, color: '#34d399' }}>
+            🔍 DEV DEBUG INFO
+          </div>
+          <div style={{ display: 'grid', gap: 6 }}>
+            <div>
+              <span style={{ color: '#9ca3af' }}>Event ID:</span> {eventId}
+            </div>
+            <div>
+              <span style={{ color: '#9ca3af' }}>Fetch URL:</span> {debugInfo.url}
+            </div>
+            <div>
+              <span style={{ color: '#9ca3af' }}>Status Code:</span> {debugInfo.status}
+            </div>
+            <div>
+              <span style={{ color: '#9ca3af' }}>Response Keys ({debugInfo.keys.length}):</span>{' '}
+              {debugInfo.keys.join(', ')}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
