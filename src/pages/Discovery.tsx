@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, Heart, Home, MapPin, Sparkles, UserPlus, Calendar, MessageCircle, Zap, Clock, X } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { fetchHouseholds, fetchEvents, getMyProfile, type GGHousehold, type GGEvent } from '../lib/api';
+import { fetchHouseholds, fetchEvents, getMyProfile, type GGHousehold, type GGEvent, API_BASE_URL } from '../lib/api';
 import { fetchConnections, sendConnectionRequest } from '../lib/api/connections';
 import { Chip, DualAgeRange, HOUSEHOLD_TYPE_META, type HouseholdType } from '../components/filters';
 
@@ -67,6 +67,10 @@ export default function Discovery() {
   
   // State for dismissing growth message
   const [growthMessageDismissed, setGrowthMessageDismissed] = useState(false);
+
+  // Dev-only: Seed demo households state
+  const [seeding, setSeeding] = useState(false);
+  const [seedMessage, setSeedMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Helper: Toggle item in Set
   const toggleInSet = <T,>(set: Set<T>, item: T): Set<T> => {
@@ -181,6 +185,31 @@ export default function Discovery() {
       setError('Failed to load households');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSeedHouseholds = async () => {
+    setSeeding(true);
+    setSeedMessage(null);
+    try {
+      const response = await fetch(`${API_BASE_URL}/dev/seed-households?count=20`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        throw new Error(`Seed failed: ${response.status}`);
+      }
+      const result = await response.json();
+      console.log('✅ Seed response:', result);
+      setSeedMessage({ type: 'success', text: `Seeded ${result.count || 20} demo households` });
+      
+      // Refresh the household list
+      await loadHouseholds();
+      console.log('✅ Refreshed households count:', households.length);
+    } catch (err) {
+      console.error('❌ Seed failed:', err);
+      setSeedMessage({ type: 'error', text: 'Failed to seed households' });
+    } finally {
+      setSeeding(false);
     }
   };
 
@@ -1248,6 +1277,43 @@ export default function Discovery() {
                 <UserPlus size={16} />
                 Invite Neighbors
               </button>
+
+              {/* Dev-only seed button */}
+              {import.meta.env.DEV && (
+                <div style={{ marginTop: 24 }}>
+                  <button
+                    onClick={handleSeedHouseholds}
+                    disabled={seeding}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: 8,
+                      border: '2px solid #6366f1',
+                      background: seeding ? '#e0e7ff' : '#6366f1',
+                      color: seeding ? '#6366f1' : '#ffffff',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: seeding ? 'not-allowed' : 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      opacity: seeding ? 0.6 : 1,
+                    }}
+                  >
+                    <Sparkles size={14} />
+                    {seeding ? 'Seeding...' : 'Seed Demo Households'}
+                  </button>
+                  {seedMessage && (
+                    <div style={{
+                      marginTop: 8,
+                      fontSize: 12,
+                      color: seedMessage.type === 'success' ? '#10b981' : '#ef4444',
+                      fontWeight: 500,
+                    }}>
+                      {seedMessage.text}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })()}
