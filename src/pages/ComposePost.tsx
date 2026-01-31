@@ -1,6 +1,6 @@
 // src/pages/ComposePost.tsx
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { getViewer } from "../lib/viewer";
 import { loadNeighbors } from "../lib/profile";
 import * as Api from "../lib/api";

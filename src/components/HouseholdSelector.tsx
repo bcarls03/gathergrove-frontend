@@ -1,7 +1,8 @@
 // src/components/HouseholdSelector.tsx
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import * as Api from "../lib/api";
 import type { GGHousehold } from "../lib/api";
+import { useInviteSelection } from "../hooks/useInviteSelection";
 
 // ✅ Simplified InviteContext - removed suggestedHouseholds (single source of truth)
 interface InviteContext {
@@ -10,7 +11,7 @@ interface InviteContext {
   visibleHouseholdIds?: string[]; // ✅ The actual filtered list from Discovery
   filterContext?: {
     types: string[];
-    ageRange: { min: number; max: number } | null;
+    ageRange?: { min: number; max: number } | null;
     hasFilters: boolean;
   };
 }
@@ -80,14 +81,33 @@ export function HouseholdSelector({
   // ✅ Check if user came from Discovery (by checking if inviteContext exists)
   const cameFromDiscovery = !!inviteContext?.clickedHouseholdId;
 
+  // ✅ Use shared invite selection hook
+  const selection = useInviteSelection({
+    households: availableHouseholds,
+    matchingHouseholdIds: inviteContext?.visibleHouseholdIds || [],
+    selectedIds,
+    onSelectionChange: (newIds) => {
+      onSelectionChangeRef.current(newIds);
+    },
+  });
+
+  // Extract matchIds for debugging
+  const matchIds = selection.matchIds || [];
+
+  // ✅ Sync hook's selectedIds with parent's selectedIds
+  useEffect(() => {
+    // If parent's selectedIds changed externally, we need to handle that
+    // For now, the hook manages selection state
+  }, [selectedIds]);
+
   // Update parent with selected household names whenever selection changes
   useEffect(() => {
     if (onSelectedNamesChangeRef.current && availableHouseholds.length > 0) {
-      const names = new Map(Array.from(selectedIds)
+      const names = new Map(Array.from(selection.selectedIds)
         .map(id => [id, availableHouseholds.find(h => h.id === id)?.lastName || "Unknown Household"]));
       onSelectedNamesChangeRef.current(names);
     }
-  }, [selectedIds, availableHouseholds]);
+  }, [selection.selectedIds, availableHouseholds]);
 
   // Load households
   useEffect(() => {
@@ -184,29 +204,17 @@ export function HouseholdSelector({
     if (initRef.current === clicked) return;
     initRef.current = clicked;
 
-    // If nothing selected → set clicked
-    if (selectedIds.size === 0) {
-      onSelectionChangeRef.current(new Set([clicked]));
+    // If nothing selected → add clicked
+    if (selection.selectedIds.size === 0) {
+      selection.toggleHousehold(clicked);
       return;
     }
 
     // If some selected → add clicked (if not already there)
-    if (!selectedIds.has(clicked)) {
-      const next = new Set(selectedIds);
-      next.add(clicked);
-      onSelectionChangeRef.current(next);
+    if (!selection.selectedIds.has(clicked)) {
+      selection.toggleHousehold(clicked);
     }
-  }, [inviteContext?.clickedHouseholdId, cameFromDiscovery, selectedIds, availableHouseholds.length]);
-
-  const toggleHousehold = (householdId: string) => {
-    const newSet = new Set(selectedIds);
-    if (newSet.has(householdId)) {
-      newSet.delete(householdId);
-    } else {
-      newSet.add(householdId);
-    }
-    onSelectionChangeRef.current(newSet);
-  };
+  }, [inviteContext?.clickedHouseholdId, cameFromDiscovery, selection, availableHouseholds.length]);
 
   const getKidsAges = (household: GGHousehold): number[] => {
     if (!household.kids || household.kids.length === 0) return [];
@@ -220,15 +228,6 @@ export function HouseholdSelector({
         return Math.floor(ageInMonths / 12);
       })
       .sort((a, b) => b - a);
-  };
-
-  const selectAll = () => {
-    const allIds = new Set(availableHouseholds.map(h => h.id).filter((id): id is string => !!id));
-    onSelectionChangeRef.current(allIds);
-  };
-
-  const deselectAll = () => {
-    onSelectionChangeRef.current(new Set());
   };
 
   // ✅ Share/invite helpers (safe - only work when eventInviteLink exists)
@@ -286,13 +285,21 @@ export function HouseholdSelector({
   };
 
   const allSelected = availableHouseholds.length > 0 && 
-    selectedIds.size === availableHouseholds.filter(h => h.id).length;
+    selection.selectedIds.size === availableHouseholds.filter(h => h.id).length;
+
+  // ✅ Compute hasMatches for bulk actions
+  const hasMatches = selection.matchIds.length > 0;
+
+  // Always show full household list - filters only affect selection, not visibility
+  const displayedHouseholds = useMemo(() => {
+    return availableHouseholds;
+  }, [availableHouseholds]);
 
   // ✅ FIX #2: Smart 3-tier sorting using ?? for distance (handles 0, null, undefined)
   const sortedHouseholds = useMemo(() => {
     const clicked = inviteContext?.clickedHouseholdId;
 
-    return [...availableHouseholds].sort((a, b) => {
+    return [...displayedHouseholds].sort((a, b) => {
       // 1. Clicked household always first
       if (a.id === clicked) return -1;
       if (b.id === clicked) return 1;
@@ -308,7 +315,7 @@ export function HouseholdSelector({
       const bDist = (b as any).distance ?? 999;
       return aDist - bDist;
     });
-  }, [availableHouseholds, inviteContext?.clickedHouseholdId, visibleSet]);
+  }, [displayedHouseholds, inviteContext?.clickedHouseholdId, visibleSet]);
 
   // ✅ Group households: suggested vs others (single source of truth: visibleSet)
   const suggestedHouseholds = sortedHouseholds.filter(
@@ -333,13 +340,12 @@ export function HouseholdSelector({
     if (!householdId) return null;
     
     const kidsAges = getKidsAges(household);
-    const isClickedHousehold = householdId === inviteContext?.clickedHouseholdId;
-    const isSelected = selectedIds.has(householdId);
+    const isClickedHousehold = selection.clickedIds.has(householdId);
+    const isSelected = selection.selectedIds.has(householdId);
     
     return (
       <label
         key={householdId}
-        onClick={() => toggleHousehold(householdId)} // ✅ Clicking card toggles
         style={{
           display: "flex",
           alignItems: "flex-start",
@@ -362,11 +368,11 @@ export function HouseholdSelector({
           }
         }}
       >
-        {/* ✅ FIX #1: ReadOnly checkbox that toggles via label click */}
+        {/* Checkbox controlled directly */}
         <input
           type="checkbox"
           checked={isSelected}
-          readOnly
+          onChange={() => selection.toggleHousehold(householdId)}
           style={{
             width: "18px",
             height: "18px",
@@ -410,7 +416,7 @@ export function HouseholdSelector({
           <div style={{ fontWeight: "600", color: "#1e293b", fontSize: "15px", marginBottom: "4px", paddingRight: isRecommended ? "70px" : "0" }}>
             {household.lastName || 'Unknown Household'}
           </div>
-          
+
           {/* Distance (from API if available) */}
           {(household as any).distance != null && (
             <div style={{ fontSize: "12px", color: "#64748b", marginBottom: 4 }}>
@@ -489,74 +495,185 @@ export function HouseholdSelector({
       </div>
       
       <div className="gg-label">
-        Who to invite ({selectedIds.size} selected)
+        Who to invite ({selection.selectedIds.size} selected)
       </div>
-      <div style={{ marginTop: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ color: "#64748b", fontSize: "14px" }}>
-          {hasSuggestions 
-            ? `Based on your filters in Discovery`
-            : `Select households to invite to this event`}
-        </div>
-        {!loading && availableHouseholds.length > 0 && (
-          <div style={{ display: "flex", gap: "8px" }}>
+      {/* ✅ NEW: Compact bulk action bar with clearer mental model */}
+      {!loading && availableHouseholds.length > 0 && (
+        <div style={{
+          marginTop: "12px",
+          marginBottom: "12px",
+          padding: "10px 14px",
+          backgroundColor: "#f8fafc",
+          border: "1px solid #e2e8f0",
+          borderRadius: "8px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: "12px",
+          flexWrap: "wrap",
+        }}>
+          {/* Bulk action buttons (left to right) */}
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", flex: 1 }}>
+            {/* 1) Clicked (n) - Manually clicked households */}
             <button
               type="button"
-              onClick={selectAll}
-              disabled={allSelected}
+              onClick={() => selection.toggleClickedLayer()}
+              disabled={selection.clickedIds.size === 0}
               style={{
-                padding: "6px 12px",
-                fontSize: "13px",
+                padding: "5px 10px",
+                fontSize: "12px",
                 fontWeight: "600",
-                color: allSelected ? "#94a3b8" : "#2563eb",
-                background: "transparent",
-                border: "1px solid",
-                borderColor: allSelected ? "#e2e8f0" : "#bfdbfe",
+                color: selection.clickedIds.size === 0 ? "#94a3b8" : "#2563eb",
+                background: selection.activeBulkActions.has('clicked') ? "#eff6ff" : "transparent",
+                border: "1px solid #bfdbfe",
                 borderRadius: "6px",
-                cursor: allSelected ? "not-allowed" : "pointer",
+                cursor: selection.clickedIds.size === 0 ? "not-allowed" : "pointer",
                 transition: "all 0.15s",
-                opacity: allSelected ? 0.5 : 1,
+                opacity: selection.clickedIds.size === 0 ? 0.5 : 1,
               }}
               onMouseEnter={(e) => {
-                if (!allSelected) {
+                if (!selection.activeBulkActions.has('clicked') && selection.clickedIds.size > 0) {
                   e.currentTarget.style.background = "#eff6ff";
                 }
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = "transparent";
+                e.currentTarget.style.background = selection.activeBulkActions.has('clicked') ? "#eff6ff" : "transparent";
               }}
+              title="Keep only manually clicked households"
+            >
+              Clicked ({selection.clickedIds.size})
+            </button>
+
+            {/* 2) Matches (m) - FILTER-ONLY: Toggle visibility, do NOT change selection */}
+            {hasMatches && (
+              <button
+                type="button"
+                onClick={() => selection.toggleMatchesLayer()}
+                disabled={selection.matchIds.length === 0}
+                style={{
+                  padding: "5px 10px",
+                  fontSize: "12px",
+                  fontWeight: "600",
+                  color: selection.matchIds.length === 0 ? "#94a3b8" : "#2563eb",
+                  background: selection.activeBulkActions.has('matches') ? "#eff6ff" : "transparent",
+                  border: "1px solid #bfdbfe",
+                  borderRadius: "6px",
+                  cursor: selection.matchIds.length === 0 ? "not-allowed" : "pointer",
+                  transition: "all 0.15s",
+                  opacity: selection.matchIds.length === 0 ? 0.5 : 1,
+                }}
+                onMouseEnter={(e) => {
+                  if (!selection.activeBulkActions.has('matches') && selection.matchIds.length > 0) {
+                    e.currentTarget.style.background = "#eff6ff";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = selection.activeBulkActions.has('matches') ? "#eff6ff" : "transparent";
+                }}
+                title={`Filter view to show only ${selection.matchIds.length} matched households`}
+              >
+                Matches ({selection.matchIds.length})
+              </button>
+            )}
+
+            {/* 3) Add Households (M) - Add ADDITIONAL (non-matching) households to selection */}
+            {hasMatches && (
+              <button
+                type="button"
+                onClick={() => selection.toggleAdditionalLayer()}
+                disabled={selection.additionalIds.length === 0}
+                style={{
+                  padding: "5px 10px",
+                  fontSize: "12px",
+                  fontWeight: "600",
+                  color: selection.additionalIds.length === 0 ? "#94a3b8" : "#2563eb",
+                  background: selection.activeBulkActions.has('additional') ? "#eff6ff" : "transparent",
+                  border: "1px solid #bfdbfe",
+                  borderRadius: "6px",
+                  cursor: selection.additionalIds.length === 0 ? "not-allowed" : "pointer",
+                  transition: "all 0.15s",
+                  opacity: selection.additionalIds.length === 0 ? 0.5 : 1,
+                }}
+                onMouseEnter={(e) => {
+                  if (!selection.activeBulkActions.has('additional') && selection.additionalIds.length > 0) {
+                    e.currentTarget.style.background = "#eff6ff";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = selection.activeBulkActions.has('additional') ? "#eff6ff" : "transparent";
+                }}
+                title={`Add additional (non-matching) households to selection (${selection.additionalIds.length})`}
+              >
+                Add Households ({selection.additionalIds.length})
+              </button>
+            )}
+
+            {/* 4) Select All - Always visible */}
+            <button
+              type="button"
+              onClick={() => selection.selectAll()}
+              disabled={selection.allIds.length === 0}
+              style={{
+                padding: "5px 10px",
+                fontSize: "12px",
+                fontWeight: "600",
+                color: selection.allIds.length === 0 ? "#94a3b8" : "#2563eb",
+                background: selection.activeBulkActions.has('all') ? "#eff6ff" : "transparent",
+                border: "1px solid",
+                borderColor: selection.allIds.length === 0 ? "#e2e8f0" : "#bfdbfe",
+                borderRadius: "6px",
+                cursor: selection.allIds.length === 0 ? "not-allowed" : "pointer",
+                transition: "all 0.15s",
+                opacity: selection.allIds.length === 0 ? 0.5 : 1,
+              }}
+              onMouseEnter={(e) => {
+                if (selection.allIds.length > 0 && !selection.activeBulkActions.has('all')) {
+                  e.currentTarget.style.background = "#eff6ff";
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = selection.activeBulkActions.has('all') ? "#eff6ff" : "transparent";
+              }}
+              title="Select all households in list"
             >
               Select All
             </button>
+
+            {/* 5) Clear - Always enabled */}
             <button
               type="button"
-              onClick={deselectAll}
-              disabled={selectedIds.size === 0}
+              onClick={() => selection.clearAll()}
+              disabled={false}
               style={{
-                padding: "6px 12px",
-                fontSize: "13px",
+                padding: "5px 10px",
+                fontSize: "12px",
                 fontWeight: "600",
-                color: selectedIds.size === 0 ? "#94a3b8" : "#dc2626",
+                color: "#dc2626",  // Always red, never grayed
                 background: "transparent",
-                border: "1px solid",
-                borderColor: selectedIds.size === 0 ? "#e2e8f0" : "#fecaca",
+                border: "1px solid #fecaca",  // Always red border
                 borderRadius: "6px",
-                cursor: selectedIds.size === 0 ? "not-allowed" : "pointer",
+                cursor: "pointer",
                 transition: "all 0.15s",
-                opacity: selectedIds.size === 0 ? 0.5 : 1,
+                opacity: 1,
               }}
               onMouseEnter={(e) => {
-                if (selectedIds.size > 0) {
-                  e.currentTarget.style.background = "#fef2f2";
-                }
+                e.currentTarget.style.background = "#fef2f2";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.background = "transparent";
               }}
+              title="Clear all selections (clickedIds persist)"
             >
-              Clear All
+              Clear
             </button>
           </div>
-        )}
+        </div>
+      )}
+
+      <div style={{ marginTop: "8px", marginBottom: "12px", color: "#64748b", fontSize: "14px" }}>
+        {hasSuggestions 
+          ? `Based on your filters in Discovery`
+          : `Select households to invite to this event`}
       </div>
 
       {loading ? (
