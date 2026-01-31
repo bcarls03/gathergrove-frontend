@@ -1,7 +1,7 @@
 # GatherGrove AI Programming Rules
 
-**Version: v1.3 - Maintainer Mode with Troubleshooting**  
-**Last Updated:** January 2026
+**Version: v1.4 - Dev Server Recovery Protocol**  
+**Last Updated:** January 31, 2026
 
 ---
 
@@ -319,6 +319,125 @@ If backend behavior differs between dev and prod (e.g., relaxed auth in dev), yo
 ### Before importing:
 - [ ] Does this file actually exist, or did I just propose it?
 - [ ] Was this file rejected earlier in the conversation?
+
+---
+
+## 11. Dev Server Recovery Protocol (Vite / FastAPI)
+
+### When to Use This Protocol
+Execute this checklist immediately when:
+- `localhost:5173` won't load or shows "refused to connect"
+- UI changes aren't reflected after code edits
+- Browser shows `ERR_NETWORK_IO_SUSPENDED` or similar network errors
+- Backend API returns connection errors
+
+### Mandatory Recovery Checklist
+
+**Step 1: Verify Current Directory**
+```bash
+pwd  # Must show correct path
+cd /Users/briancarlberg/dev/gathergrove-frontend  # OR gathergrove-backend
+```
+⚠️ **NEVER run npm/uvicorn commands without verifying pwd first**
+
+**Step 2: Check Port Listeners**
+```bash
+# Frontend check
+lsof -nP -iTCP:5173 -sTCP:LISTEN
+
+# Backend check
+lsof -nP -iTCP:8000 -sTCP:LISTEN
+```
+- If empty: port is free, proceed to restart
+- If shows PID: port is occupied, proceed to Step 3
+
+**Step 3: Kill Existing Processes (if needed)**
+```bash
+# Kill frontend (if stuck)
+lsof -ti:5173 | xargs kill -9 2>/dev/null
+
+# Kill backend (if stuck)
+lsof -ti:8000 | xargs kill -9 2>/dev/null
+
+# Wait and verify
+sleep 2
+lsof -nP -iTCP:5173 -sTCP:LISTEN  # Must be empty
+```
+
+**Step 4: Restart in Foreground (Required for Verification)**
+```bash
+# Frontend (from gathergrove-frontend/)
+npm run dev -- --port 5173 --strictPort
+
+# Backend (from gathergrove-backend/)
+SKIP_FIREBASE_INIT=1 python3 -m uvicorn app.main:app --port 8000 --reload
+```
+⚠️ **Do NOT use background mode (&) until verified**
+
+**Step 5: Verify Server is Ready**
+
+**Frontend verification (ALL required):**
+- [ ] See `VITE v7.x.x ready in XXms` in terminal output
+- [ ] See `➜ Local: http://localhost:5173/` in output
+- [ ] Run `lsof -nP -iTCP:5173 -sTCP:LISTEN` shows active listener
+- [ ] Run `curl -I http://localhost:5173` returns HTTP 200
+
+**Backend verification (ALL required):**
+- [ ] See `Uvicorn running on http://127.0.0.1:8000` in output
+- [ ] See `Application startup complete` in output
+- [ ] Run `lsof -nP -iTCP:8000 -sTCP:LISTEN` shows active listener
+- [ ] Run `curl -I http://localhost:8000/health` returns HTTP response
+
+**Step 6: Browser Recovery**
+If servers are verified running but browser still shows errors:
+```bash
+# Hard refresh (clear cache)
+# macOS: Cmd + Shift + R
+# Windows/Linux: Ctrl + Shift + R
+
+# If hard refresh fails:
+# 1. Close ALL browser tabs for localhost:5173
+# 2. Wait 5 seconds
+# 3. Open new tab to http://localhost:5173
+```
+
+### Common Root Causes
+
+**Browser Sleep/Suspend:**
+- Modern browsers suspend tabs after 5+ minutes of inactivity
+- Suspended tabs may show `ERR_NETWORK_IO_SUSPENDED`
+- **Fix:** Hard refresh (Cmd/Ctrl + Shift + R) or close/reopen tab
+
+**Zombie Processes:**
+- Previous dev server didn't shut down cleanly
+- Port appears free but is held by zombie process
+- **Fix:** `kill -9` the PID, wait 2 seconds, verify with `lsof`
+
+**Wrong Directory:**
+- Running `npm run dev` from `/dev` instead of `/dev/gathergrove-frontend`
+- **Fix:** Always verify `pwd` before running commands
+
+**Background Process Lost:**
+- Background processes (`&`) may exit silently
+- Terminal closing kills background jobs
+- **Fix:** Use foreground mode until verified, then background if needed
+
+### Enforcement Rules
+
+**Before claiming "server is running":**
+- [ ] You MUST show proof: `lsof` output OR `curl` response OR Vite ready line
+- [ ] You MUST verify correct directory with `pwd`
+- [ ] You MUST NOT assume background process is still alive
+
+**Before reporting "changes aren't showing":**
+- [ ] Verify server restarted after code changes
+- [ ] Check for build errors in terminal output
+- [ ] Confirm hard refresh was attempted
+
+**If protocol fails after 2 attempts:**
+- STOP and ask user to verify manually
+- Do NOT loop through recovery steps more than twice
+- Suggest checking system logs or process monitor
 
 ---
 
