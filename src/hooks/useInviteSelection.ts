@@ -79,7 +79,9 @@ export function useInviteSelection({
     if (clickedIds.size > 0 && !activeBulkActions.has('clicked')) {
       setActiveBulkActions(prev => new Set(prev).add('clicked'));
     }
-  }, [clickedIds.size]); // Only run when clickedIds.size changes
+    // Note: activeBulkActions intentionally omitted from deps to prevent re-activation
+    // when user manually toggles the clicked layer off. We only want to activate once on load.
+  }, [clickedIds.size]);
 
   // Recompute selection whenever layers or manual selection change
   useEffect(() => {

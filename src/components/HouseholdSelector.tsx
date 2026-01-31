@@ -91,15 +91,6 @@ export function HouseholdSelector({
     },
   });
 
-  // Extract matchIds for debugging
-  const matchIds = selection.matchIds || [];
-
-  // ✅ Sync hook's selectedIds with parent's selectedIds
-  useEffect(() => {
-    // If parent's selectedIds changed externally, we need to handle that
-    // For now, the hook manages selection state
-  }, [selectedIds]);
-
   // Update parent with selected household names whenever selection changes
   useEffect(() => {
     if (onSelectedNamesChangeRef.current && availableHouseholds.length > 0) {
@@ -179,7 +170,9 @@ export function HouseholdSelector({
         // setAvailableHouseholds(mockHouseholds);
         
         const households = await Api.fetchHouseholds();
-        console.log("✅ Fetched households:", households.length);
+        if (import.meta.env.DEV) {
+          console.log("✅ Fetched households:", households.length);
+        }
         setAvailableHouseholds(households);
       } catch (error) {
         console.error("❌ Failed to load households:", error);
