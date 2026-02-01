@@ -52,7 +52,7 @@ const api = axios.create({
  * - In dev mode: ALWAYS send X-Uid (backend is in ALLOW_DEV_AUTH=1 mode)
  * - In production: Use Authorization: Bearer <token>
  */
-async function getAuthHeaders(): Promise<Record<string, string>> {
+export async function getAuthHeaders(): Promise<Record<string, string>> {
   // DEV MODE: Always use dev headers (backend is running with ALLOW_DEV_AUTH=1)
   // The backend will use X-Uid/X-Email and ignore any Bearer token
   const isDev = !import.meta.env.PROD;

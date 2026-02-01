@@ -1,5 +1,5 @@
 // src/lib/api/connections.ts
-import { getIdToken } from '../firebase';
+import { getAuthHeaders } from '../api';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
@@ -20,13 +20,11 @@ export interface Connection {
  */
 export async function fetchConnections(): Promise<string[]> {
   try {
-    const token = await getIdToken();
+    const authHeaders = await getAuthHeaders();
     
     // Suppress network errors in console for expected 400 responses
     const response = await fetch(`${API_BASE}/api/connections?status=accepted`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: authHeaders,
     }).catch((error) => {
       // Network-level error (e.g., server down) - silently fail
       console.warn('Could not reach connections API:', error.message);
@@ -65,12 +63,12 @@ export async function fetchConnections(): Promise<string[]> {
  */
 export async function sendConnectionRequest(householdId: string): Promise<boolean> {
   try {
-    const token = await getIdToken();
+    const authHeaders = await getAuthHeaders();
     const response = await fetch(`${API_BASE}/api/connections`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+        ...authHeaders,
       },
       body: JSON.stringify({ household_id: householdId }),
     });
@@ -91,12 +89,12 @@ export async function sendConnectionRequest(householdId: string): Promise<boolea
  */
 export async function acceptConnection(connectionId: string): Promise<boolean> {
   try {
-    const token = await getIdToken();
+    const authHeaders = await getAuthHeaders();
     const response = await fetch(`${API_BASE}/api/connections/${connectionId}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+        ...authHeaders,
       },
       body: JSON.stringify({ status: 'accepted' }),
     });
@@ -117,12 +115,10 @@ export async function acceptConnection(connectionId: string): Promise<boolean> {
  */
 export async function removeConnection(connectionId: string): Promise<boolean> {
   try {
-    const token = await getIdToken();
+    const authHeaders = await getAuthHeaders();
     const response = await fetch(`${API_BASE}/api/connections/${connectionId}`, {
       method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: authHeaders,
     });
     
     if (!response.ok) {
