@@ -32,6 +32,7 @@ interface HouseholdSelectorProps {
   onPhoneNumbersChange?: (numbers: Set<string>) => void;
   eventInviteLink?: string; // ✅ Pass from parent after event is created
   eventTitle?: string;
+  hideSectionHeaders?: boolean; // ✅ When true, parent controls section headers
 }
 
 // ✅ Canonical type labels matching actual enum values
@@ -51,6 +52,7 @@ export function HouseholdSelector({
   onPhoneNumbersChange,
   eventInviteLink,
   eventTitle = "GatherGrove Event",
+  hideSectionHeaders = false,
 }: HouseholdSelectorProps) {
   const [availableHouseholds, setAvailableHouseholds] = useState<GGHousehold[]>([]);
   const [loading, setLoading] = useState(false);
@@ -470,22 +472,12 @@ export function HouseholdSelector({
 
   return (
     <div className="gg-card-section">
-      {/* ✅ Section label: In-app delivery */}
-      <div style={{
-        fontSize: 14,
-        fontWeight: 700,
-        color: "#0f172a",
-        marginBottom: 12,
-        padding: "12px 16px",
-        backgroundColor: "#f8fafc",
-        borderLeft: "3px solid #3b82f6",
-        borderRadius: "4px",
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-      }}>
-        📱 Invite on GatherGrove (in-app notification)
-      </div>
+      {/* Section header: In-app delivery */}
+      {!hideSectionHeaders && (
+        <div className="gg-label" style={{ marginBottom: 12 }}>
+          Invite on GatherGrove
+        </div>
+      )}
       
       <div className="gg-label">
         Who to invite ({selection.selectedIds.size} selected)
@@ -794,163 +786,6 @@ export function HouseholdSelector({
           )}
         </div>
       )}
-
-      {/* NEW: Share invite section (works everywhere!) */}
-      <div style={{ 
-        marginTop: 24, 
-        paddingTop: 24, 
-        borderTop: "2px solid #e5e7eb" 
-      }}>
-        {/* ✅ Section label: Off-platform delivery */}
-        <div style={{
-          fontSize: 14,
-          fontWeight: 700,
-          color: "#0f172a",
-          marginBottom: 12,
-          padding: "12px 16px",
-          backgroundColor: "#f8fafc",
-          borderLeft: "3px solid #10b981",
-          borderRadius: "4px",
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-        }}>
-          💬 Invite someone not on GatherGrove
-        </div>
-        
-        <div style={{ fontSize: 13, color: "#64748b", marginBottom: 16 }}>
-          Share your event with neighbors, friends, or family — they can RSVP without creating an account.
-        </div>
-
-        {/* ✅ FIX #4: Always show Share section, but disable if no link */}
-        {!eventInviteLink && (
-          <div style={{
-            padding: "12px 14px",
-            background: "#fef3c7",
-            border: "1px solid #fde68a",
-            borderRadius: 8,
-            fontSize: 13,
-            color: "#92400e",
-            marginBottom: 12,
-          }}>
-            💡 <strong>Post your event first</strong> to generate the invite link
-          </div>
-        )}
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <button
-            type="button"
-            onClick={shareInvite}
-            disabled={!eventInviteLink}
-            style={{
-              padding: "14px 16px",
-              background: eventInviteLink ? "linear-gradient(135deg, #10b981 0%, #059669 100%)" : "#e5e7eb",
-              color: eventInviteLink ? "white" : "#94a3b8",
-              border: "none",
-              borderRadius: 10,
-              fontWeight: 600,
-              fontSize: 15,
-              cursor: eventInviteLink ? "pointer" : "not-allowed",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 10,
-              boxShadow: eventInviteLink ? "0 3px 10px rgba(16, 185, 129, 0.3)" : "none",
-              opacity: eventInviteLink ? 1 : 0.6,
-            }}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <circle cx="18" cy="5" r="3"></circle>
-              <circle cx="6" cy="12" r="3"></circle>
-              <circle cx="18" cy="19" r="3"></circle>
-              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
-              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
-            </svg>
-            Share…
-            {eventInviteLink && (
-              <span style={{ 
-                fontSize: 11, 
-                background: "rgba(255, 255, 255, 0.25)",
-                padding: "2px 8px",
-                borderRadius: 6,
-              }}>
-                recommended
-              </span>
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={sendViaSMS}
-            disabled={!eventInviteLink}
-            style={{
-              padding: "12px 16px",
-              background: "white",
-              color: eventInviteLink ? "#059669" : "#94a3b8",
-              border: `2px solid ${eventInviteLink ? "#10b981" : "#e5e7eb"}`,
-              borderRadius: 10,
-              fontWeight: 600,
-              fontSize: 14,
-              cursor: eventInviteLink ? "pointer" : "not-allowed",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              opacity: eventInviteLink ? 1 : 0.6,
-            }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-            </svg>
-            Send Text
-          </button>
-
-          <button
-            type="button"
-            onClick={copyInviteLink}
-            disabled={!eventInviteLink}
-            style={{
-              padding: "12px 16px",
-              background: "white",
-              color: eventInviteLink ? "#64748b" : "#94a3b8",
-              border: `1px solid ${eventInviteLink ? "#e2e8f0" : "#e5e7eb"}`,
-              borderRadius: 10,
-              fontWeight: 600,
-              fontSize: 14,
-              cursor: eventInviteLink ? "pointer" : "not-allowed",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              opacity: eventInviteLink ? 1 : 0.6,
-            }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-            </svg>
-            Copy Link
-          </button>
-        </div>
-
-        {/* How it works */}
-        <div style={{
-          marginTop: 16,
-          padding: "12px 14px",
-          background: "#eff6ff",
-          borderRadius: 10,
-          fontSize: 12,
-          color: "#1e40af",
-          lineHeight: 1.5
-        }}>
-          <strong>✨ Works everywhere:</strong>
-          <ul style={{ margin: "6px 0 0 0", paddingLeft: 18 }}>
-            <li><strong>Share…</strong> opens your device's share menu (Messages, WhatsApp, email, etc.)</li>
-            <li><strong>Send Text</strong> opens your messaging app with pre-filled invite</li>
-            <li><strong>Copy Link</strong> copies the link so you can paste anywhere</li>
-          </ul>
-        </div>
-      </div>
     </div>
   );
 }
