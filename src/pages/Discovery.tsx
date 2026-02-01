@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, Heart, Home, MapPin, Sparkles, UserPlus, Calendar, MessageCircle, Zap, Clock, X } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { fetchHouseholds, fetchEvents, getMyProfile, type GGHousehold, type GGEvent, API_BASE_URL } from '../lib/api';
+import { fetchHouseholds, fetchEvents, getMyProfile, type GGHousehold, type GGEvent, API_BASE_URL, CURRENT_UID, getAuthHeaders } from '../lib/api';
 import { fetchConnections, sendConnectionRequest } from '../lib/api/connections';
 import { Chip, DualAgeRange, HOUSEHOLD_TYPE_META, type HouseholdType } from '../components/filters';
 
@@ -71,6 +71,16 @@ export default function Discovery() {
   // Dev-only: Seed demo households state
   const [seeding, setSeeding] = useState(false);
   const [seedMessage, setSeedMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Dev-only: Create household state
+  const [creatingHousehold, setCreatingHousehold] = useState(false);
+  const [householdCreationMessage, setHouseholdCreationMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Connection error message state (per household)
+  const [connectionErrors, setConnectionErrors] = useState<Map<string, string>>(new Map());
+
+  // Current user's household_id (to filter out from lists)
+  const [myHouseholdId, setMyHouseholdId] = useState<string | null>(null);
 
   // Helper: Toggle item in Set
   const toggleInSet = <T,>(set: Set<T>, item: T): Set<T> => {
@@ -159,6 +169,9 @@ export default function Discovery() {
         throw err;
       });
       
+      // Store my household_id to filter it out from lists
+      setMyHouseholdId(profile?.household_id || null);
+      
       if (!profile?.household_id) {
         // User hasn't completed onboarding yet - skip connections fetch silently
         setConnectedHouseholdIds([]);
@@ -213,13 +226,118 @@ export default function Discovery() {
     }
   };
 
-  // Split households into connected vs nearby
+  // Dev-only: Create household for current dev user
+  const handleCreateDevHousehold = async () => {
+    setCreatingHousehold(true);
+    setHouseholdCreationMessage(null);
+    try {
+      const authHeaders = await getAuthHeaders();
+
+      // Step 1: Ensure user exists
+      const signupResponse = await fetch(`${API_BASE_URL}/users/signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        body: JSON.stringify({
+          email: `${CURRENT_UID}@example.com`,
+          first_name: 'Dev',
+          last_name: 'User',
+        }),
+      });
+
+      if (!signupResponse.ok) {
+        const signupError = await signupResponse.json().catch(() => ({ detail: 'Unknown error' }));
+        // 409 = user already exists, treat as success
+        if (signupResponse.status === 409) {
+          console.log('✅ User already exists, continuing...');
+        } else {
+          console.log(`⚠️ Signup failed (${signupResponse.status}): ${signupError.detail}`);
+          // Continue anyway - household create will auto-create user in dev mode
+        }
+      } else {
+        console.log('✅ User created');
+      }
+
+      // Step 2: Create household
+      const createResponse = await fetch(`${API_BASE_URL}/users/me/household/create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        body: JSON.stringify({
+          name: 'Dev Household',
+          household_type: 'family_with_kids',
+          kids: [{ age_range: '0-2' }],
+        }),
+      });
+
+      if (!createResponse.ok) {
+        const errorData = await createResponse.json().catch(() => ({ detail: `Status ${createResponse.status}` }));
+        
+        // 409 = household already exists, treat as success
+        if (createResponse.status === 409) {
+          console.log('✅ Household already exists');
+        } else {
+          // Other errors
+          const errorMsg = typeof errorData.detail === 'string' ? errorData.detail : `Status ${createResponse.status}`;
+          console.log(`❌ Create household failed: ${errorMsg}`);
+          throw new Error(errorMsg);
+        }
+      } else {
+        console.log('✅ Household created');
+      }
+
+      // Step 3: Verify household is attached to user
+      const meResponse = await fetch(`${API_BASE_URL}/users/me`, {
+        method: 'GET',
+        headers: authHeaders,
+      });
+
+      if (!meResponse.ok) {
+        const errorMsg = `Failed to verify: Status ${meResponse.status}`;
+        console.log(`❌ ${errorMsg}`);
+        setHouseholdCreationMessage({ type: 'error', text: `❌ ${errorMsg}` });
+        return;
+      }
+
+      const userData = await meResponse.json();
+      if (userData.household_id) {
+        console.log(`✅ Dev household ready (household_id: ${userData.household_id})`);
+        setHouseholdCreationMessage({ 
+          type: 'success', 
+          text: `✅ Dev household ready (household_id: ${userData.household_id.slice(0, 12)}...)` 
+        });
+      } else {
+        console.log('❌ Household create returned 201 but /users/me has no household_id');
+        setHouseholdCreationMessage({ 
+          type: 'error', 
+          text: '❌ Household create returned 201 but /users/me has no household_id' 
+        });
+        return;
+      }
+
+      // Refresh households and connections
+      await loadHouseholds();
+      await loadConnections();
+    } catch (err: any) {
+      console.error('❌ Create household failed:', err);
+      const errorMsg = typeof err.message === 'string' ? err.message : 'Failed to create household';
+      setHouseholdCreationMessage({ type: 'error', text: `❌ ${errorMsg}` });
+    } finally {
+      setCreatingHousehold(false);
+    }
+  };
+
+  // Split households into connected vs nearby (filter out my own household)
   const connectedHouseholds = households.filter(h => 
-    connectedHouseholdIds.includes(h.id || '')
+    connectedHouseholdIds.includes(h.id || '') && h.id !== myHouseholdId
   );
 
   const nearbyHouseholds = households.filter(h => 
-    !connectedHouseholdIds.includes(h.id || '')
+    !connectedHouseholdIds.includes(h.id || '') && h.id !== myHouseholdId
   );
 
   // Get current list based on active tab
@@ -481,6 +599,13 @@ export default function Discovery() {
   const handleConnect = async (household: GGHousehold) => {
     if (!household.id) return;
     
+    // Clear any previous error for this household
+    setConnectionErrors(prev => {
+      const next = new Map(prev);
+      next.delete(household.id!);
+      return next;
+    });
+    
     // Optimistic UI update
     setConnectingIds(prev => new Set(prev).add(household.id!));
     
@@ -491,6 +616,33 @@ export default function Discovery() {
         setConnectedHouseholdIds(prev => [...prev, household.id!]);
         alert(`✅ Connection request sent to ${getHouseholdName(household)}!`);
       } else {
+        // Check if the error is about missing household - make a test request to get details
+        try {
+          const authHeaders = await getAuthHeaders();
+          const testResponse = await fetch(`${API_BASE_URL}/api/connections`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...authHeaders,
+            },
+            body: JSON.stringify({ household_id: household.id }),
+          });
+          
+          if (!testResponse.ok) {
+            const errorData = await testResponse.json().catch(() => ({ detail: 'Unknown error' }));
+            const errorDetail = typeof errorData.detail === 'string' ? errorData.detail : `Status ${testResponse.status}`;
+            console.log(`❌ Connection failed: ${errorDetail}`);
+            setConnectionErrors(prev => {
+              const next = new Map(prev);
+              next.set(household.id!, errorDetail);
+              return next;
+            });
+            return;
+          }
+        } catch (testErr) {
+          console.error('Error checking connection failure:', testErr);
+        }
+        
         alert(`❌ Failed to send connection request. Please try again.`);
       }
     } catch (err) {
@@ -805,6 +957,78 @@ export default function Discovery() {
               </button>
             </div>
           </div>
+
+          {/* Dev-only: Create My Dev Household */}
+          {import.meta.env.DEV && (
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
+              <button
+                onClick={handleCreateDevHousehold}
+                disabled={creatingHousehold}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 6,
+                  border: '1.5px solid #8b5cf6',
+                  background: creatingHousehold ? '#ede9fe' : '#8b5cf6',
+                  color: creatingHousehold ? '#8b5cf6' : '#ffffff',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: creatingHousehold ? 'not-allowed' : 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  opacity: creatingHousehold ? 0.6 : 1,
+                }}
+              >
+                <Home size={12} />
+                {creatingHousehold ? 'Creating...' : 'Create My Dev Household'}
+              </button>
+              <button
+                onClick={handleSeedHouseholds}
+                disabled={seeding}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 6,
+                  border: '1.5px solid #6366f1',
+                  background: seeding ? '#e0e7ff' : '#6366f1',
+                  color: seeding ? '#6366f1' : '#ffffff',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: seeding ? 'not-allowed' : 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  opacity: seeding ? 0.6 : 1,
+                }}
+              >
+                <Sparkles size={12} />
+                {seeding ? 'Seeding...' : 'Seed Demo Households'}
+              </button>
+              {householdCreationMessage && (
+                <div style={{
+                  marginLeft: 8,
+                  fontSize: 11,
+                  color: householdCreationMessage.type === 'success' ? '#10b981' : '#ef4444',
+                  fontWeight: 500,
+                  display: 'flex',
+                  alignItems: 'center',
+                }}>
+                  {householdCreationMessage.text}
+                </div>
+              )}
+              {seedMessage && (
+                <div style={{
+                  marginLeft: 8,
+                  fontSize: 11,
+                  color: seedMessage.type === 'success' ? '#10b981' : '#ef4444',
+                  fontWeight: 500,
+                  display: 'flex',
+                  alignItems: 'center',
+                }}>
+                  {seedMessage.text}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Filters - Compact Horizontal Layout for Mobile */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -1668,6 +1892,23 @@ export default function Discovery() {
                     </button>
                   )}
                 </div>
+
+                {/* Connection Error Message */}
+                {household.id && connectionErrors.has(household.id) && (
+                  <div style={{
+                    marginTop: 8,
+                    padding: '6px 10px',
+                    borderRadius: 6,
+                    background: '#fef2f2',
+                    border: '1px solid #fecaca',
+                    fontSize: 11,
+                    color: '#dc2626',
+                    fontWeight: 500,
+                    lineHeight: 1.4,
+                  }}>
+                    {connectionErrors.get(household.id)}
+                  </div>
+                )}
               </motion.div>
             );
           })}
