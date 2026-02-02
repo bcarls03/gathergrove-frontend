@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Calendar, Clock, MapPin, Users, Zap, CheckCircle } from 'lucide-react';
+import { Calendar, Clock, MapPin, Users, Zap } from 'lucide-react';
 import { getCurrentUser, auth } from '../lib/firebase';
 import type { GGEvent, EventCategory } from '../lib/api';
 
@@ -335,14 +335,11 @@ export default function PublicEventPage() {
   }
 
   const isHappeningNow = event.type === 'now' || event.type === 'happening';
-  const gradientColors = isHappeningNow 
-    ? ['#fbbf24', '#f59e0b']
-    : ['#3b82f6', '#2563eb'];
 
   return (
     <div style={{
       minHeight: '100vh',
-      background: `linear-gradient(135deg, ${gradientColors[0]} 0%, ${gradientColors[1]} 100%)`,
+      background: '#f8f9fa',
       padding: '40px 20px',
     }}>
       <motion.div
@@ -353,15 +350,15 @@ export default function PublicEventPage() {
           maxWidth: 600,
           margin: '0 auto',
           background: '#fff',
-          borderRadius: 24,
-          boxShadow: '0 25px 70px rgba(0,0,0,0.25)',
+          borderRadius: 20,
+          boxShadow: '0 20px 60px rgba(0,0,0,0.08)',
           overflow: 'hidden',
         }}
       >
         {/* Header Accent */}
         <div style={{
-          height: 6,
-          background: `linear-gradient(90deg, ${gradientColors[0]} 0%, ${gradientColors[1]} 100%)`,
+          height: 3,
+          background: '#3bb19b',
         }} />
 
         <div style={{ padding: '40px 32px' }}>
@@ -370,18 +367,17 @@ export default function PublicEventPage() {
             <div style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 6,
-              padding: '6px 12px',
-              background: '#fef3c7',
-              border: '2px solid #fbbf24',
-              borderRadius: 999,
-              marginBottom: 20,
+              gap: 5,
+              padding: '4px 10px',
+              background: '#ecfdf5',
+              borderRadius: 6,
+              marginBottom: 18,
             }}>
-              <Zap size={16} style={{ color: '#f59e0b' }} />
+              <Zap size={14} style={{ color: '#10b981' }} />
               <span style={{
-                fontSize: 13,
-                fontWeight: 800,
-                color: '#92400e',
+                fontSize: 11,
+                fontWeight: 600,
+                color: '#059669',
                 textTransform: 'uppercase',
                 letterSpacing: '0.05em',
               }}>
@@ -393,46 +389,44 @@ export default function PublicEventPage() {
           {/* Event Title */}
           <h1 style={{
             fontSize: 32,
-            fontWeight: 800,
+            fontWeight: 600,
             color: '#111827',
-            marginBottom: 20,
-            lineHeight: 1.2,
+            marginBottom: 24,
+            lineHeight: 1.25,
+            letterSpacing: '-0.02em',
           }}>
             {event.title || 'Untitled Event'}
           </h1>
 
           {/* Event Meta Info */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 28 }}>
             {/* Category */}
             {event.category && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Calendar size={18} style={{ color: '#6b7280' }} />
-                <div style={{
-                  padding: '4px 12px',
-                  borderRadius: 8,
-                  background: getEventCategoryColor(event.category) + '15',
-                  color: getEventCategoryColor(event.category),
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Calendar size={17} style={{ color: '#9ca3af' }} />
+                <span style={{
                   fontSize: 14,
-                  fontWeight: 600,
+                  fontWeight: 500,
+                  color: '#6b7280',
                 }}>
                   {getEventCategoryLabel(event.category)}
-                </div>
+                </span>
               </div>
             )}
 
             {/* Time */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#475569' }}>
-              <Clock size={18} />
-              <span style={{ fontSize: 15, fontWeight: 500 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#6b7280' }}>
+              <Clock size={17} />
+              <span style={{ fontSize: 14, fontWeight: 500 }}>
                 {getTimeDisplay(event)}
               </span>
             </div>
 
             {/* Location */}
             {event.neighborhoods && event.neighborhoods.length > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#475569' }}>
-                <MapPin size={18} />
-                <span style={{ fontSize: 15, fontWeight: 500 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#6b7280' }}>
+                <MapPin size={17} />
+                <span style={{ fontSize: 14, fontWeight: 500 }}>
                   {event.neighborhoods[0]}
                 </span>
               </div>
@@ -442,14 +436,14 @@ export default function PublicEventPage() {
           {/* Event Details */}
           {event.details && (
             <div style={{
-              padding: 20,
-              background: '#f8fafc',
-              borderRadius: 12,
-              marginBottom: 32,
+              padding: 16,
+              background: '#fafafa',
+              borderRadius: 8,
+              marginBottom: 36,
             }}>
               <p style={{
                 fontSize: 15,
-                color: '#475569',
+                color: '#6b7280',
                 lineHeight: 1.6,
                 margin: 0,
               }}>
@@ -463,33 +457,41 @@ export default function PublicEventPage() {
             <>
               {!showGuestForm ? (
                 <div>
-                  <h3 style={{
-                    fontSize: 18,
-                    fontWeight: 700,
-                    color: '#111827',
-                    marginBottom: 16,
+                  <div style={{
+                    paddingTop: 32,
+                    borderTop: '1px solid #f3f4f6',
+                    marginBottom: 20,
                   }}>
-                    Can you make it?
-                  </h3>
+                    <h3 style={{
+                      fontSize: 16,
+                      fontWeight: 600,
+                      color: '#111827',
+                      marginBottom: 16,
+                      letterSpacing: '-0.01em',
+                    }}>
+                      Can you make it?
+                    </h3>
+                  </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
                     <button
                       onClick={() => handleRSVPClick('going')}
                       disabled={submitting}
                       style={{
-                        padding: '16px 24px',
+                        padding: '14px 24px',
                         background: '#10b981',
                         color: '#fff',
                         border: 'none',
-                        borderRadius: 12,
+                        borderRadius: 9,
                         fontSize: 16,
-                        fontWeight: 700,
+                        fontWeight: 600,
                         cursor: submitting ? 'not-allowed' : 'pointer',
                         transition: 'all 0.2s',
                         opacity: submitting ? 0.6 : 1,
+                        letterSpacing: '-0.01em',
                       }}
                     >
-                      ✓ I'm Going!
+                      I'm Going
                     </button>
 
                     <button
@@ -498,11 +500,11 @@ export default function PublicEventPage() {
                       style={{
                         padding: '14px 24px',
                         background: '#fff',
-                        color: '#f59e0b',
-                        border: '2px solid #fbbf24',
-                        borderRadius: 12,
+                        color: '#6b7280',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: 9,
                         fontSize: 15,
-                        fontWeight: 600,
+                        fontWeight: 500,
                         cursor: submitting ? 'not-allowed' : 'pointer',
                         transition: 'all 0.2s',
                         opacity: submitting ? 0.6 : 1,
@@ -517,11 +519,11 @@ export default function PublicEventPage() {
                       style={{
                         padding: '14px 24px',
                         background: '#fff',
-                        color: '#64748b',
-                        border: '2px solid #e2e8f0',
-                        borderRadius: 12,
+                        color: '#9ca3af',
+                        border: '1px solid #f3f4f6',
+                        borderRadius: 9,
                         fontSize: 15,
-                        fontWeight: 600,
+                        fontWeight: 500,
                         cursor: submitting ? 'not-allowed' : 'pointer',
                         transition: 'all 0.2s',
                         opacity: submitting ? 0.6 : 1,
@@ -639,68 +641,89 @@ export default function PublicEventPage() {
               )}
             </>
           ) : (
-            /* Success State */
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              style={{
+            /* Post-RSVP Confirmation */
+            <div style={{
+              paddingTop: 32,
+              borderTop: '1px solid #f3f4f6',
+            }}>
+              <div style={{
                 textAlign: 'center',
-                padding: 32,
-                background: '#f0fdf4',
-                borderRadius: 16,
-                border: '2px solid #86efac',
-              }}
-            >
-              <CheckCircle size={64} style={{ color: '#10b981', marginBottom: 16 }} />
-              <h3 style={{
-                fontSize: 20,
-                fontWeight: 700,
-                color: '#111827',
-                marginBottom: 8,
+                paddingBottom: 32,
               }}>
-                RSVP Sent!
-              </h3>
-              <p style={{ color: '#475569', marginBottom: 20 }}>
-                {isSignedIn 
-                  ? "The host will see your response."
-                  : "The host will be notified of your response."}
-              </p>
-              {!isSignedIn && (
+                <h3 style={{
+                  fontSize: 18,
+                  fontWeight: 600,
+                  color: '#111827',
+                  marginBottom: 8,
+                  letterSpacing: '-0.01em',
+                }}>
+                  {selectedChoice === 'going' && "You're going"}
+                  {selectedChoice === 'maybe' && "RSVP sent — Maybe"}
+                  {selectedChoice === 'cant' && "Thanks — we let the host know"}
+                </h3>
+                <p style={{
+                  fontSize: 14,
+                  color: '#6b7280',
+                  margin: 0,
+                }}>
+                  We've shared your response with the host.
+                </p>
+              </div>
+
+              {/* Onboarding CTA */}
+              <div style={{
+                textAlign: 'center',
+                paddingTop: 28,
+                borderTop: '1px solid #f9fafb',
+              }}>
+                <p style={{
+                  fontSize: 13,
+                  color: '#6b7280',
+                  marginBottom: 14,
+                  fontWeight: 500,
+                }}>
+                  Want an easier way to organize moments like this?
+                </p>
                 <button
                   onClick={() => navigate('/')}
+                  aria-label="Join GatherGrove"
                   style={{
                     padding: '10px 20px',
-                    background: '#3b82f6',
-                    color: '#fff',
-                    border: 'none',
+                    background: '#fff',
+                    color: '#6b7280',
+                    border: '1px solid #e5e7eb',
                     borderRadius: 8,
-                    fontSize: 14,
+                    fontSize: 13,
                     fontWeight: 600,
                     cursor: 'pointer',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                    transition: 'all 0.2s',
                   }}
                 >
-                  Explore GatherGrove
+                  Join <span style={{ color: '#3bb19b' }}>GatherGrove</span>
                 </button>
-              )}
-            </motion.div>
+              </div>
+            </div>
           )}
 
           {/* Attribution Footer - Shown to unauthenticated guests */}
           {!isSignedIn && (
             <div style={{
-              marginTop: 32,
-              paddingTop: 24,
-              borderTop: '1px solid #e2e8f0',
+              marginTop: 40,
+              paddingTop: 32,
+              borderTop: '1px solid #f9fafb',
               textAlign: 'center',
             }}>
               <a
                 href="/"
                 style={{
                   display: 'block',
-                  fontSize: 13,
-                  color: '#64748b',
+                  fontSize: 11,
+                  color: '#9ca3af',
                   textDecoration: 'none',
                   padding: '8px 0',
+                  fontWeight: 500,
+                  letterSpacing: '0.01em',
                 }}
               >
                 Created with GatherGrove — Free to join
@@ -710,41 +733,6 @@ export default function PublicEventPage() {
         </div>
       </motion.div>
 
-      {/* Footer CTA for non-signed-in users */}
-      {!isSignedIn && !rsvpSubmitted && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          style={{
-            maxWidth: 600,
-            margin: '24px auto 0',
-            textAlign: 'center',
-            color: '#fff',
-          }}
-        >
-          <p style={{ fontSize: 15, marginBottom: 12 }}>
-            Want to create your own neighborhood events?
-          </p>
-          <button
-            onClick={() => navigate('/')}
-            style={{
-              padding: '12px 24px',
-              background: '#fff',
-              color: gradientColors[1],
-              border: 'none',
-              borderRadius: 8,
-              fontSize: 15,
-              fontWeight: 700,
-              cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            }}
-          >
-            Join GatherGrove
-          </button>
-        </motion.div>
-      )}
-      
       {/* Debug Footer (DEV only) */}
       {import.meta.env.DEV && debugInfo && (
         <div style={{
