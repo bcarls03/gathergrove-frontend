@@ -155,13 +155,17 @@ type CategoryMeta = {
 const CATEGORY_META: Record<EventCategory, CategoryMeta> = {
   neighborhood: { emoji: "🏡", label: "Neighborhood" },
   playdate: { emoji: "🤸", label: "Playdate" },
-  help: { emoji: "🤝", label: "Help & favors" },
+  babysitting: { emoji: "👶", label: "Babysitting" },
   pet: { emoji: "🐶", label: "Pets" },
+  celebrations: { emoji: "🎉", label: "Celebrations" },
   other: { emoji: "✨", label: "Other" },
 };
 
 /* Category filter for Future Events */
 type EventFilter = "all" | EventCategory;
+
+/* ---------- RSVP Verification Flag (DEV only) ---------- */
+const RSVP_VERIFY = import.meta.env.DEV;
 
 /* ---------- Loaders ---------- */
 
