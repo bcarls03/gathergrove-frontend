@@ -1,5 +1,5 @@
 // src/pages/PublicEventPage.tsx
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Calendar, Clock, MapPin, Users, Zap } from 'lucide-react';
@@ -13,6 +13,49 @@ interface GuestRSVP {
   phone?: string;
   choice: RSVPChoice;
 }
+
+/**
+ * Production-ready analytics helper - fire-and-forget
+ * Logs to console in DEV, sends to backend in production
+ */
+function track(eventName: string, payload: Record<string, any>) {
+  const analyticsData = {
+    eventName,
+    payload,
+    ts: Date.now(),
+    path: window.location.pathname,
+    isSignedIn: !!getCurrentUser(),
+  };
+
+  // Always log in DEV mode
+  if (import.meta.env.DEV) {
+    console.info('[analytics]', eventName, payload);
+  }
+
+  // Send to backend in production only (fire-and-forget)
+  if (!import.meta.env.PROD) return;
+  
+  const endpoint = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/analytics`;
+  
+  try {
+    // Use sendBeacon for reliability (especially on page unload)
+    if (navigator.sendBeacon) {
+      const blob = new Blob([JSON.stringify(analyticsData)], { type: 'application/json' });
+      navigator.sendBeacon(endpoint, blob);
+    } else {
+      // Fallback to fetch with keepalive
+      fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(analyticsData),
+        keepalive: true,
+      }).catch(() => {}); // Silently ignore errors (fire-and-forget)
+    }
+  } catch (err) {
+    // Silently ignore errors (fire-and-forget)
+  }
+}
+
 
 /**
  * Adapter: Convert backend snake_case response to frontend GGEvent format.
@@ -49,6 +92,9 @@ export default function PublicEventPage() {
   const [rsvpSubmitted, setRsvpSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [isSignedIn, setIsSignedIn] = useState(!!getCurrentUser());
+  
+  // Track which eventId we've already logged to prevent double-firing in StrictMode
+  const trackedEventId = useRef<string | null>(null);
   
   // Debug instrumentation (DEV only)
   const [debugInfo, setDebugInfo] = useState<{
@@ -118,6 +164,16 @@ export default function PublicEventPage() {
       
       const ggEvent = publicEventToGGEvent(data);
       setEvent(ggEvent);
+      
+      // Track successful public event view (once per eventId to avoid StrictMode double-fire)
+      if (trackedEventId.current !== ggEvent.id) {
+        trackedEventId.current = ggEvent.id;
+        track('public_event_viewed', {
+          eventId: ggEvent.id,
+          eventType: ggEvent.type || 'unknown',
+          visibility: ggEvent.visibility,
+        });
+      }
     } catch (err: any) {
       console.error('Error loading event:', err);
       setError('Failed to load event');
@@ -160,6 +216,13 @@ export default function PublicEventPage() {
 
       if (response.ok) {
         setRsvpSubmitted(true);
+        
+        // Track successful RSVP submission
+        track('public_rsvp_submitted', {
+          eventId: event.id,
+          choice: choice, // Original choice (going | maybe | cant)
+        });
+        
         // Optionally navigate to home after a delay
         setTimeout(() => navigate('/'), 2000);
       } else {
@@ -207,6 +270,12 @@ export default function PublicEventPage() {
       if (response.ok) {
         setRsvpSubmitted(true);
         setShowGuestForm(false);
+        
+        // Track successful guest RSVP submission
+        track('public_rsvp_submitted', {
+          eventId: event.id,
+          choice: selectedChoice, // Original choice (going | maybe | cant)
+        });
       } else {
         const errData = await response.json().catch(() => ({}));
         alert(errData.detail || 'Failed to submit RSVP. Please try again.');
@@ -685,7 +754,13 @@ export default function PublicEventPage() {
                   Want an easier way to organize moments like this?
                 </p>
                 <button
-                  onClick={() => navigate('/')}
+                  onClick={() => {
+                    // Track join button click
+                    track('public_join_clicked', {
+                      eventId: event?.id || 'unknown',
+                    });
+                    navigate('/');
+                  }}
                   aria-label="Join GatherGrove"
                   style={{
                     padding: '10px 20px',
