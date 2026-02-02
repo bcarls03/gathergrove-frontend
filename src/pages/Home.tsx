@@ -614,6 +614,18 @@ export default function Home() {
         if (!r.counts) continue;
         const prior = next[r.key] ?? { choice: null, counts: { going: 0, maybe: 0, cant: 0 } };
         next[r.key] = { ...prior, counts: r.counts };
+        
+        // DEV-only verification logging
+        if (RSVP_VERIFY) {
+          const responded = r.counts.going + r.counts.maybe + r.counts.cant;
+          console.info('[RSVP Verification] Home count hydrated', {
+            eventId: r.key,
+            respondedCount: responded,
+            going: r.counts.going,
+            maybe: r.counts.maybe,
+            cant: r.counts.cant,
+          });
+        }
       }
       saveRsvps(next);
       return next;
@@ -701,6 +713,22 @@ export default function Home() {
 
         // also update counts locally from backend truth
         const counts = bucketsToCounts(buckets as any);
+        
+        // DEV-only verification logging
+        if (RSVP_VERIFY) {
+          const responded = counts.going + counts.maybe + counts.cant;
+          console.info('[RSVP Verification] Modal opened', {
+            eventId: key,
+            respondedCount: responded,
+            going: counts.going,
+            maybe: counts.maybe,
+            cant: counts.cant,
+            goingList: (buckets as any).going?.length || 0,
+            maybeList: (buckets as any).maybe?.length || 0,
+            cantList: (buckets as any).cant?.length || 0,
+          });
+        }
+        
         setEventRsvps((prev) => {
           const next: EventRsvpMap = { ...prev };
           const prior = next[key] ?? { choice: null, counts: { going: 0, maybe: 0, cant: 0 } };
