@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Calendar, Clock, MapPin, Users, Zap, CheckCircle } from 'lucide-react';
-import { getViewer } from '../lib/viewer';
+import { getCurrentUser, auth } from '../lib/firebase';
 import type { GGEvent, EventCategory } from '../lib/api';
 
 type RSVPChoice = 'going' | 'maybe' | 'cant';
@@ -48,6 +48,7 @@ export default function PublicEventPage() {
   const [selectedChoice, setSelectedChoice] = useState<RSVPChoice>('going');
   const [rsvpSubmitted, setRsvpSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [isSignedIn, setIsSignedIn] = useState(!!getCurrentUser());
   
   // Debug instrumentation (DEV only)
   const [debugInfo, setDebugInfo] = useState<{
@@ -56,8 +57,19 @@ export default function PublicEventPage() {
     keys: string[];
   } | null>(null);
 
-  const viewer = getViewer();
-  const isSignedIn = !!viewer;
+  useEffect(() => {
+    // Listen to Firebase auth state changes to properly track signed-in state
+    if (!auth) {
+      setIsSignedIn(false);
+      return;
+    }
+    
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      setIsSignedIn(!!user);
+    });
+    
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     loadEvent();
@@ -671,6 +683,29 @@ export default function PublicEventPage() {
                 </button>
               )}
             </motion.div>
+          )}
+
+          {/* Attribution Footer - Shown to unauthenticated guests */}
+          {!isSignedIn && (
+            <div style={{
+              marginTop: 32,
+              paddingTop: 24,
+              borderTop: '1px solid #e2e8f0',
+              textAlign: 'center',
+            }}>
+              <a
+                href="/"
+                style={{
+                  display: 'block',
+                  fontSize: 13,
+                  color: '#64748b',
+                  textDecoration: 'none',
+                  padding: '8px 0',
+                }}
+              >
+                Created with GatherGrove — Free to join
+              </a>
+            </div>
           )}
         </div>
       </motion.div>
