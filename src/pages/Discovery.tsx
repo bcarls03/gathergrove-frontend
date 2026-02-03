@@ -609,12 +609,25 @@ export default function Discovery() {
     // Optimistic UI update
     setConnectingIds(prev => new Set(prev).add(household.id!));
     
+    // DEV: Log current user's household_id
+    if (import.meta.env.DEV) {
+      console.log('🔵 handleConnect:', {
+        targetHousehold: household.id,
+        targetName: getHouseholdName(household),
+        myHouseholdId,
+      });
+    }
+    
     try {
       const success = await sendConnectionRequest(household.id);
       if (success) {
         // Add to connected list immediately (optimistic)
         setConnectedHouseholdIds(prev => [...prev, household.id!]);
         alert(`✅ Connection request sent to ${getHouseholdName(household)}!`);
+        
+        if (import.meta.env.DEV) {
+          console.log('✅ Connection request succeeded');
+        }
       } else {
         // Check if the error is about missing household - make a test request to get details
         try {
@@ -637,6 +650,13 @@ export default function Discovery() {
               next.set(household.id!, errorDetail);
               return next;
             });
+            
+            // Show detailed error in DEV, generic in prod
+            if (import.meta.env.DEV) {
+              alert(`❌ Connection failed: ${errorDetail}`);
+            } else {
+              alert(`❌ Failed to send connection request. Please try again.`);
+            }
             return;
           }
         } catch (testErr) {
@@ -647,7 +667,14 @@ export default function Discovery() {
       }
     } catch (err) {
       console.error('Error sending connection request:', err);
-      alert(`❌ Failed to send connection request. Please try again.`);
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+      
+      // Show detailed error in DEV
+      if (import.meta.env.DEV) {
+        alert(`❌ Connection error: ${errorMsg}`);
+      } else {
+        alert(`❌ Failed to send connection request. Please try again.`);
+      }
     } finally {
       setConnectingIds(prev => {
         const next = new Set(prev);
