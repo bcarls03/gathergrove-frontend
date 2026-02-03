@@ -714,8 +714,20 @@ export default function Discovery() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f9fafb', paddingBottom: 80 }}>
-      {/* Header */}
+    <>
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          details[open] summary span:first-child {
+            transform: rotate(90deg);
+          }
+          details summary span:first-child {
+            display: inline-block;
+            transition: transform 0.2s;
+          }
+        `
+      }} />
+      <div style={{ minHeight: '100vh', background: '#f9fafb', paddingBottom: 80 }}>
+      {/* Header - Simplified */}
       <div style={{ 
         background: '#ffffff', 
         borderBottom: '1px solid #e5e7eb',
@@ -726,342 +738,90 @@ export default function Discovery() {
         <div style={{ 
           maxWidth: 900, 
           margin: '0 auto', 
-          padding: '16px 20px'
+          padding: '10px 20px 8px'
         }}>
-          {/* Mobile-optimized header layout */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {/* Top row: Title only */}
-            <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0, color: '#111827' }}>
+          {/* Title + Quiet Orientation */}
+          <div style={{ marginBottom: 8 }}>
+            <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, marginBottom: 3, color: '#111827' }}>
               Discover
             </h1>
+            <p style={{ margin: 0, fontSize: 13, color: '#9ca3af', fontWeight: 400 }}>
+              {filteredHouseholds.length} {activeTab === 'connected' ? 'connected' : 'nearby'}
+            </p>
+          </div>
+
+          {/* Tabs - Subtle, subordinate */}
+          <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+            <button
+              onClick={() => setActiveTab('nearby')}
+              style={{
+                flex: 1,
+                padding: '6px 10px',
+                borderRadius: 5,
+                border: 'none',
+                background: activeTab === 'nearby' ? '#f3f4f6' : 'transparent',
+                color: activeTab === 'nearby' ? '#111827' : '#9ca3af',
+                fontSize: 13,
+                fontWeight: activeTab === 'nearby' ? 600 : 500,
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+                borderBottom: activeTab === 'nearby' ? '2px solid #10b981' : '2px solid transparent'
+              }}
+            >
+              Nearby ({nearbyHouseholds.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('connected')}
+              style={{
+                flex: 1,
+                padding: '6px 10px',
+                borderRadius: 5,
+                border: 'none',
+                background: activeTab === 'connected' ? '#f3f4f6' : 'transparent',
+                color: activeTab === 'connected' ? '#111827' : '#9ca3af',
+                fontSize: 13,
+                fontWeight: activeTab === 'connected' ? 600 : 500,
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+                borderBottom: activeTab === 'connected' ? '2px solid #10b981' : '2px solid transparent'
+              }}
+            >
+              Connected ({connectedHouseholds.length})
+            </button>
+          </div>
+
+          {/* Filters - Always visible, Apple-like */}
+          <div style={{ 
+            marginTop: 12, 
+            paddingTop: 12, 
+            borderTop: '1px solid #f3f4f6'
+          }}>
+            <div style={{ 
+              fontSize: 11, 
+              fontWeight: 600, 
+              color: '#9ca3af', 
+              marginBottom: 10,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em'
+            }}>
+              Filters
+            </div>
             
-            {/* Bottom row: Badge and Button - Centered */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
-              {/* Nearby/Connected Count Badge - Smaller */}
-              <div style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 6,
-                padding: '6px 12px',
-                borderRadius: 8,
-                background: '#f0fdf4',
-                border: '1.5px solid #d1fae5',
-                fontSize: 12,
-                fontWeight: 700,
-                color: '#047857',
-                flex: '0 0 auto'
-              }}>
-                <Sparkles size={14} />
-                <span>{filteredHouseholds.length} {activeTab === 'connected' ? 'connected' : 'nearby'}</span>
-              </div>
-
-              {/* Create Event Dropdown - Centered */}
-              <div style={{ position: 'relative', flex: '0 0 auto', minWidth: '120px' }} data-dropdown="create-event">
-                <button
-                  onClick={() => setShowCreateDropdown(!showCreateDropdown)}
-                  style={{
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 6,
-                    padding: '8px 12px',
-                    borderRadius: 8,
-                    border: '1.5px solid #10b981',
-                    background: '#10b981',
-                    color: '#ffffff',
-                    fontSize: 13,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    boxShadow: '0 1px 4px rgba(16, 185, 129, 0.2)'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-1px)';
-                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(16, 185, 129, 0.3)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 1px 4px rgba(16, 185, 129, 0.2)';
-                  }}
-                >
-                  <Calendar size={15} />
-                  <span>Event</span>
-                  <motion.div
-                    animate={{ rotate: showCreateDropdown ? 180 : 0 }}
-                    transition={{ duration: 0.2 }}
-                    style={{ display: 'flex', alignItems: 'center', marginLeft: 'auto', fontSize: 10 }}
-                  >
-                    ▼
-                  </motion.div>
-                </button>
-
-                {/* Dropdown Menu */}
-                {showCreateDropdown && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.15 }}
-                    style={{
-                      position: 'absolute',
-                      top: 'calc(100% + 8px)',
-                      right: 0,
-                      background: '#ffffff',
-                      border: '2px solid #e5e7eb',
-                      borderRadius: 12,
-                      boxShadow: '0 10px 30px rgba(0, 0, 0, 0.15)',
-                      minWidth: 240,
-                      zIndex: 1000,
-                      overflow: 'hidden'
-                    }}
-                  >
-                    {/* Happening Now Option */}
-                    <button
-                      onClick={() => {
-                        setShowCreateDropdown(false);
-                        navigate('/compose/happening');
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '14px 16px',
-                        border: 'none',
-                        background: 'transparent',
-                        textAlign: 'left',
-                        cursor: 'pointer',
-                        transition: 'background 0.15s',
-                        borderBottom: '1px solid #f3f4f6'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = '#f0fdf4';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'transparent';
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div style={{
-                          width: 36,
-                          height: 36,
-                          borderRadius: 8,
-                          background: '#fef3c7',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: 18
-                        }}>
-                          ⚡
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 2 }}>
-                            Happening Now
-                          </div>
-                          <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.3 }}>
-                            Quick spontaneous gathering
-                          </div>
-                        </div>
-                      </div>
-                    </button>
-
-                    {/* Future Event Option */}
-                    <button
-                      onClick={() => {
-                        setShowCreateDropdown(false);
-                        navigate('/compose/event');
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '14px 16px',
-                        border: 'none',
-                        background: 'transparent',
-                        textAlign: 'left',
-                        cursor: 'pointer',
-                        transition: 'background 0.15s'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = '#eff6ff';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'transparent';
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div style={{
-                          width: 36,
-                          height: 36,
-                          borderRadius: 8,
-                          background: '#dbeafe',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: 18
-                        }}>
-                          📅
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 2 }}>
-                            Future Event
-                          </div>
-                          <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.3 }}>
-                            Schedule for later
-                          </div>
-                        </div>
-                      </div>
-                    </button>
-                  </motion.div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Tabs - Centered with more spacing above */}
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 24, marginBottom: 16 }}>
-            <div style={{ display: 'flex', gap: 8, maxWidth: 400 }}>
-              <button
-                onClick={() => setActiveTab('nearby')}
-                style={{
-                  flex: 1,
-                  minWidth: 140,
-                  padding: '10px 14px',
-                  borderRadius: 8,
-                  border: '1.5px solid',
-                  borderColor: activeTab === 'nearby' ? '#10b981' : '#e5e7eb',
-                  background: activeTab === 'nearby' ? '#10b981' : '#ffffff',
-                  color: activeTab === 'nearby' ? '#ffffff' : '#6b7280',
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-              >
-                Nearby ({nearbyHouseholds.length})
-              </button>
-              <button
-                onClick={() => setActiveTab('connected')}
-                style={{
-                  flex: 1,
-                  minWidth: 140,
-                  padding: '10px 14px',
-                  borderRadius: 8,
-                  border: '1.5px solid',
-                  borderColor: activeTab === 'connected' ? '#10b981' : '#e5e7eb',
-                  background: activeTab === 'connected' ? '#10b981' : '#ffffff',
-                  color: activeTab === 'connected' ? '#ffffff' : '#6b7280',
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-              >
-                Connected ({connectedHouseholds.length})
-              </button>
-            </div>
-          </div>
-
-          {/* Dev-only: Create My Dev Household */}
-          {import.meta.env.DEV && (
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
-              <button
-                onClick={handleCreateDevHousehold}
-                disabled={creatingHousehold}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: 6,
-                  border: '1.5px solid #8b5cf6',
-                  background: creatingHousehold ? '#ede9fe' : '#8b5cf6',
-                  color: creatingHousehold ? '#8b5cf6' : '#ffffff',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  cursor: creatingHousehold ? 'not-allowed' : 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  opacity: creatingHousehold ? 0.6 : 1,
-                }}
-              >
-                <Home size={12} />
-                {creatingHousehold ? 'Creating...' : 'Create My Dev Household'}
-              </button>
-              <button
-                onClick={handleSeedHouseholds}
-                disabled={seeding}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: 6,
-                  border: '1.5px solid #6366f1',
-                  background: seeding ? '#e0e7ff' : '#6366f1',
-                  color: seeding ? '#6366f1' : '#ffffff',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  cursor: seeding ? 'not-allowed' : 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  opacity: seeding ? 0.6 : 1,
-                }}
-              >
-                <Sparkles size={12} />
-                {seeding ? 'Seeding...' : 'Seed Demo Households'}
-              </button>
-              {householdCreationMessage && (
-                <div style={{
-                  marginLeft: 8,
-                  fontSize: 11,
-                  color: householdCreationMessage.type === 'success' ? '#10b981' : '#ef4444',
-                  fontWeight: 500,
-                  display: 'flex',
-                  alignItems: 'center',
-                }}>
-                  {householdCreationMessage.text}
-                </div>
-              )}
-              {seedMessage && (
-                <div style={{
-                  marginLeft: 8,
-                  fontSize: 11,
-                  color: seedMessage.type === 'success' ? '#10b981' : '#ef4444',
-                  fontWeight: 500,
-                  display: 'flex',
-                  alignItems: 'center',
-                }}>
-                  {seedMessage.text}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Filters - Compact Horizontal Layout for Mobile */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {/* Household Type Filter - Centered horizontal scrollable chips */}
-            <div>
+            {/* Household Type Filter */}
+            <div style={{ marginBottom: 12 }}>
               <div style={{ 
                 fontSize: 11, 
-                fontWeight: 700, 
-                color: '#9ca3af', 
-                marginBottom: 8,
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                textAlign: 'center'
+                fontWeight: 600, 
+                color: '#6b7280', 
+                marginBottom: 8
               }}>
                 Household Type
               </div>
               <div style={{ 
                 display: 'flex', 
-                gap: 8, 
-                overflowX: 'auto',
-                WebkitOverflowScrolling: 'touch',
-                scrollbarWidth: 'none',
-                msOverflowStyle: 'none',
-                paddingBottom: 4,
-                justifyContent: 'center'
+                gap: 6, 
+                flexWrap: 'wrap'
               }}>
-                <style dangerouslySetInnerHTML={{
-                  __html: `
-                    div::-webkit-scrollbar {
-                      display: none;
-                    }
-                  `
-                }} />
                 {(Object.keys(HOUSEHOLD_TYPE_META) as HouseholdType[]).map(type => {
                   const { Icon, iconColor, iconBorder } = HOUSEHOLD_TYPE_META[type];
                   return (
@@ -1079,22 +839,20 @@ export default function Discovery() {
               </div>
             </div>
 
-            {/* Age Range Filter - Compact version for mobile */}
+            {/* Age Range Filter - conditional */}
             {selectedTypes.has("Family w/ Kids") && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ duration: 0.2 }}
-                style={{ paddingTop: 4 }}
+                style={{ marginBottom: 12 }}
               >
                 <div style={{ 
                   fontSize: 11, 
-                  fontWeight: 700, 
-                  color: '#9ca3af', 
-                  marginBottom: 8,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em'
+                  fontWeight: 600, 
+                  color: '#6b7280', 
+                  marginBottom: 8
                 }}>
                   Kids' Ages: {ageMin}–{ageMax} years
                 </div>
@@ -1113,149 +871,157 @@ export default function Discovery() {
                 </div>
               </motion.div>
             )}
+
+            {/* Location Precision Filter */}
+            <div>
+              <div style={{ 
+                fontSize: 11, 
+                fontWeight: 600, 
+                color: '#6b7280', 
+                marginBottom: 8
+              }}>
+                Location Precision
+              </div>
+              <div style={{ 
+                display: 'flex', 
+                gap: 4,
+                padding: '2px',
+                background: '#f3f4f6',
+                borderRadius: 6,
+                width: 'fit-content'
+              }}>
+                <button
+                  onClick={() => setLocationPrecision('all')}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    borderRadius: 5,
+                    border: 'none',
+                    background: locationPrecision === 'all' ? '#ffffff' : 'transparent',
+                    color: locationPrecision === 'all' ? '#111827' : '#6b7280',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s'
+                  }}
+                >
+                  All
+                </button>
+                <button
+                  onClick={() => setLocationPrecision('precise')}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    borderRadius: 5,
+                    border: 'none',
+                    background: locationPrecision === 'precise' ? '#dcfce7' : 'transparent',
+                    color: locationPrecision === 'precise' ? '#166534' : '#6b7280',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s'
+                  }}
+                >
+                  Precise
+                </button>
+                <button
+                  onClick={() => setLocationPrecision('approximate')}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    borderRadius: 5,
+                    border: 'none',
+                    background: locationPrecision === 'approximate' ? '#fef3c7' : 'transparent',
+                    color: locationPrecision === 'approximate' ? '#92400e' : '#6b7280',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s'
+                  }}
+                >
+                  Approx
+                </button>
+              </div>
+            </div>
           </div>
+
+          {/* Refine - Collapsible (DEV tools only) */}
+          {import.meta.env.DEV && (
+            <details style={{ marginTop: 12 }}>
+              <summary style={{ 
+                fontSize: 12, 
+                fontWeight: 600, 
+                color: '#6b7280',
+                cursor: 'pointer',
+                padding: '6px 0',
+                listStyle: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6
+              }}>
+                <span style={{ fontSize: 10 }}>▶</span>
+                Dev Tools
+              </summary>
+              <div style={{ paddingTop: 12 }}>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <button
+                    onClick={handleCreateDevHousehold}
+                    disabled={creatingHousehold}
+                    style={{
+                      padding: '4px 8px',
+                      borderRadius: 4,
+                      border: '1px solid #d1d5db',
+                      background: creatingHousehold ? '#f9fafb' : '#ffffff',
+                      color: '#6b7280',
+                      fontSize: 10,
+                      fontWeight: 500,
+                      cursor: creatingHousehold ? 'not-allowed' : 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      opacity: creatingHousehold ? 0.5 : 1,
+                    }}
+                  >
+                    <Home size={10} />
+                    {creatingHousehold ? 'Creating...' : 'Create Dev Household'}
+                  </button>
+                  <button
+                    onClick={handleSeedHouseholds}
+                    disabled={seeding}
+                    style={{
+                      padding: '4px 8px',
+                      borderRadius: 4,
+                      border: '1px solid #d1d5db',
+                      background: seeding ? '#f9fafb' : '#ffffff',
+                      color: '#6b7280',
+                      fontSize: 10,
+                      fontWeight: 500,
+                      cursor: seeding ? 'not-allowed' : 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      opacity: seeding ? 0.5 : 1,
+                    }}
+                  >
+                    <Sparkles size={10} />
+                    {seeding ? 'Seeding...' : 'Seed Households'}
+                  </button>
+                </div>
+                {(householdCreationMessage || seedMessage) && (
+                  <div style={{
+                    marginTop: 6,
+                    fontSize: 10,
+                    color: (householdCreationMessage?.type || seedMessage?.type) === 'success' ? '#10b981' : '#ef4444',
+                    fontWeight: 500,
+                  }}>
+                    {householdCreationMessage?.text || seedMessage?.text}
+                  </div>
+                )}
+              </div>
+            </details>
+          )}
         </div>
       </div>
 
-      {/* Content - Reduced padding for mobile */}
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '16px 16px 24px' }}>
-        {/* Households Section */}
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: 8, 
-          marginBottom: 8 
-        }}>
-          <Users size={20} style={{ color: '#10b981' }} />
-          <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: '#111827' }}>
-            {activeTab === 'connected' ? 'Your Connections' : 'Nearby Neighbors'}
-          </h2>
-        </div>
-
-        {/* Distance Accuracy Legend - Centered */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'center',
-          marginBottom: 12
-        }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            padding: '8px 12px',
-            background: '#f8fafc',
-            borderRadius: 6,
-            fontSize: 11,
-            color: '#64748b',
-            flexWrap: 'wrap'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <div style={{
-                padding: '3px 7px',
-                borderRadius: 4,
-                background: '#dcfce7',
-                border: '1.5px solid #86efac',
-                fontSize: 11,
-                fontWeight: 700,
-                color: '#166534',
-                whiteSpace: 'nowrap'
-              }}>
-                ~0.2mi
-              </div>
-              <span style={{ fontSize: 11, fontWeight: 600, color: '#475569' }}>Precise</span>
-              <span style={{ fontSize: 10, color: '#94a3b8', fontStyle: 'italic' }}>(exact address)</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <div style={{
-                padding: '3px 7px',
-                borderRadius: 4,
-                background: '#fef3c7',
-                border: '1.5px solid #fbbf24',
-                fontSize: 11,
-                fontWeight: 700,
-                color: '#92400e',
-                whiteSpace: 'nowrap'
-              }}>
-                ~0.3mi*
-              </div>
-              <span style={{ fontSize: 11, fontWeight: 600, color: '#475569' }}>Approx</span>
-              <span style={{ fontSize: 10, color: '#94a3b8', fontStyle: 'italic' }}>(ZIP only)</span>
-            </div>
-          </div>
-        </div>
-        
-        {/* Location Precision Filter - Centered and larger for mobile */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'center',
-          marginBottom: 16
-        }}>
-          <div style={{ 
-            display: 'flex', 
-            gap: 6,
-            padding: '3px',
-            background: '#e2e8f0',
-            borderRadius: 8,
-          }}>
-            <button
-              onClick={() => setLocationPrecision('all')}
-              style={{
-                padding: '8px 16px',
-                fontSize: 13,
-                fontWeight: 600,
-                borderRadius: 6,
-                border: 'none',
-                background: locationPrecision === 'all' ? '#ffffff' : 'transparent',
-                color: locationPrecision === 'all' ? '#0f172a' : '#64748b',
-                cursor: 'pointer',
-                transition: 'all 0.15s',
-                whiteSpace: 'nowrap',
-                boxShadow: locationPrecision === 'all' ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
-                minWidth: 70
-              }}
-            >
-              All
-            </button>
-            <button
-              onClick={() => setLocationPrecision('precise')}
-              style={{
-                padding: '8px 16px',
-                fontSize: 13,
-                fontWeight: 600,
-                borderRadius: 6,
-                border: 'none',
-                background: locationPrecision === 'precise' ? '#dcfce7' : 'transparent',
-                color: locationPrecision === 'precise' ? '#166534' : '#64748b',
-                cursor: 'pointer',
-                transition: 'all 0.15s',
-                whiteSpace: 'nowrap',
-                boxShadow: locationPrecision === 'precise' ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
-                minWidth: 70
-              }}
-            >
-              Precise
-            </button>
-            <button
-              onClick={() => setLocationPrecision('approximate')}
-              style={{
-                padding: '8px 16px',
-                fontSize: 13,
-                fontWeight: 600,
-                borderRadius: 6,
-                border: 'none',
-                background: locationPrecision === 'approximate' ? '#fef3c7' : 'transparent',
-                color: locationPrecision === 'approximate' ? '#92400e' : '#64748b',
-                cursor: 'pointer',
-                transition: 'all 0.15s',
-                whiteSpace: 'nowrap',
-                boxShadow: locationPrecision === 'approximate' ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
-                minWidth: 70
-              }}
-            >
-              Approx
-            </button>
-          </div>
-        </div>
+      {/* Content */}
+      <div style={{ maxWidth: 900, margin: '0 auto', padding: '12px 16px 24px' }}>
 
         {loading && (
           <div style={{ textAlign: 'center', padding: 64, color: '#6b7280' }}>
@@ -1914,6 +1680,210 @@ export default function Discovery() {
           })}
         </div>
       </div>
+
+      {/* Fixed Create Event Action Button */}
+      <div style={{ position: 'relative' }} data-dropdown="create-event">
+        <button
+          onClick={() => setShowCreateDropdown(!showCreateDropdown)}
+          style={{
+            position: 'fixed',
+            bottom: 100,
+            right: 20,
+            width: 52,
+            height: 52,
+            padding: 0,
+            borderRadius: 9999,
+            border: 'none',
+            background: '#10b981',
+            color: '#ffffff',
+            fontSize: 26,
+            fontWeight: 500,
+            cursor: 'pointer',
+            boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.2s',
+            zIndex: 50
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'scale(1.05)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.3)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(16, 185, 129, 0.25)';
+          }}
+        >
+          +
+        </button>
+
+        {/* Dropdown Menu */}
+        {showCreateDropdown && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 10 }}
+            transition={{ duration: 0.15 }}
+            style={{
+              position: 'fixed',
+              bottom: 162,
+              right: 20,
+              background: '#ffffff',
+              border: '1px solid #e5e7eb',
+              borderRadius: 12,
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+              minWidth: 240,
+              zIndex: 1000,
+              overflow: 'hidden'
+            }}
+          >
+            {/* Happening Now Option */}
+            <button
+              onClick={() => {
+                setShowCreateDropdown(false);
+                
+                // ✅ Pass the exact visible household IDs from Discovery's filtered list
+                const visibleHouseholdIds = filteredHouseholds.map(h => h.id).filter(Boolean) as string[];
+                
+                // DEV: Invariant check - ensure consistency
+                if (import.meta.env.DEV) {
+                  console.log('[Discovery→Compose] visibleHouseholds on screen:', filteredHouseholds.length);
+                  console.log('[Discovery→Compose] Passing household IDs:', visibleHouseholdIds.length);
+                  if (filteredHouseholds.length !== visibleHouseholdIds.length) {
+                    console.error('❌ MISMATCH: visible households != passed IDs');
+                  }
+                }
+                
+                // Build inviteContext with Discovery's exact filtered list
+                const inviteContext = {
+                  clickedHouseholdId: '',
+                  clickedHouseholdName: '',
+                  visibleHouseholdIds,
+                  filterContext: {
+                    types: Array.from(selectedTypes),
+                    ageRange: selectedTypes.has("Family w/ Kids") ? { min: ageMin, max: ageMax } : null,
+                    hasFilters: selectedTypes.size > 0 || locationPrecision !== 'all'
+                  }
+                };
+                
+                navigate('/compose/happening', { state: { inviteContext } });
+              }}
+              style={{
+                width: '100%',
+                padding: '14px 16px',
+                border: 'none',
+                background: 'transparent',
+                textAlign: 'left',
+                cursor: 'pointer',
+                transition: 'background 0.15s',
+                borderBottom: '1px solid #f3f4f6'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#f0fdf4';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 8,
+                  background: '#fef3c7',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 18
+                }}>
+                  ⚡
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 2 }}>
+                    Happening Now
+                  </div>
+                  <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.3 }}>
+                    Quick spontaneous gathering
+                  </div>
+                </div>
+              </div>
+            </button>
+
+            {/* Future Event Option */}
+            <button
+              onClick={() => {
+                setShowCreateDropdown(false);
+                
+                // ✅ Pass the exact visible household IDs from Discovery's filtered list
+                const visibleHouseholdIds = filteredHouseholds.map(h => h.id).filter(Boolean) as string[];
+                
+                // DEV: Invariant check - ensure consistency
+                if (import.meta.env.DEV) {
+                  console.log('[Discovery→Compose] visibleHouseholds on screen:', filteredHouseholds.length);
+                  console.log('[Discovery→Compose] Passing household IDs:', visibleHouseholdIds.length);
+                  if (filteredHouseholds.length !== visibleHouseholdIds.length) {
+                    console.error('❌ MISMATCH: visible households != passed IDs');
+                  }
+                }
+                
+                // Build inviteContext with Discovery's exact filtered list
+                const inviteContext = {
+                  clickedHouseholdId: '',
+                  clickedHouseholdName: '',
+                  visibleHouseholdIds,
+                  filterContext: {
+                    types: Array.from(selectedTypes),
+                    ageRange: selectedTypes.has("Family w/ Kids") ? { min: ageMin, max: ageMax } : null,
+                    hasFilters: selectedTypes.size > 0 || locationPrecision !== 'all'
+                  }
+                };
+                
+                navigate('/compose/event', { state: { inviteContext } });
+              }}
+              style={{
+                width: '100%',
+                padding: '14px 16px',
+                border: 'none',
+                background: 'transparent',
+                textAlign: 'left',
+                cursor: 'pointer',
+                transition: 'background 0.15s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#eff6ff';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 8,
+                  background: '#dbeafe',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 18
+                }}>
+                  📅
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 2 }}>
+                    Future Event
+                  </div>
+                  <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.3 }}>
+                    Schedule for later
+                  </div>
+                </div>
+              </div>
+            </button>
+          </motion.div>
+        )}
+      </div>
     </div>
+    </>
   );
 }

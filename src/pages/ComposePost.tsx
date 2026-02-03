@@ -151,7 +151,7 @@ export default function ComposePost() {
   const kind: "happening" | "event" = params.kind === "event" ? "event" : "happening";
   const editId = params.id;
 
-  // Extract invite context from navigation state
+  // Extract invite context from navigation state (includes pre-filtered household IDs from Discovery)
   const inviteContext = (location.state as any)?.inviteContext;
 
   const recipientsFromState: string[] =
@@ -331,7 +331,12 @@ export default function ComposePost() {
             const finalShareLink = shareLink || `/e/${rsvpToken || backendId}`;
             
             if (import.meta.env.DEV) {
-              console.log('[ShareLink] base=', window.location.origin, 'path=', finalShareLink, 'eventId=', backendId, 'rsvpToken=', rsvpToken);
+              console.log('[✅ Event Created]', {
+                eventId: backendId,
+                rsvpToken: rsvpToken || '(none - no invitations sent)',
+                publicUrl: `${window.location.origin}${finalShareLink}`,
+                backendShareLink: shareLink || '(not provided by backend)'
+              });
             }
             
             setCreatedEventTitle(title.trim() || "Happening Now");
@@ -396,6 +401,16 @@ export default function ComposePost() {
           
           // ✅ ALWAYS show success modal (generate fallback link if backend doesn't provide one)
           const finalShareLink = shareLink || `/e/${rsvpToken || backendId}`;
+          
+          if (import.meta.env.DEV) {
+            console.log('[✅ Event Created]', {
+              eventId: backendId,
+              rsvpToken: rsvpToken || '(none - no invitations sent)',
+              publicUrl: `${window.location.origin}${finalShareLink}`,
+              backendShareLink: shareLink || '(not provided by backend)'
+            });
+          }
+          
           setCreatedEventTitle(localPayload.title || "Future Event");
           setCreatedEventType("event");
           setShareableLink(finalShareLink);
