@@ -22,9 +22,19 @@ export async function fetchConnections(): Promise<string[]> {
   try {
     const authHeaders = await getAuthHeaders();
     
+    // DEV: Log auth presence
+    if (import.meta.env.DEV) {
+      console.log('🔵 fetchConnections auth:', {
+        hasXUid: 'X-Uid' in authHeaders,
+        hasAuth: 'Authorization' in authHeaders,
+      });
+    }
+    
     // Suppress network errors in console for expected 400 responses
     const response = await fetch(`${API_BASE}/api/connections?status=accepted`, {
-      headers: authHeaders,
+      headers: {
+        ...authHeaders,
+      },
     }).catch((error) => {
       // Network-level error (e.g., server down) - silently fail
       console.warn('Could not reach connections API:', error.message);
@@ -64,6 +74,18 @@ export async function fetchConnections(): Promise<string[]> {
 export async function sendConnectionRequest(householdId: string): Promise<boolean> {
   try {
     const authHeaders = await getAuthHeaders();
+    
+    // DEV: Log request details
+    if (import.meta.env.DEV) {
+      console.log('🔵 sendConnectionRequest:', {
+        targetHouseholdId: householdId,
+        url: `${API_BASE}/api/connections`,
+        payload: { household_id: householdId },
+        hasXUid: 'X-Uid' in authHeaders,
+        hasAuth: 'Authorization' in authHeaders,
+      });
+    }
+    
     const response = await fetch(`${API_BASE}/api/connections`, {
       method: 'POST',
       headers: {
@@ -73,8 +95,24 @@ export async function sendConnectionRequest(householdId: string): Promise<boolea
       body: JSON.stringify({ household_id: householdId }),
     });
     
+    // DEV: Log response
+    if (import.meta.env.DEV) {
+      console.log('🔵 sendConnectionRequest response:', {
+        status: response.status,
+        ok: response.ok,
+      });
+    }
+    
     if (!response.ok) {
-      throw new Error(`Failed to send connection request: ${response.statusText}`);
+      // Try to get error detail
+      const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+      const errorDetail = typeof errorData.detail === 'string' ? errorData.detail : `Status ${response.status}`;
+      
+      if (import.meta.env.DEV) {
+        console.error('❌ sendConnectionRequest failed:', errorDetail);
+      }
+      
+      throw new Error(`Failed to send connection request: ${errorDetail}`);
     }
     
     return true;
@@ -118,7 +156,9 @@ export async function removeConnection(connectionId: string): Promise<boolean> {
     const authHeaders = await getAuthHeaders();
     const response = await fetch(`${API_BASE}/api/connections/${connectionId}`, {
       method: 'DELETE',
-      headers: authHeaders,
+      headers: {
+        ...authHeaders,
+      },
     });
     
     if (!response.ok) {
