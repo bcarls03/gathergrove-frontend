@@ -16,7 +16,7 @@ type DMMessage = {
 
 type DMThread = {
   id: string;
-  participants: Recipient[];
+  participants: [Recipient, Recipient]  // BLOCKER 2 FIX: Exactly 2 participants (1:1 threads);
   lastMessage?: DMMessage;
   ts: number;
   // Optional history; we’ll hydrate this from lastMessage if missing
