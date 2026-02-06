@@ -4,7 +4,18 @@ import { useNavigate } from 'react-router-dom';
 import { Users, Heart, Home, MapPin, Sparkles, UserPlus, Calendar, MessageCircle, Zap, Clock, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { fetchHouseholds, fetchEvents, getMyProfile, type GGHousehold, type GGEvent, API_BASE_URL, CURRENT_UID, getAuthHeaders } from '../lib/api';
-import { fetchConnections, sendConnectionRequest } from '../lib/api/connections';
+import { 
+  fetchConnections, 
+  sendConnectionRequest, 
+  fetchAllConnections,
+  getConnectionState,
+  acceptConnection,
+  declineConnection,
+  clearConnectionStateCache,
+  type ConnectionState,
+  type Connection
+} from '../lib/api/connections';
+import { getOrCreateThread } from '../lib/api/threads';
 import { Chip, DualAgeRange, HOUSEHOLD_TYPE_META, type HouseholdType } from '../components/filters';
 
 type DiscoverTab = 'nearby' | 'connected';
@@ -59,6 +70,13 @@ export default function Discovery() {
   const [connectedHouseholdIds, setConnectedHouseholdIds] = useState<string[]>([]);
   const [connectingIds, setConnectingIds] = useState<Set<string>>(new Set());
 
+  // Connection states for each household
+  const [connectionStates, setConnectionStates] = useState<Map<string, ConnectionState>>(new Map());
+  const [pendingByHouseholdId, setPendingByHouseholdId] = useState<Map<string, string>>(new Map());
+  
+  // Respond modal state
+  const [respondModal, setRespondModal] = useState<{ householdId: string; householdName: string; connectionId: string } | null>(null);
+
   // Create event dropdown state
   const [showCreateDropdown, setShowCreateDropdown] = useState(false);
   
@@ -98,6 +116,39 @@ export default function Discovery() {
     loadConnections();
     loadEvents();
   }, []);
+
+  // Load connection states for rendered households
+  useEffect(() => {
+    const loadConnectionStates = async () => {
+      if (households.length === 0) return;
+      
+      // Build pendingByHouseholdId map
+      const allConnections = await fetchAllConnections();
+      const pending = new Map<string, string>();
+      allConnections.forEach(conn => {
+        if (conn.status === 'pending' && !conn.initiatedByMe) {
+          pending.set(conn.householdId, conn.id);
+        }
+      });
+      setPendingByHouseholdId(pending);
+      
+      // Load states for visible households
+      const statePromises = households.map(async (h) => {
+        if (!h.id) return null;
+        const result = await getConnectionState(h.id);
+        return { householdId: h.id, state: result.state };
+      });
+      
+      const results = await Promise.all(statePromises);
+      const newStates = new Map<string, ConnectionState>();
+      results.forEach(r => {
+        if (r) newStates.set(r.householdId, r.state);
+      });
+      setConnectionStates(newStates);
+    };
+    
+    loadConnectionStates();
+  }, [households]);
 
   // Save filters to sessionStorage whenever they change
   useEffect(() => {
@@ -332,13 +383,19 @@ export default function Discovery() {
   };
 
   // Split households into connected vs nearby (filter out my own household)
-  const connectedHouseholds = households.filter(h => 
-    connectedHouseholdIds.includes(h.id || '') && h.id !== myHouseholdId
-  );
+  // Use connectionStates to determine CONNECTED (not just pending requests)
+  const connectedHouseholds = households.filter(h => {
+    if (h.id === myHouseholdId) return false;
+    const state = connectionStates.get(h.id || '');
+    return state === 'CONNECTED';
+  });
 
-  const nearbyHouseholds = households.filter(h => 
-    !connectedHouseholdIds.includes(h.id || '') && h.id !== myHouseholdId
-  );
+  const nearbyHouseholds = households.filter(h => {
+    if (h.id === myHouseholdId) return false;
+    const state = connectionStates.get(h.id || '');
+    // Nearby includes STRANGER, REQUEST_SENT, REQUEST_RECEIVED, EXPIRED, and unknown
+    return state !== 'CONNECTED';
+  });
 
   // Get current list based on active tab
   const currentHouseholds = activeTab === 'connected' 
@@ -519,6 +576,10 @@ export default function Discovery() {
   };
 
   const getHouseholdName = (household: GGHousehold): string => {
+    // Check if household has an explicit name field first
+    if (household.name && household.name.trim()) {
+      return household.name;
+    }
     // ✅ Match HouseholdSelector: show lastName directly for consistency
     if (household.lastName) {
       return household.lastName;
@@ -621,9 +682,11 @@ export default function Discovery() {
     try {
       const success = await sendConnectionRequest(household.id);
       if (success) {
-        // Add to connected list immediately (optimistic)
-        setConnectedHouseholdIds(prev => [...prev, household.id!]);
         alert(`✅ Connection request sent to ${getHouseholdName(household)}!`);
+        
+        // Refresh connection state (will be REQUEST_SENT)
+        const result = await getConnectionState(household.id);
+        setConnectionStates(prev => new Map(prev).set(household.id!, result.state));
         
         if (import.meta.env.DEV) {
           console.log('✅ Connection request succeeded');
@@ -684,9 +747,69 @@ export default function Discovery() {
     }
   };
 
-  const handleMessage = (household: GGHousehold) => {
-    // Navigate to messages page with household pre-selected
-    navigate('/messages', { state: { householdId: household.id, householdName: getHouseholdName(household) } });
+  const handleRespond = (household: GGHousehold) => {
+    const connectionId = pendingByHouseholdId.get(household.id!);
+    if (!connectionId) {
+      alert('❌ Could not find connection request');
+      return;
+    }
+    setRespondModal({
+      householdId: household.id!,
+      householdName: getHouseholdName(household),
+      connectionId
+    });
+  };
+
+  const handleAcceptConnection = async () => {
+    if (!respondModal) return;
+    try {
+      const success = await acceptConnection(respondModal.connectionId);
+      if (success) {
+        alert(`✅ Accepted connection from ${respondModal.householdName}!`);
+        clearConnectionStateCache();
+        const result = await getConnectionState(respondModal.householdId);
+        setConnectionStates(prev => new Map(prev).set(respondModal.householdId, result.state));
+        setRespondModal(null);
+        await loadConnections();
+      }
+    } catch (err) {
+      console.error('Error accepting connection:', err);
+      alert(`❌ Failed to accept connection. Please try again.`);
+    }
+  };
+
+  const handleDeclineConnection = async () => {
+    if (!respondModal) return;
+    try {
+      const success = await declineConnection(respondModal.connectionId);
+      if (success) {
+        alert(`Declined connection from ${respondModal.householdName}`);
+        clearConnectionStateCache();
+        const result = await getConnectionState(respondModal.householdId);
+        setConnectionStates(prev => new Map(prev).set(respondModal.householdId, result.state));
+        setRespondModal(null);
+      }
+    } catch (err) {
+      console.error('Error declining connection:', err);
+      alert(`❌ Failed to decline connection. Please try again.`);
+    }
+  };
+
+  const handleMessage = async (household: GGHousehold) => {
+    if (!household.id) return;
+    
+    try {
+      const thread = await getOrCreateThread(household.id);
+      navigate('/messages', { 
+        state: { 
+          threadId: thread.threadId,
+          householdId: household.id, 
+          householdName: getHouseholdName(household) 
+        } 
+      });
+    } catch (error) {
+      console.error('Failed to create thread:', error);
+    }
   };
 
   const isConnected = (householdId?: string) => {
@@ -695,6 +818,11 @@ export default function Discovery() {
 
   const isConnecting = (householdId?: string) => {
     return connectingIds.has(householdId || '');
+  };
+
+  const getConnectionStateForHousehold = (householdId?: string): ConnectionState => {
+    if (!householdId) return 'STRANGER';
+    return connectionStates.get(householdId) || 'STRANGER';
   };
 
   const getEventTimeDisplay = (event: GGEvent): string => {
@@ -1631,59 +1759,124 @@ export default function Discovery() {
                   </div>
 
                   {/* Show Message if connected, Connect if not */}
-                  {connected ? (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleMessage(household);
-                      }}
-                      style={{
-                        flex: 1,
-                        padding: '8px 12px',
-                        borderRadius: 8,
-                        border: '2px solid #3b82f6',
-                        background: '#3b82f6',
-                        color: '#ffffff',
-                        fontSize: 13,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 4
-                      }}
-                    >
-                      <MessageCircle size={14} />
-                      Message
-                    </button>
-                  ) : (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleConnect(household);
-                      }}
-                      disabled={isConnecting(household.id)}
-                      style={{
-                        flex: 1,
-                        padding: '8px 12px',
-                        borderRadius: 8,
-                        border: '2px solid #3b82f6',
-                        background: '#ffffff',
-                        color: '#3b82f6',
-                        fontSize: 13,
-                        fontWeight: 600,
-                        cursor: isConnecting(household.id) ? 'not-allowed' : 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 4,
-                        opacity: isConnecting(household.id) ? 0.6 : 1
-                      }}
-                    >
-                      <UserPlus size={14} />
-                      {isConnecting(household.id) ? 'Connecting...' : 'Connect'}
-                    </button>
-                  )}
+                  {(() => {
+                    const state = getConnectionStateForHousehold(household.id);
+                    
+                    switch (state) {
+                      case 'CONNECTED':
+                        return (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMessage(household);
+                            }}
+                            style={{
+                              flex: 1,
+                              padding: '8px 12px',
+                              borderRadius: 8,
+                              border: '2px solid #3b82f6',
+                              background: '#3b82f6',
+                              color: '#ffffff',
+                              fontSize: 13,
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: 4
+                            }}
+                          >
+                            <MessageCircle size={14} />
+                            Message
+                          </button>
+                        );
+                      
+                      case 'REQUEST_SENT':
+                        return (
+                          <button
+                            disabled
+                            style={{
+                              flex: 1,
+                              padding: '8px 12px',
+                              borderRadius: 8,
+                              border: '2px solid #d1d5db',
+                              background: '#f9fafb',
+                              color: '#9ca3af',
+                              fontSize: 13,
+                              fontWeight: 600,
+                              cursor: 'not-allowed',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: 4
+                            }}
+                          >
+                            <Clock size={14} />
+                            Request Sent
+                          </button>
+                        );
+                      
+                      case 'REQUEST_RECEIVED':
+                        return (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRespond(household);
+                            }}
+                            style={{
+                              flex: 1,
+                              padding: '8px 12px',
+                              borderRadius: 8,
+                              border: '2px solid #10b981',
+                              background: '#10b981',
+                              color: '#ffffff',
+                              fontSize: 13,
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: 4
+                            }}
+                          >
+                            <UserPlus size={14} />
+                            Respond
+                          </button>
+                        );
+                      
+                      case 'STRANGER':
+                      case 'EXPIRED':
+                      default:
+                        return (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleConnect(household);
+                            }}
+                            disabled={isConnecting(household.id)}
+                            style={{
+                              flex: 1,
+                              padding: '8px 12px',
+                              borderRadius: 8,
+                              border: '2px solid #3b82f6',
+                              background: '#ffffff',
+                              color: '#3b82f6',
+                              fontSize: 13,
+                              fontWeight: 600,
+                              cursor: isConnecting(household.id) ? 'not-allowed' : 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: 4,
+                              opacity: isConnecting(household.id) ? 0.6 : 1
+                            }}
+                          >
+                            <UserPlus size={14} />
+                            {isConnecting(household.id) ? 'Connecting...' : 'Connect'}
+                          </button>
+                        );
+                    }
+                  })()}
                 </div>
 
                 {/* Connection Error Message */}
@@ -1910,6 +2103,99 @@ export default function Discovery() {
           </motion.div>
         )}
       </div>
+
+      {/* Respond Modal */}
+      {respondModal && (
+        <div
+          onClick={() => setRespondModal(null)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+          }}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#ffffff',
+              borderRadius: 16,
+              padding: 24,
+              maxWidth: 400,
+              width: '90%',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+            }}
+          >
+            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: '#111827' }}>
+              Connection Request
+            </h3>
+            <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 24 }}>
+              {respondModal.householdName} wants to connect with you.
+            </p>
+            
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button
+                onClick={handleAcceptConnection}
+                style={{
+                  flex: 1,
+                  padding: '12px 16px',
+                  borderRadius: 10,
+                  border: 'none',
+                  background: '#10b981',
+                  color: '#ffffff',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Accept
+              </button>
+              <button
+                onClick={handleDeclineConnection}
+                style={{
+                  flex: 1,
+                  padding: '12px 16px',
+                  borderRadius: 10,
+                  border: '2px solid #e5e7eb',
+                  background: '#ffffff',
+                  color: '#6b7280',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Decline
+              </button>
+            </div>
+            
+            <button
+              onClick={() => setRespondModal(null)}
+              style={{
+                width: '100%',
+                marginTop: 12,
+                padding: '12px 16px',
+                borderRadius: 10,
+                border: 'none',
+                background: 'transparent',
+                color: '#9ca3af',
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+          </motion.div>
+        </div>
+      )}
     </div>
     </>
   );

@@ -58,11 +58,13 @@ export async function getAuthHeaders(): Promise<Record<string, string>> {
   const isDev = !import.meta.env.PROD;
   
   if (isDev) {
-    return {
+    const headers = {
       "X-Uid": CURRENT_UID,
       "X-Email": `${CURRENT_UID}@example.com`,
       "X-Admin": "true",
     };
+    
+    return headers;
   }
   
   // PRODUCTION MODE: Use Firebase OAuth token (optional for public endpoints)
@@ -214,6 +216,7 @@ export type GGUser = {
 export type GGHousehold = {
   id?: string;
   uid?: string;
+  name?: string;
   email?: string;
   lastName?: string;
   adultNames?: string[];
