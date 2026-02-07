@@ -8,11 +8,8 @@ import {
   fetchConnections, 
   sendConnectionRequest, 
   fetchAllConnections,
-  getConnectionState,
   acceptConnection,
   declineConnection,
-  clearConnectionStateCache,
-  type ConnectionState,
   type Connection
 } from '../lib/api/connections';
 import { getOrCreateThread } from '../lib/api/threads';
@@ -70,8 +67,7 @@ export default function Discovery() {
   const [connectedHouseholdIds, setConnectedHouseholdIds] = useState<string[]>([]);
   const [connectingIds, setConnectingIds] = useState<Set<string>>(new Set());
 
-  // Connection states for each household
-  const [connectionStates, setConnectionStates] = useState<Map<string, ConnectionState>>(new Map());
+  const [connectionByHouseholdId, setConnectionByHouseholdId] = useState<Map<string, Connection>>(new Map());
   const [pendingByHouseholdId, setPendingByHouseholdId] = useState<Map<string, string>>(new Map());
   
   // Respond modal state
@@ -117,38 +113,6 @@ export default function Discovery() {
     loadEvents();
   }, []);
 
-  // Load connection states for rendered households
-  useEffect(() => {
-    const loadConnectionStates = async () => {
-      if (households.length === 0) return;
-      
-      // Build pendingByHouseholdId map
-      const allConnections = await fetchAllConnections();
-      const pending = new Map<string, string>();
-      allConnections.forEach(conn => {
-        if (conn.status === 'pending' && !conn.initiatedByMe) {
-          pending.set(conn.householdId, conn.id);
-        }
-      });
-      setPendingByHouseholdId(pending);
-      
-      // Load states for visible households
-      const statePromises = households.map(async (h) => {
-        if (!h.id) return null;
-        const result = await getConnectionState(h.id);
-        return { householdId: h.id, state: result.state };
-      });
-      
-      const results = await Promise.all(statePromises);
-      const newStates = new Map<string, ConnectionState>();
-      results.forEach(r => {
-        if (r) newStates.set(r.householdId, r.state);
-      });
-      setConnectionStates(newStates);
-    };
-    
-    loadConnectionStates();
-  }, [households]);
 
   // Save filters to sessionStorage whenever they change
   useEffect(() => {
@@ -229,12 +193,61 @@ export default function Discovery() {
         return;
       }
       
-      const connections = await fetchConnections();
-      setConnectedHouseholdIds(connections);
+      // Fetch all connections (not just accepted)
+      const allConnections = await fetchAllConnections();
+      
+      if (import.meta.env.DEV) {
+        console.log('[Discovery] connections fetched', allConnections.map(c => ({
+          id: c.id, 
+          status: c.status, 
+          householdId: (c as any).householdId ?? (c as any).household_id
+        })));
+      }
+      
+      // Build maps from all connections
+      const connectionMap = new Map<string, Connection>();
+      const connectedIds: string[] = [];
+      const pendingMap = new Map<string, string>();
+      
+      // Helper to determine priority (higher = better)
+      const getPriority = (status: string): number => {
+        if (status === 'accepted') return 3;
+        if (status === 'pending') return 2;
+        if (status === 'declined') return 1;
+        return 0;
+      };
+      
+      allConnections.forEach((conn: Connection) => {
+        // Normalize field names: householdId or household_id
+        const targetId = conn.householdId || (conn as any).household_id;
+        if (!targetId) return;
+        
+        // Keep best connection per household
+        const existing = connectionMap.get(targetId);
+        if (!existing || getPriority(conn.status) > getPriority(existing.status)) {
+          connectionMap.set(targetId, conn);
+        }
+        
+        // Track accepted connections
+        if (conn.status === 'accepted') {
+          connectedIds.push(targetId);
+        }
+        
+        // Track pending connections (all, not just outgoing)
+        if (conn.status === 'pending') {
+          pendingMap.set(targetId, conn.id);
+        }
+      });
+      
+      setConnectedHouseholdIds(connectedIds);
+      setConnectionByHouseholdId(connectionMap);
+      setPendingByHouseholdId(pendingMap);
     } catch (err) {
       // Silently fail - user might not have completed onboarding yet
       console.debug('Could not load connections:', err);
       setConnectedHouseholdIds([]);
+      setConnectionByHouseholdId(new Map());
+      setPendingByHouseholdId(new Map());
     }
   };
 
@@ -266,8 +279,9 @@ export default function Discovery() {
       console.log('✅ Seed response:', result);
       setSeedMessage({ type: 'success', text: `Seeded ${result.count || 20} demo households` });
       
-      // Refresh the household list
+      // Refresh the household list and connections
       await loadHouseholds();
+      await loadConnections();
       console.log('✅ Refreshed households count:', households.length);
     } catch (err) {
       console.error('❌ Seed failed:', err);
@@ -383,18 +397,14 @@ export default function Discovery() {
   };
 
   // Split households into connected vs nearby (filter out my own household)
-  // Use connectionStates to determine CONNECTED (not just pending requests)
   const connectedHouseholds = households.filter(h => {
     if (h.id === myHouseholdId) return false;
-    const state = connectionStates.get(h.id || '');
-    return state === 'CONNECTED';
+    return connectedHouseholdIds.includes(h.id || '');
   });
 
   const nearbyHouseholds = households.filter(h => {
     if (h.id === myHouseholdId) return false;
-    const state = connectionStates.get(h.id || '');
-    // Nearby includes STRANGER, REQUEST_SENT, REQUEST_RECEIVED, EXPIRED, and unknown
-    return state !== 'CONNECTED';
+    return !connectedHouseholdIds.includes(h.id || '');
   });
 
   // Get current list based on active tab
@@ -682,11 +692,15 @@ export default function Discovery() {
     try {
       const success = await sendConnectionRequest(household.id);
       if (success) {
+        // Optimistically mark as pending
+        setPendingByHouseholdId(prev => {
+          const next = new Map(prev);
+          next.set(household.id!, 'pending');
+          return next;
+        });
+        
         alert(`✅ Connection request sent to ${getHouseholdName(household)}!`);
         
-        // Refresh connection state (will be REQUEST_SENT)
-        const result = await getConnectionState(household.id);
-        setConnectionStates(prev => new Map(prev).set(household.id!, result.state));
         
         if (import.meta.env.DEV) {
           console.log('✅ Connection request succeeded');
@@ -706,6 +720,14 @@ export default function Discovery() {
           
           if (!testResponse.ok) {
             const errorData = await testResponse.json().catch(() => ({ detail: 'Unknown error' }));
+            
+            // Handle 409: connection already exists (treat as success and refresh)
+            if (testResponse.status === 409) {
+              console.log('ℹ️ Connection request already exists, refreshing state...');
+              await loadConnections();
+              return;
+            }
+            
             const errorDetail = typeof errorData.detail === 'string' ? errorData.detail : `Status ${testResponse.status}`;
             console.log(`❌ Connection failed: ${errorDetail}`);
             setConnectionErrors(prev => {
@@ -766,9 +788,6 @@ export default function Discovery() {
       const success = await acceptConnection(respondModal.connectionId);
       if (success) {
         alert(`✅ Accepted connection from ${respondModal.householdName}!`);
-        clearConnectionStateCache();
-        const result = await getConnectionState(respondModal.householdId);
-        setConnectionStates(prev => new Map(prev).set(respondModal.householdId, result.state));
         setRespondModal(null);
         await loadConnections();
       }
@@ -784,9 +803,6 @@ export default function Discovery() {
       const success = await declineConnection(respondModal.connectionId);
       if (success) {
         alert(`Declined connection from ${respondModal.householdName}`);
-        clearConnectionStateCache();
-        const result = await getConnectionState(respondModal.householdId);
-        setConnectionStates(prev => new Map(prev).set(respondModal.householdId, result.state));
         setRespondModal(null);
       }
     } catch (err) {
@@ -820,10 +836,12 @@ export default function Discovery() {
     return connectingIds.has(householdId || '');
   };
 
-  const getConnectionStateForHousehold = (householdId?: string): ConnectionState => {
-    if (!householdId) return 'STRANGER';
-    return connectionStates.get(householdId) || 'STRANGER';
+
+
+  const isPending = (householdId?: string) => {
+    return pendingByHouseholdId.has(householdId || '');
   };
+
 
   const getEventTimeDisplay = (event: GGEvent): string => {
     if (event.when) return event.when;
@@ -1469,6 +1487,7 @@ export default function Discovery() {
             const kidsAges = getKidsAges(household);
             const householdName = getHouseholdName(household);
             const connected = isConnected(household.id);
+            const pending = isPending(household.id);
             
             return (
               <motion.div
@@ -1758,125 +1777,83 @@ export default function Discovery() {
                     )}
                   </div>
 
-                  {/* Show Message if connected, Connect if not */}
-                  {(() => {
-                    const state = getConnectionStateForHousehold(household.id);
-                    
-                    switch (state) {
-                      case 'CONNECTED':
-                        return (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleMessage(household);
-                            }}
-                            style={{
-                              flex: 1,
-                              padding: '8px 12px',
-                              borderRadius: 8,
-                              border: '2px solid #3b82f6',
-                              background: '#3b82f6',
-                              color: '#ffffff',
-                              fontSize: 13,
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: 4
-                            }}
-                          >
-                            <MessageCircle size={14} />
-                            Message
-                          </button>
-                        );
-                      
-                      case 'REQUEST_SENT':
-                        return (
-                          <button
-                            disabled
-                            style={{
-                              flex: 1,
-                              padding: '8px 12px',
-                              borderRadius: 8,
-                              border: '2px solid #d1d5db',
-                              background: '#f9fafb',
-                              color: '#9ca3af',
-                              fontSize: 13,
-                              fontWeight: 600,
-                              cursor: 'not-allowed',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: 4
-                            }}
-                          >
-                            <Clock size={14} />
-                            Request Sent
-                          </button>
-                        );
-                      
-                      case 'REQUEST_RECEIVED':
-                        return (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleRespond(household);
-                            }}
-                            style={{
-                              flex: 1,
-                              padding: '8px 12px',
-                              borderRadius: 8,
-                              border: '2px solid #10b981',
-                              background: '#10b981',
-                              color: '#ffffff',
-                              fontSize: 13,
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: 4
-                            }}
-                          >
-                            <UserPlus size={14} />
-                            Respond
-                          </button>
-                        );
-                      
-                      case 'STRANGER':
-                      case 'EXPIRED':
-                      default:
-                        return (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleConnect(household);
-                            }}
-                            disabled={isConnecting(household.id)}
-                            style={{
-                              flex: 1,
-                              padding: '8px 12px',
-                              borderRadius: 8,
-                              border: '2px solid #3b82f6',
-                              background: '#ffffff',
-                              color: '#3b82f6',
-                              fontSize: 13,
-                              fontWeight: 600,
-                              cursor: isConnecting(household.id) ? 'not-allowed' : 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: 4,
-                              opacity: isConnecting(household.id) ? 0.6 : 1
-                            }}
-                          >
-                            <UserPlus size={14} />
-                            {isConnecting(household.id) ? 'Connecting...' : 'Connect'}
-                          </button>
-                        );
-                    }
-                  })()}
+                  {/* Show Message if connected, Pending if pending, Connect if neither */}
+                  {connected ? (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleMessage(household);
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: '8px 12px',
+                        borderRadius: 8,
+                        border: '2px solid #3b82f6',
+                        background: '#3b82f6',
+                        color: '#ffffff',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 4
+                      }}
+                    >
+                      <MessageCircle size={14} />
+                      Message
+                    </button>
+                  ) : pending ? (
+                    <button
+                      disabled
+                      style={{
+                        flex: 1,
+                        padding: '8px 12px',
+                        borderRadius: 8,
+                        border: '2px solid #fbbf24',
+                        background: '#fef3c7',
+                        color: '#92400e',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: 'not-allowed',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 4,
+                        opacity: 0.9
+                      }}
+                    >
+                      <Clock size={14} />
+                      Pending
+                    </button>
+                  ) : (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleConnect(household);
+                      }}
+                      disabled={isConnecting(household.id)}
+                      style={{
+                        flex: 1,
+                        padding: '8px 12px',
+                        borderRadius: 8,
+                        border: '2px solid #3b82f6',
+                        background: '#ffffff',
+                        color: '#3b82f6',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: isConnecting(household.id) ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 4,
+                        opacity: isConnecting(household.id) ? 0.6 : 1
+                      }}
+                    >
+                      <UserPlus size={14} />
+                      {isConnecting(household.id) ? 'Connecting...' : 'Connect'}
+                    </button>
+                  )}
                 </div>
 
                 {/* Connection Error Message */}
