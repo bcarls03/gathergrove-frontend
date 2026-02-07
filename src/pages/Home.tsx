@@ -87,7 +87,6 @@ type HomeCollapseState = {
   dm: boolean;
   happening: boolean;
   events: boolean;
-  newNeighbors?: boolean;
   activity?: boolean;
   // ✅ new keys (we keep old ones too for backward compatibility)
   invited?: boolean;
@@ -771,6 +770,9 @@ export default function Home() {
 
     const stored = loadCollapse();
     if (stored) {
+      // ✅ Migration: strip removed fields
+      delete (stored as any).newNeighbors;
+
       const invitedFallback = (stored.happening ?? true) || (stored.events ?? true);
       const hostedFallback = stored.activity ?? true;
 
