@@ -70,6 +70,15 @@ export default function Discovery() {
   const [connectionByHouseholdId, setConnectionByHouseholdId] = useState<Map<string, Connection>>(new Map());
   const [pendingByHouseholdId, setPendingByHouseholdId] = useState<Map<string, string>>(new Map());
   
+  // DEV-only invariant: verify connection state setters exist
+  if (import.meta.env.DEV) {
+    if (typeof setConnectionByHouseholdId !== 'function' || 
+        typeof setPendingByHouseholdId !== 'function' || 
+        typeof setConnectedHouseholdIds !== 'function') {
+      console.error('[Discovery] INVARIANT VIOLATION: Connection state setters not defined. Check useState declarations.');
+    }
+  }
+
   // Respond modal state
   const [respondModal, setRespondModal] = useState<{ householdId: string; householdName: string; connectionId: string } | null>(null);
 
@@ -197,11 +206,6 @@ export default function Discovery() {
       const allConnections = await fetchAllConnections();
       
       if (import.meta.env.DEV) {
-        console.log('[Discovery] connections fetched', allConnections.map(c => ({
-          id: c.id, 
-          status: c.status, 
-          householdId: (c as any).householdId ?? (c as any).household_id
-        })));
       }
       
       // Build maps from all connections
