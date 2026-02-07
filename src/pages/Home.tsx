@@ -5,7 +5,6 @@ import { motion } from "framer-motion";
 import { Clock, Zap } from "lucide-react";
 import { getViewer } from "../lib/viewer";
 import { neighborhoodDisplayLabel } from "../lib/neighborhood";
-import { loadNeighbors } from "../lib/profile";
 import {
   fetchEvents,
   type GGEvent,
@@ -57,15 +56,6 @@ type DMThread = {
     from?: { id: string; label: string };
   };
   ts: number;
-};
-
-/* ---------- New neighbors ---------- */
-
-type NewNeighbor = {
-  id: string;
-  label: string;
-  neighborhood?: string | null;
-  joinedAt?: number;
 };
 
 /* ---------- RSVP for Future Events & Happening Now ---------- */
@@ -532,7 +522,6 @@ export default function Home() {
 
   const [posts, setPosts] = useState<Post[]>([]);
   const [threads, setThreads] = useState<DMThread[]>([]);
-  const [newNeighbors, setNewNeighbors] = useState<NewNeighbor[]>([]);
   const [eventRsvps, setEventRsvps] = useState<EventRsvpMap>({});
   const [now, setNow] = useState(() => Date.now());
 
@@ -540,7 +529,6 @@ export default function Home() {
   const [showInvited, setShowInvited] = useState(true);
   const [showHosted, setShowHosted] = useState(true);
   const [showDM, setShowDM] = useState(true);
-  const [showNewNeighbors, setShowNewNeighbors] = useState(true);
 
   const [eventCategoryFilter, setEventCategoryFilter] = useState<EventFilter>("all");
 
@@ -570,10 +558,19 @@ export default function Home() {
     const backendPosts = activeOnly.map(mapEventToPost);
     const localPosts = loadLocalPosts();
 
+    // ✅ Build set of backend event IDs for validation
+    const backendEventIds = new Set(backendPosts.map((p) => p.id));
+
     // ✅ merge by canonical event id (Post.id)
+    // Only include local posts that still exist in backend (avoid 404 spam on stale IDs)
     const merged = new Map<string, Post>();
     for (const p of backendPosts) merged.set(p.id, p);
-    for (const p of localPosts) merged.set(p.id, p);
+    for (const p of localPosts) {
+      // Only merge if backend knows about this event OR it's a local-only post
+      if (backendEventIds.has(p.id) || String(p.id).startsWith("local-")) {
+        merged.set(p.id, p);
+      }
+    }
 
     const mergedArr = Array.from(merged.values());
     setPosts(mergedArr);
@@ -772,19 +769,6 @@ export default function Home() {
 
     setThreads(loadDMThreads());
 
-    const demoNeighbors = loadNeighbors() || [];
-    const mappedNeighbors: NewNeighbor[] = demoNeighbors.map((n: any) => {
-      const joinedAt = typeof n.joinedAt === "number" && !Number.isNaN(n.joinedAt) ? n.joinedAt : undefined;
-
-      return {
-        id: n.id ?? n.email ?? n.lastName ?? `neighbor-${Math.random()}`,
-        label: n.lastName ?? n.last_name ?? n.name ?? (n.email ? n.email.split("@")[0] : "Household"),
-        neighborhood: n.neighborhood ?? null,
-        joinedAt,
-      };
-    });
-    setNewNeighbors(mappedNeighbors);
-
     const stored = loadCollapse();
     if (stored) {
       const invitedFallback = (stored.happening ?? true) || (stored.events ?? true);
@@ -793,7 +777,6 @@ export default function Home() {
       setShowInvited(stored.invited ?? invitedFallback ?? true);
       setShowHosted(stored.hosted ?? hostedFallback ?? true);
       setShowDM(stored.dm ?? true);
-      setShowNewNeighbors(stored.newNeighbors ?? true);
     }
 
     const id = window.setInterval(() => setNow(Date.now()), 60_000);
@@ -806,12 +789,11 @@ export default function Home() {
       dm: showDM,
       happening: showInvited, // legacy mapping
       events: showInvited, // legacy mapping
-      newNeighbors: showNewNeighbors,
       activity: showHosted, // legacy mapping
       invited: showInvited,
       hosted: showHosted,
     });
-  }, [showDM, showInvited, showHosted, showNewNeighbors]);
+  }, [showDM, showInvited, showHosted]);
 
   const { happeningNow, upcomingEvents } = useMemo(() => {
     const relevant = posts.filter((p) => isPostRelevantToViewer(p, viewer));
@@ -920,19 +902,9 @@ export default function Home() {
     });
   }, [threads, viewerId]);
 
-  const recentNeighbors = useMemo(() => {
-    const nowMs = now;
-    const cutoffMs = 14 * DAY_MS;
-
-    return newNeighbors
-      .filter((n) => typeof n.joinedAt === "number" && nowMs - n.joinedAt >= 0 && nowMs - n.joinedAt <= cutoffMs)
-      .sort((a, b) => b.joinedAt! - a.joinedAt!);
-  }, [newNeighbors, now]);
-
   const invitedCount = invitedHappeningNow.length + invitedFutureEvents.length;
   const hostedCount = myHappeningNow.length + myFutureEvents.length;
   const dmCount = sortedThreads.length;
-  const newNeighborCount = recentNeighbors.length;
 
   const hasMessages = dmCount > 0;
 
@@ -1298,7 +1270,7 @@ export default function Home() {
         <h2 className="home-title">Home</h2>
       </div>
       <p className="home-sub">
-        Home shows events you’re invited to, anything you’re hosting, your messages, and new neighbors.
+        Home shows events you’re invited to, anything you’re hosting, and your messages.
       </p>
 
       <button type="button" onClick={() => setShowWelcome(true)} className="helper-link">
@@ -1319,7 +1291,6 @@ export default function Home() {
               <br />
               💬 Messages from neighbors
               <br />
-              👋 New neighbors that recently joined
             </div>
           </div>
           <button type="button" className="welcome-pill" onClick={handleDismissWelcome}>
@@ -1329,308 +1300,27 @@ export default function Home() {
       )}
 
       {/* -------- Profile Completion Prompts -------- */}
-      {/* TODO: Replace with actual user profile data from backend */}
-      {/* For now, checking localStorage for demo purposes */}
+      {/* DISABLED: Profile CTAs use mock localStorage keys not connected to backend
+          TODO: Re-enable when backend profile API integration complete
       {(() => {
-        // Mock user profile check - replace with real data from backend
         const hasHouseholdType = localStorage.getItem('user_household_type') !== null;
         const householdType = localStorage.getItem('user_household_type');
         const hasChildren = localStorage.getItem('user_has_children') === 'true';
-        
-        // Banner 1: No household type set
-        if (!hasHouseholdType) {
-          return (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              style={{
-                borderRadius: 16,
-                border: '1px solid #bfdbfe',
-                background: 'linear-gradient(180deg, #eff6ff, #ffffff)',
-                padding: '14px 16px',
-                marginBottom: 16,
-                boxShadow: '0 10px 20px rgba(59, 130, 246, 0.08)',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                gap: 12,
-              }}
-            >
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ 
-                  fontWeight: 800, 
-                  marginBottom: 4, 
-                  fontSize: 15, 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: 6, 
-                  color: '#1e40af' 
-                }}>
-                  👋 Complete your profile
-                </div>
-                <div style={{ fontSize: 14, color: '#1e3a8a', lineHeight: 1.35 }}>
-                  Add your household type to discover families, events, and neighbors like you
-                </div>
-              </div>
-              <button
-                onClick={() => navigate('/profile?tab=household')}
-                style={{
-                  fontSize: 13,
-                  padding: '8px 16px',
-                  borderRadius: 999,
-                  border: 'none',
-                  background: '#3b82f6',
-                  color: '#ffffff',
-                  whiteSpace: 'nowrap',
-                  cursor: 'pointer',
-                  fontWeight: 700,
-                  boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25)',
-                  transition: 'all 0.2s',
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-1px)';
-                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(59, 130, 246, 0.35)';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.25)';
-                }}
-              >
-                Complete Profile →
-              </button>
-            </motion.div>
-          );
-        }
-        
-        // Banner 2: Family household but no children added
-        if (householdType === 'family' && !hasChildren) {
-          return (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              style={{
-                borderRadius: 16,
-                border: '1px solid #d1fae5',
-                background: 'linear-gradient(180deg, #f0fdf4, #ffffff)',
-                padding: '14px 16px',
-                marginBottom: 16,
-                boxShadow: '0 10px 20px rgba(16, 185, 129, 0.08)',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                gap: 12,
-              }}
-            >
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ 
-                  fontWeight: 800, 
-                  marginBottom: 4, 
-                  fontSize: 15, 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: 6, 
-                  color: '#047857' 
-                }}>
-                  🎉 Add your kids' ages
-                </div>
-                <div style={{ fontSize: 14, color: '#065f46', lineHeight: 1.35 }}>
-                  Find playdates, carpools, and connect with families who have kids similar ages
-                </div>
-              </div>
-              <button
-                onClick={() => navigate('/profile?tab=household')}
-                style={{
-                  fontSize: 13,
-                  padding: '8px 16px',
-                  borderRadius: 999,
-                  border: 'none',
-                  background: '#10b981',
-                  color: '#ffffff',
-                  whiteSpace: 'nowrap',
-                  cursor: 'pointer',
-                  fontWeight: 700,
-                  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)',
-                  transition: 'all 0.2s',
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-1px)';
-                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(16, 185, 129, 0.35)';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.25)';
-                }}
-              >
-                Add Children →
-              </button>
-            </motion.div>
-          );
-        }
-        
-        return null;
+        ...
       })()}
+      */}
 
       {/* -------- ⚡ HAPPENING NOW SECTION -------- */}
+      {/* DISABLED: Duplicates "Invited Events > Happening now" subsection
+          The standalone section showed ALL happeningNow (hosted + invited)
+          The subsection shows only invitedHappeningNow (invited only)
+          Keeping only the subsection for better organization
       {happeningNow.length > 0 && (
         <section className="home-section" style={{ marginBottom: 24 }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: 16,
-            paddingBottom: 12,
-            borderBottom: '2px solid #fef3c7'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ 
-                fontSize: 22, 
-                background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                fontWeight: 800,
-                lineHeight: 1
-              }}>
-                ⚡
-              </div>
-              <h2 style={{ 
-                fontSize: 19, 
-                fontWeight: 800, 
-                margin: 0, 
-                color: '#111827',
-                letterSpacing: '-0.01em'
-              }}>
-                Happening Now
-              </h2>
-              <span style={{
-                fontSize: 11,
-                padding: '3px 10px',
-                borderRadius: 999,
-                background: '#fef3c7',
-                color: '#92400e',
-                border: '1.5px solid #fbbf24',
-                fontWeight: 800,
-                letterSpacing: '0.02em'
-              }}>
-                {happeningNow.length} ACTIVE
-              </span>
-            </div>
-          </div>
-
-          {/* Event Cards Grid */}
-          <div style={{ display: 'grid', gap: 12 }}>
-            {happeningNow.map((event) => (
-              <motion.div
-                key={event.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-                style={{
-                  background: '#ffffff',
-                  border: '2px solid #fb923c',
-                  borderRadius: 12,
-                  padding: 16,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-                whileHover={{ 
-                  borderColor: '#f59e0b',
-                  boxShadow: '0 4px 12px rgba(251, 146, 60, 0.25)',
-                  y: -2
-                }}
-                onClick={() => handleRsvp(event, 'going')}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                  <div style={{ flex: 1 }}>
-                    <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: '#111827' }}>
-                      {event.title || 'Happening Now'}
-                    </h3>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                      {/* Category Badge */}
-                      {event.category && (
-                        <div
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 4,
-                            padding: '4px 10px',
-                            borderRadius: 8,
-                            background: getEventCategoryColor(event.category) + '15',
-                            color: getEventCategoryColor(event.category),
-                            fontSize: 13,
-                            fontWeight: 600
-                          }}
-                        >
-                          {getEventCategoryLabel(event.category)}
-                        </div>
-                      )}
-                      
-                      {/* Time Badge - "Started Xm ago" */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#6b7280', fontSize: 13 }}>
-                        <Clock size={14} />
-                        {getEventTimeDisplay(event)}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Join Button */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRsvp(event, 'going');
-                    }}
-                    style={{
-                      padding: '8px 16px',
-                      borderRadius: 8,
-                      border: '2px solid #f59e0b',
-                      background: '#f59e0b',
-                      color: '#ffffff',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      transition: 'all 0.2s'
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.background = '#d97706';
-                      e.currentTarget.style.borderColor = '#d97706';
-                      e.currentTarget.style.transform = 'scale(1.05)';
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.background = '#f59e0b';
-                      e.currentTarget.style.borderColor = '#f59e0b';
-                      e.currentTarget.style.transform = 'scale(1)';
-                    }}
-                  >
-                    <Zap size={14} />
-                    Join Now
-                  </button>
-                </div>
-
-                {/* Event Details */}
-                {event.details && (
-                  <p style={{ 
-                    fontSize: 14, 
-                    color: '#6b7280', 
-                    margin: 0,
-                    lineHeight: 1.5,
-                    marginTop: 8
-                  }}>
-                    {event.details.length > 120 
-                      ? event.details.substring(0, 120) + '...' 
-                      : event.details
-                    }
-                  </p>
-                )}
-              </motion.div>
-            ))}
-          </div>
+          ...
         </section>
       )}
+      */}
 
       {/* -------- 2) Invited Events -------- */}
       <section className="home-section">
@@ -2176,50 +1866,6 @@ export default function Home() {
         )}
       </section>
 
-      {/* -------- 5) New neighbors -------- */}
-      <section className="home-section" style={{ marginBottom: 24 }}>
-        <div className="section-header-row">
-          <button type="button" className="section-toggle" onClick={() => setShowNewNeighbors((v) => !v)}>
-            <div className="home-section-title">
-              <span className="section-icon neighbors">👋</span>
-              <span>New neighbors</span>
-              <span className="section-count">{newNeighborCount}</span>
-            </div>
-            <span className={"chevron " + (showNewNeighbors ? "" : "closed")}>{showNewNeighbors ? "⌃" : "⌄"}</span>
-          </button>
-        </div>
-
-        {showNewNeighbors && (
-          <>
-            {recentNeighbors.length === 0 && (
-              <div className="empty">
-                No neighbors have joined in the last couple weeks. When a new household signs up, you’ll see them here.
-              </div>
-            )}
-
-            {recentNeighbors.slice(0, 5).map((n) => {
-              const joinedLabel = formatJoinedRelative(n.joinedAt, now);
-              const neighborhoodLabel = neighborhoodDisplayLabel(n.neighborhood) || "New household";
-              const metaLabel = joinedLabel ? `${neighborhoodLabel} · ${joinedLabel}` : neighborhoodLabel;
-
-              const isNew = typeof n.joinedAt === "number" && now - n.joinedAt >= 0 && now - n.joinedAt <= 7 * DAY_MS;
-
-              return (
-                <motion.div key={n.id} className="home-card" {...cardMotionProps}>
-                  <div className="home-card-main">
-                    <div className="home-card-title">{n.label}</div>
-                    <div className="home-card-meta">{metaLabel}</div>
-                    <div className="home-card-body home-card-body--neighbor">
-                      Just joined GatherGrove. Say hello in person or send a quick message from the People tab.
-                    </div>
-                  </div>
-                  <div>{isNew && <span className="pill">New</span>}</div>
-                </motion.div>
-              );
-            })}
-          </>
-        )}
-      </section>
 
       {/* RSVP detail bottom sheet */}
       <RsvpDetailsSheet
