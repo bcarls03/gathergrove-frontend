@@ -965,12 +965,15 @@ export default function Home() {
 
   // Get the most important "Right Now" item
   const getRightNowItem = (): { type: 'happening' | 'upcoming' | 'message' | 'empty'; data?: any } => {
-    // Priority 1: Happening Now event
+    // Priority 1: Happening Now event (invited takes precedence over hosted)
     if (invitedHappeningNow.length > 0) {
       return { type: 'happening', data: invitedHappeningNow[0] };
     }
+    if (myHappeningNow.length > 0) {
+      return { type: 'happening', data: myHappeningNow[0] };
+    }
     
-    // Priority 2: Next event within 24 hours
+    // Priority 2: Next event within 24 hours (invited takes precedence over hosted)
     const next24h = invitedFutureEvents.find(e => {
       if (!e.when) return false;
       const startMs = new Date(e.when).getTime();
@@ -979,6 +982,15 @@ export default function Home() {
     });
     if (next24h) {
       return { type: 'upcoming', data: next24h };
+    }
+    const myNext24h = myFutureEvents.find(e => {
+      if (!e.when) return false;
+      const startMs = new Date(e.when).getTime();
+      const hoursUntil = (startMs - now) / (1000 * 60 * 60);
+      return hoursUntil >= 0 && hoursUntil <= 24;
+    });
+    if (myNext24h) {
+      return { type: 'upcoming', data: myNext24h };
     }
     
     // Priority 3: Unread messages
@@ -1359,8 +1371,11 @@ export default function Home() {
               const event = rightNow.data as Post;
               return (
                 <>
-                  <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#f59e0b', fontWeight: 800, marginBottom: 8 }}>
+                  <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#f59e0b', fontWeight: 800, marginBottom: 4 }}>
                     ⚡ Right Now
+                  </div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10 }}>
+                    Your most relevant moment
                   </div>
                   <h3 style={{ fontSize: 22, fontWeight: 800, margin: '0 0 6px', color: '#0f172a', lineHeight: 1.2 }}>
                     {event.title || truncate(event.details, 72) || 'Untitled event'}
@@ -1370,11 +1385,14 @@ export default function Home() {
                   </div>
                   {event.details && (
                     <p style={{ fontSize: 15, color: '#334155', margin: '0 0 16px', lineHeight: 1.4 }}>
-                      {truncate(event.details, 140)}
-                    </p>
-                  )}
+                  {truncate(event.details, 140)}
+                </p>
+              )}
+              {(() => {
+                const isHost = isHostPost(event);
+                return (
                   <button
-                    onClick={() => handleRsvp(event, 'going')}
+                    onClick={isHost ? () => openReplies(event) : () => handleRsvp(event, 'going')}
                     style={{
                       padding: '10px 20px',
                       borderRadius: 12,
@@ -1387,18 +1405,21 @@ export default function Home() {
                       boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)',
                     }}
                   >
-                    Join Now
+                    {isHost ? 'Open replies' : 'Join Now'}
                   </button>
-                </>
-              );
-            })()}
-            
-            {rightNow.type === 'upcoming' && rightNow.data && (() => {
+                );
+              })()}
+            </>
+          );
+        })()}            {rightNow.type === 'upcoming' && rightNow.data && (() => {
               const event = rightNow.data as Post;
               return (
                 <>
-                  <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#3b82f6', fontWeight: 800, marginBottom: 8 }}>
+                  <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#3b82f6', fontWeight: 800, marginBottom: 4 }}>
                     📅 Coming Up
+                  </div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10 }}>
+                    Your most relevant moment
                   </div>
                   <h3 style={{ fontSize: 22, fontWeight: 800, margin: '0 0 6px', color: '#0f172a', lineHeight: 1.2 }}>
                     {event.title || 'Event'}
@@ -1432,8 +1453,11 @@ export default function Home() {
             
             {rightNow.type === 'message' && (
               <>
-                <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#6366f1', fontWeight: 800, marginBottom: 8 }}>
+                <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#6366f1', fontWeight: 800, marginBottom: 4 }}>
                   💬 Messages
+                </div>
+                <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10 }}>
+                  Your most relevant moment
                 </div>
                 <h3 style={{ fontSize: 22, fontWeight: 800, margin: '0 0 6px', color: '#0f172a', lineHeight: 1.2 }}>
                   {rightNow.data} unread conversation{rightNow.data === 1 ? '' : 's'}
@@ -1461,8 +1485,11 @@ export default function Home() {
             
             {rightNow.type === 'empty' && (
               <>
-                <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#10b981', fontWeight: 800, marginBottom: 8 }}>
+                <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#10b981', fontWeight: 800, marginBottom: 4 }}>
                   🌿 All Caught Up
+                </div>
+                <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10 }}>
+                  Your most relevant moment
                 </div>
                 <h3 style={{ fontSize: 22, fontWeight: 800, margin: '0 0 6px', color: '#0f172a', lineHeight: 1.2 }}>
                   All quiet right now
