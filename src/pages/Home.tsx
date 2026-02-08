@@ -1108,7 +1108,7 @@ export default function Home() {
   };
 
   return (
-    <div className="gg-page" style={{ padding: 16, maxWidth: 760, margin: "0 auto" }}>
+    <div className="gg-page page-header-wrapper" style={{ paddingBottom: 80 }}>
       <style>{`
         @keyframes gg-page-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         .gg-page { animation: gg-page-in .28s ease-out; }
@@ -1368,11 +1368,8 @@ export default function Home() {
         }
       `}</style>
 
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
-        <h2 className="home-title">Home</h2>
-      </div>
-      <p className="home-sub">
+      <h1 className="page-header-title">Home</h1>
+      <p className="page-header-subtitle">
         Home shows events you’re invited to, anything you’re hosting, and your messages.
       </p>
 

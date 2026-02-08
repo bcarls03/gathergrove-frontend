@@ -361,17 +361,9 @@ export default function SettingsNew() {
   }
 
   return (
-    <div style={{ 
-      minWidth: 320, 
-      maxWidth: 800, 
-      width: "100%", 
-      margin: "0 auto", 
-      padding: 24, 
-      boxSizing: "border-box",
-      flexShrink: 0
-    }}>
-      <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Me</h1>
-      <p style={{ fontSize: 15, color: "#6b7280", marginBottom: 24 }}>
+    <div className="gg-page page-header-wrapper" style={{ paddingBottom: 80 }}>
+      <h1 className="page-header-title">Me</h1>
+      <p className="page-header-subtitle">
         Your household, privacy, and account settings
       </p>
 
