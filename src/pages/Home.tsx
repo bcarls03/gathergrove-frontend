@@ -523,6 +523,30 @@ export default function Home() {
   const viewer = getViewer() as any | null;
   const viewerId = viewer?.id ?? viewer?.uid ?? viewer?.email ?? null;
 
+  const DEBUG_LAYOUT = true;
+
+  useEffect(() => {
+    if (!DEBUG_LAYOUT) return;
+    const measure = () => {
+      const wrapper = document.querySelector('.page-header-wrapper');
+      const main = document.querySelector('main');
+      if (wrapper) {
+        const rect = wrapper.getBoundingClientRect();
+        console.log('[Home Layout]', {
+          route: 'home',
+          wrapperLeft: rect.left,
+          wrapperWidth: rect.width,
+          scrollWidth: document.documentElement.scrollWidth,
+          clientWidth: document.documentElement.clientWidth,
+          mainScrollWidth: main?.scrollWidth,
+          mainClientWidth: main?.clientWidth
+        });
+      }
+    };
+    const timer = setTimeout(measure, 100);
+    return () => clearTimeout(timer);
+  }, []);
+
   const [showWelcome, setShowWelcome] = useState<boolean>(() => {
     try {
       return localStorage.getItem(HIDE_WELCOME_KEY) !== "true";
@@ -1346,7 +1370,6 @@ export default function Home() {
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
-        <img src={Logo} alt="GatherGrove logo" style={{ width: 28, height: 28, borderRadius: 8 }} />
         <h2 className="home-title">Home</h2>
       </div>
       <p className="home-sub">

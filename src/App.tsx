@@ -72,11 +72,11 @@ function AppShell() {
           <NavLink to="/" className={linkClass} end>
             Home
           </NavLink>
-          <NavLink to="/calendar" className={linkClass}>
-            Calendar
-          </NavLink>
           <NavLink to="/discovery" className={linkClass}>
             Discover
+          </NavLink>
+          <NavLink to="/calendar" className={linkClass}>
+            Calendar
           </NavLink>
           <NavLink to="/me" className={linkClass}>
             Me
