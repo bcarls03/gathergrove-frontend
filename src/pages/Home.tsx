@@ -1052,8 +1052,11 @@ export default function Home() {
 
   const getHappeningPrimaryTitle = (p: Post) => {
     // Prefer a real title if present, else fall back to the detail (truncated)
-    if (isTruthy(p.title)) return String(p.title).trim();
-    return truncate(p.details || "Happening Now", 72);
+    // Treat "Happening Now" as missing title (it's a state label, not a title)
+    if (isTruthy(p.title) && String(p.title).trim() !== "Happening Now") {
+      return String(p.title).trim();
+    }
+    return truncate(p.details || "Untitled event", 72);
   };
 
   const getHappeningSubtitle = (p: Post) => {
@@ -1063,8 +1066,8 @@ export default function Home() {
   };
 
   const getHappeningBody = (p: Post) => {
-    // If title is missing, don’t duplicate body with same content
-    if (!isTruthy(p.title)) return "";
+    // If title is missing or is "Happening Now" (state label), don't duplicate body with same content
+    if (!isTruthy(p.title) || String(p.title).trim() === "Happening Now") return "";
     return p.details || "";
   };
 
@@ -1360,7 +1363,7 @@ export default function Home() {
                     ⚡ Right Now
                   </div>
                   <h3 style={{ fontSize: 22, fontWeight: 800, margin: '0 0 6px', color: '#0f172a', lineHeight: 1.2 }}>
-                    {event.title || 'Happening Now'}
+                    {event.title || truncate(event.details, 72) || 'Untitled event'}
                   </h3>
                   <div style={{ fontSize: 14, color: '#64748b', marginBottom: 12 }}>
                     {getEventTimeDisplay(event)}
@@ -1726,7 +1729,13 @@ export default function Home() {
                     choice: null,
                     counts: { going: 0, maybe: 0, cant: 0 },
                   };
-                  const summary = formatHappeningSummary(rsvpState.counts);
+                  // Exclude host from count: if host has RSVP'd, subtract 1
+                  const adjustedCounts = {
+                    going: Math.max(0, rsvpState.counts.going - (rsvpState.choice === "going" ? 1 : 0)),
+                    maybe: Math.max(0, rsvpState.counts.maybe - (rsvpState.choice === "maybe" ? 1 : 0)),
+                    cant: Math.max(0, rsvpState.counts.cant - (rsvpState.choice === "cant" ? 1 : 0)),
+                  };
+                  const summary = formatHappeningSummary(adjustedCounts);
                   const replyCount = replyCounts[p.id] || 0;
 
                   const primaryTitle = getHappeningPrimaryTitle(p);
@@ -1747,30 +1756,9 @@ export default function Home() {
                         <div className="home-card-meta">{subtitle}</div>
                         {body ? <div className="home-card-body">{body}</div> : null}
 
+                        {/* Host actions only - no RSVP buttons */}
                         <div className="rsvp-row">
-                          <div className="rsvp-buttons">
-                            <motion.button
-                              type="button"
-                              className={"rsvp-btn" + (rsvpState.choice === "going" ? " is-on" : "")}
-                              onClick={() => handleRsvp(p, "going")}
-                              {...rsvpMotionProps}
-                            >
-                              <span>👍</span>
-                              <span>Going</span>
-                            </motion.button>
-
-                            <motion.button
-                              type="button"
-                              className={"rsvp-btn" + (rsvpState.choice === "cant" ? " is-on" : "")}
-                              onClick={() => handleRsvp(p, "cant")}
-                              {...rsvpMotionProps}
-                            >
-                              <span>❌</span>
-                              <span>Can't go</span>
-                            </motion.button>
-                          </div>
-
-                          <div className="rsvp-meta-right">
+                          <div className="rsvp-meta-right" style={{ marginLeft: 0 }}>
                             {summary && <div className="rsvp-summary">{summary}</div>}
                             <button type="button" className="rsvp-view-btn" onClick={() => openRsvpDetails(p)}>
                               <span aria-hidden>👀</span>
@@ -1838,7 +1826,13 @@ export default function Home() {
                     choice: null,
                     counts: { going: 0, maybe: 0, cant: 0 },
                   };
-                  const summary = formatRsvpSummary(rsvpState.counts);
+                  // Exclude host from count: if host has RSVP'd, subtract 1
+                  const adjustedCounts = {
+                    going: Math.max(0, rsvpState.counts.going - (rsvpState.choice === "going" ? 1 : 0)),
+                    maybe: Math.max(0, rsvpState.counts.maybe - (rsvpState.choice === "maybe" ? 1 : 0)),
+                    cant: Math.max(0, rsvpState.counts.cant - (rsvpState.choice === "cant" ? 1 : 0)),
+                  };
+                  const summary = formatRsvpSummary(adjustedCounts);
                   const categoryMeta = p.category && CATEGORY_META[p.category] ? CATEGORY_META[p.category] : null;
 
                   return (
@@ -1865,40 +1859,9 @@ export default function Home() {
 
                         <div className="home-card-body">{p.details}</div>
 
+                        {/* Host actions only - no RSVP buttons */}
                         <div className="rsvp-row">
-                          <div className="rsvp-buttons">
-                            <motion.button
-                              type="button"
-                              className={"rsvp-btn" + (rsvpState.choice === "going" ? " is-on" : "")}
-                              onClick={() => handleRsvp(p, "going")}
-                              {...rsvpMotionProps}
-                            >
-                              <span>👍</span>
-                              <span>Going</span>
-                            </motion.button>
-
-                            <motion.button
-                              type="button"
-                              className={"rsvp-btn" + (rsvpState.choice === "maybe" ? " is-on" : "")}
-                              onClick={() => handleRsvp(p, "maybe")}
-                              {...rsvpMotionProps}
-                            >
-                              <span>❓</span>
-                              <span>Maybe</span>
-                            </motion.button>
-
-                            <motion.button
-                              type="button"
-                              className={"rsvp-btn" + (rsvpState.choice === "cant" ? " is-on" : "")}
-                              onClick={() => handleRsvp(p, "cant")}
-                              {...rsvpMotionProps}
-                            >
-                              <span>❌</span>
-                              <span>Can't go</span>
-                            </motion.button>
-                          </div>
-
-                          <div className="rsvp-meta-right">
+                          <div className="rsvp-meta-right" style={{ marginLeft: 0 }}>
                             {summary && <div className="rsvp-summary">{summary}</div>}
                             <button type="button" className="rsvp-view-btn" onClick={() => openRsvpDetails(p)}>
                               <span aria-hidden>👀</span>
