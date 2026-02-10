@@ -1,17 +1,39 @@
 // src/pages/Discovery.tsx
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Heart, Home, MapPin, Sparkles, UserPlus, Calendar, MessageCircle, Zap, Clock, X } from 'lucide-react';
+import {
+  Users,
+  Heart,
+  Home,
+  MapPin,
+  Sparkles,
+  UserPlus,
+  Calendar,
+  MessageCircle,
+  Clock,
+  X,
+} from 'lucide-react';
 import { motion } from 'framer-motion';
-import { fetchHouseholds, fetchEvents, getMyProfile, type GGHousehold, type GGEvent, API_BASE_URL, CURRENT_UID, getAuthHeaders } from '../lib/api';
-import { 
-  fetchConnections, 
-  sendConnectionRequest, 
+
+import {
+  fetchHouseholds,
+  fetchEvents,
+  getMyProfile,
+  type GGHousehold,
+  type GGEvent,
+  API_BASE_URL,
+  CURRENT_UID,
+  getAuthHeaders,
+} from '../lib/api';
+
+import {
+  sendConnectionRequest,
   fetchAllConnections,
   acceptConnection,
   declineConnection,
-  type Connection
+  type Connection,
 } from '../lib/api/connections';
+
 import { getOrCreateThread } from '../lib/api/threads';
 import { Chip, DualAgeRange, HOUSEHOLD_TYPE_META, type HouseholdType } from '../components/filters';
 
@@ -48,14 +70,14 @@ const loadSavedFilters = () => {
 
 export default function Discovery() {
   const navigate = useNavigate();
-  
+
   const [activeTab, setActiveTab] = useState<DiscoverTab>('nearby');
   const [households, setHouseholds] = useState<GGHousehold[]>([]);
   const [events, setEvents] = useState<GGEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [eventsLoading, setEventsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Filters - Restore from sessionStorage on mount
   const savedFilters = loadSavedFilters();
   const [selectedTypes, setSelectedTypes] = useState<Set<HouseholdType>>(savedFilters.selectedTypes);
@@ -69,33 +91,28 @@ export default function Discovery() {
 
   const [connectionByHouseholdId, setConnectionByHouseholdId] = useState<Map<string, Connection>>(new Map());
   const [pendingByHouseholdId, setPendingByHouseholdId] = useState<Map<string, string>>(new Map());
-  
-  // DEV-only invariant: verify connection state setters exist
-  if (import.meta.env.DEV) {
-    if (typeof setConnectionByHouseholdId !== 'function' || 
-        typeof setPendingByHouseholdId !== 'function' || 
-        typeof setConnectedHouseholdIds !== 'function') {
-      console.error('[Discovery] INVARIANT VIOLATION: Connection state setters not defined. Check useState declarations.');
-    }
-  }
 
   // Respond modal state
-  const [respondModal, setRespondModal] = useState<{ householdId: string; householdName: string; connectionId: string } | null>(null);
+  const [respondModal, setRespondModal] = useState<{
+    householdId: string;
+    householdName: string;
+    connectionId: string;
+  } | null>(null);
 
   // Create event dropdown state
   const [showCreateDropdown, setShowCreateDropdown] = useState(false);
-  
-  // Per-card invite dropdown state (tracks which card's dropdown is open)
+
+  // Per-card invite dropdown state
   const [inviteDropdownOpen, setInviteDropdownOpen] = useState<string | null>(null);
-  
-  // State for dismissing growth message
+
+  // Dismiss growth banner
   const [growthMessageDismissed, setGrowthMessageDismissed] = useState(false);
 
-  // Dev-only: Seed demo households state
+  // Dev-only: Seed demo households
   const [seeding, setSeeding] = useState(false);
   const [seedMessage, setSeedMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Dev-only: Create household state
+  // Dev-only: Create household
   const [creatingHousehold, setCreatingHousehold] = useState(false);
   const [householdCreationMessage, setHouseholdCreationMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -105,14 +122,21 @@ export default function Discovery() {
   // Current user's household_id (to filter out from lists)
   const [myHouseholdId, setMyHouseholdId] = useState<string | null>(null);
 
-  // Helper: Toggle item in Set
+  // DEV-only invariant: verify setters exist
+  if (import.meta.env.DEV) {
+    if (
+      typeof setConnectionByHouseholdId !== 'function' ||
+      typeof setPendingByHouseholdId !== 'function' ||
+      typeof setConnectedHouseholdIds !== 'function'
+    ) {
+      console.error('[Discovery] INVARIANT VIOLATION: Connection state setters not defined. Check useState declarations.');
+    }
+  }
+
   const toggleInSet = <T,>(set: Set<T>, item: T): Set<T> => {
     const next = new Set(set);
-    if (next.has(item)) {
-      next.delete(item);
-    } else {
-      next.add(item);
-    }
+    if (next.has(item)) next.delete(item);
+    else next.add(item);
     return next;
   };
 
@@ -121,7 +145,6 @@ export default function Discovery() {
     loadConnections();
     loadEvents();
   }, []);
-
 
   // Save filters to sessionStorage whenever they change
   useEffect(() => {
@@ -142,13 +165,11 @@ export default function Discovery() {
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      
-      // Close create event dropdown
+
       if (showCreateDropdown && !target.closest('[data-dropdown="create-event"]')) {
         setShowCreateDropdown(false);
       }
-      
-      // Close invite dropdowns
+
       if (inviteDropdownOpen && !target.closest('[data-dropdown="invite-event"]')) {
         setInviteDropdownOpen(null);
       }
@@ -164,10 +185,9 @@ export default function Discovery() {
     setEventsLoading(true);
     try {
       const data = await fetchEvents();
-      
-      // Filter to only "Happening Now" events (type: "now" or "happening")
+
       const now = new Date();
-      const happeningNow = data.filter(event => {
+      const happeningNow = data.filter((event) => {
         const isNowType = event.type === 'now' || event.type === 'happening';
         const notExpired = !event.expiresAt || new Date(event.expiresAt) > now;
         const notCanceled = event.status !== 'canceled';
@@ -183,71 +203,50 @@ export default function Discovery() {
 
   const loadConnections = async () => {
     try {
-      // Check if user has a household before fetching connections
-      // Silently handle 404s - user may not have completed onboarding
       const profile = await getMyProfile().catch((err) => {
-        // Suppress 404 errors - expected for new users
-        if (err.message?.includes('NOT_FOUND') || err.message?.includes('404')) {
-          return null;
-        }
+        if (err.message?.includes('NOT_FOUND') || err.message?.includes('404')) return null;
         throw err;
       });
-      
-      // Store my household_id to filter it out from lists
+
       setMyHouseholdId(profile?.household_id || null);
-      
+
       if (!profile?.household_id) {
-        // User hasn't completed onboarding yet - skip connections fetch silently
         setConnectedHouseholdIds([]);
+        setConnectionByHouseholdId(new Map());
+        setPendingByHouseholdId(new Map());
         return;
       }
-      
-      // Fetch all connections (not just accepted)
+
       const allConnections = await fetchAllConnections();
-      
-      if (import.meta.env.DEV) {
-      }
-      
-      // Build maps from all connections
+
       const connectionMap = new Map<string, Connection>();
       const connectedIds: string[] = [];
       const pendingMap = new Map<string, string>();
-      
-      // Helper to determine priority (higher = better)
+
       const getPriority = (status: string): number => {
         if (status === 'accepted') return 3;
         if (status === 'pending') return 2;
         if (status === 'declined') return 1;
         return 0;
       };
-      
+
       allConnections.forEach((conn: Connection) => {
-        // Normalize field names: householdId or household_id
         const targetId = conn.householdId || (conn as any).household_id;
         if (!targetId) return;
-        
-        // Keep best connection per household
+
         const existing = connectionMap.get(targetId);
         if (!existing || getPriority(conn.status) > getPriority(existing.status)) {
           connectionMap.set(targetId, conn);
         }
-        
-        // Track accepted connections
-        if (conn.status === 'accepted') {
-          connectedIds.push(targetId);
-        }
-        
-        // Track pending connections (all, not just outgoing)
-        if (conn.status === 'pending') {
-          pendingMap.set(targetId, conn.id);
-        }
+
+        if (conn.status === 'accepted') connectedIds.push(targetId);
+        if (conn.status === 'pending') pendingMap.set(targetId, conn.id);
       });
-      
+
       setConnectedHouseholdIds(connectedIds);
       setConnectionByHouseholdId(connectionMap);
       setPendingByHouseholdId(pendingMap);
     } catch (err) {
-      // Silently fail - user might not have completed onboarding yet
       console.debug('Could not load connections:', err);
       setConnectedHouseholdIds([]);
       setConnectionByHouseholdId(new Map());
@@ -273,20 +272,13 @@ export default function Discovery() {
     setSeeding(true);
     setSeedMessage(null);
     try {
-      const response = await fetch(`${API_BASE_URL}/dev/seed-households?count=20`, {
-        method: 'POST',
-      });
-      if (!response.ok) {
-        throw new Error(`Seed failed: ${response.status}`);
-      }
+      const response = await fetch(`${API_BASE_URL}/dev/seed-households?count=20`, { method: 'POST' });
+      if (!response.ok) throw new Error(`Seed failed: ${response.status}`);
       const result = await response.json();
-      console.log('✅ Seed response:', result);
       setSeedMessage({ type: 'success', text: `Seeded ${result.count || 20} demo households` });
-      
-      // Refresh the household list and connections
+
       await loadHouseholds();
       await loadConnections();
-      console.log('✅ Refreshed households count:', households.length);
     } catch (err) {
       console.error('❌ Seed failed:', err);
       setSeedMessage({ type: 'error', text: 'Failed to seed households' });
@@ -305,10 +297,7 @@ export default function Discovery() {
       // Step 1: Ensure user exists
       const signupResponse = await fetch(`${API_BASE_URL}/users/signup`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({
           email: `${CURRENT_UID}@example.com`,
           first_name: 'Dev',
@@ -318,24 +307,15 @@ export default function Discovery() {
 
       if (!signupResponse.ok) {
         const signupError = await signupResponse.json().catch(() => ({ detail: 'Unknown error' }));
-        // 409 = user already exists, treat as success
-        if (signupResponse.status === 409) {
-          console.log('✅ User already exists, continuing...');
-        } else {
+        if (signupResponse.status !== 409) {
           console.log(`⚠️ Signup failed (${signupResponse.status}): ${signupError.detail}`);
-          // Continue anyway - household create will auto-create user in dev mode
         }
-      } else {
-        console.log('✅ User created');
       }
 
       // Step 2: Create household
       const createResponse = await fetch(`${API_BASE_URL}/users/me/household/create`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({
           name: 'Dev Household',
           household_type: 'family_with_kids',
@@ -345,50 +325,27 @@ export default function Discovery() {
 
       if (!createResponse.ok) {
         const errorData = await createResponse.json().catch(() => ({ detail: `Status ${createResponse.status}` }));
-        
-        // 409 = household already exists, treat as success
-        if (createResponse.status === 409) {
-          console.log('✅ Household already exists');
-        } else {
-          // Other errors
+        if (createResponse.status !== 409) {
           const errorMsg = typeof errorData.detail === 'string' ? errorData.detail : `Status ${createResponse.status}`;
-          console.log(`❌ Create household failed: ${errorMsg}`);
           throw new Error(errorMsg);
         }
-      } else {
-        console.log('✅ Household created');
       }
 
-      // Step 3: Verify household is attached to user
-      const meResponse = await fetch(`${API_BASE_URL}/users/me`, {
-        method: 'GET',
-        headers: authHeaders,
-      });
-
-      if (!meResponse.ok) {
-        const errorMsg = `Failed to verify: Status ${meResponse.status}`;
-        console.log(`❌ ${errorMsg}`);
-        setHouseholdCreationMessage({ type: 'error', text: `❌ ${errorMsg}` });
-        return;
-      }
+      // Step 3: Verify
+      const meResponse = await fetch(`${API_BASE_URL}/users/me`, { method: 'GET', headers: authHeaders });
+      if (!meResponse.ok) throw new Error(`Failed to verify: Status ${meResponse.status}`);
 
       const userData = await meResponse.json();
       if (userData.household_id) {
-        console.log(`✅ Dev household ready (household_id: ${userData.household_id})`);
-        setHouseholdCreationMessage({ 
-          type: 'success', 
-          text: `✅ Dev household ready (household_id: ${userData.household_id.slice(0, 12)}...)` 
+        setHouseholdCreationMessage({
+          type: 'success',
+          text: `✅ Dev household ready (household_id: ${userData.household_id.slice(0, 12)}...)`,
         });
       } else {
-        console.log('❌ Household create returned 201 but /users/me has no household_id');
-        setHouseholdCreationMessage({ 
-          type: 'error', 
-          text: '❌ Household create returned 201 but /users/me has no household_id' 
-        });
+        setHouseholdCreationMessage({ type: 'error', text: '❌ /users/me has no household_id after create' });
         return;
       }
 
-      // Refresh households and connections
       await loadHouseholds();
       await loadConnections();
     } catch (err: any) {
@@ -401,22 +358,18 @@ export default function Discovery() {
   };
 
   // Split households into connected vs nearby (filter out my own household)
-  const connectedHouseholds = households.filter(h => {
+  const connectedHouseholds = households.filter((h) => {
     if (h.id === myHouseholdId) return false;
     return connectedHouseholdIds.includes(h.id || '');
   });
 
-  const nearbyHouseholds = households.filter(h => {
+  const nearbyHouseholds = households.filter((h) => {
     if (h.id === myHouseholdId) return false;
     return !connectedHouseholdIds.includes(h.id || '');
   });
 
-  // Get current list based on active tab
-  const currentHouseholds = activeTab === 'connected' 
-    ? connectedHouseholds 
-    : nearbyHouseholds;
+  const currentHouseholds = activeTab === 'connected' ? connectedHouseholds : nearbyHouseholds;
 
-  // Helper to map backend householdType values to filter HouseholdType
   const mapToFilterType = (type?: string): HouseholdType | null => {
     switch (type) {
       case 'family_with_kids':
@@ -432,12 +385,11 @@ export default function Discovery() {
     }
   };
 
-  // Calculate distance between two points using Haversine formula
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-    const R = 3959; // Earth's radius in miles
+    const R = 3959; // miles
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = 
+    const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
       Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
       Math.sin(dLon / 2) * Math.sin(dLon / 2);
@@ -445,58 +397,48 @@ export default function Discovery() {
     return R * c;
   };
 
-  // Filter households locally
-  const filteredHouseholds = currentHouseholds.filter(h => {
-    // Filter by household type (if any types selected)
-    if (selectedTypes.size > 0) {
-      // Map backend householdType to frontend display type for comparison
-      const mappedType = mapToFilterType(h.householdType);
-      const matchesType = mappedType && selectedTypes.has(mappedType);
-      if (!matchesType) return false;
-    }
-    
-    // Filter by location precision
-    if (locationPrecision !== 'all') {
-      const isPrecise = h.location_precision === 'street';
-      const isApproximate = h.location_precision === 'zipcode';
-      
-      if (locationPrecision === 'precise' && !isPrecise) return false;
-      if (locationPrecision === 'approximate' && !isApproximate) return false;
-    }
-    
-    // Filter by age range (only if "Family w/ Kids" is selected)
-    if (selectedTypes.has("Family w/ Kids")) {
-      const hasMatchingKid = h.kids?.some(kid => {
-        if (!kid.birthYear || !kid.birthMonth) return false;
-        const today = new Date();
-        const birthDate = new Date(kid.birthYear, (kid.birthMonth || 1) - 1);
-        const ageInMonths = (today.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
-        const ageInYears = Math.floor(ageInMonths / 12);
-        return ageInYears >= ageMin && ageInYears <= ageMax;
-      });
-      if (!hasMatchingKid) return false;
-    }
-    
-    return true;
-  }).sort((a, b) => {
-    // Sort by distance (closest first)
-    const userLat = 45.5152;
-    const userLon = -122.6784;
-    
-    const aLat = (a as any).latitude;
-    const aLon = (a as any).longitude;
-    const bLat = (b as any).latitude;
-    const bLon = (b as any).longitude;
-    
-    const distanceA = (aLat && aLon) 
-      ? calculateDistance(userLat, userLon, aLat, aLon)
-      : Infinity;
-    const distanceB = (bLat && bLon)
-      ? calculateDistance(userLat, userLon, bLat, bLon)
-      : Infinity;
-    
-    return distanceA - distanceB;
-  });
+  const filteredHouseholds = currentHouseholds
+    .filter((h) => {
+      if (selectedTypes.size > 0) {
+        const mappedType = mapToFilterType(h.householdType);
+        const matchesType = mappedType && selectedTypes.has(mappedType);
+        if (!matchesType) return false;
+      }
+
+      if (locationPrecision !== 'all') {
+        const isPrecise = h.location_precision === 'street';
+        const isApproximate = h.location_precision === 'zipcode';
+        if (locationPrecision === 'precise' && !isPrecise) return false;
+        if (locationPrecision === 'approximate' && !isApproximate) return false;
+      }
+
+      if (selectedTypes.has('Family w/ Kids')) {
+        const hasMatchingKid = h.kids?.some((kid) => {
+          if (!kid.birthYear || !kid.birthMonth) return false;
+          const today = new Date();
+          const birthDate = new Date(kid.birthYear, (kid.birthMonth || 1) - 1);
+          const ageInMonths = (today.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
+          const ageInYears = Math.floor(ageInMonths / 12);
+          return ageInYears >= ageMin && ageInYears <= ageMax;
+        });
+        if (!hasMatchingKid) return false;
+      }
+
+      return true;
+    })
+    .sort((a, b) => {
+      const userLat = 45.5152;
+      const userLon = -122.6784;
+
+      const aLat = (a as any).latitude;
+      const aLon = (a as any).longitude;
+      const bLat = (b as any).latitude;
+      const bLon = (b as any).longitude;
+
+      const distanceA = aLat && aLon ? calculateDistance(userLat, userLon, aLat, aLon) : Infinity;
+      const distanceB = bLat && bLon ? calculateDistance(userLat, userLon, bLat, bLon) : Infinity;
+      return distanceA - distanceB;
+    });
 
   const getHouseholdTypeIcon = (type?: string) => {
     const filterType = mapToFilterType(type);
@@ -504,268 +446,195 @@ export default function Discovery() {
       const { Icon } = HOUSEHOLD_TYPE_META[filterType];
       return <Icon size={16} />;
     }
-    
-    // Fallback for legacy or unknown types
     switch (type) {
       case 'family_with_kids':
-      case 'family': 
+      case 'family':
         return <Users size={16} />;
-      case 'couple': 
+      case 'couple':
         return <Heart size={16} />;
       case 'single_parent':
       case 'single':
-      case 'individual': 
+      case 'individual':
         return <Home size={16} />;
-      default: 
+      default:
         return <Users size={16} />;
     }
   };
 
   const getHouseholdTypeColor = (type?: string) => {
     const filterType = mapToFilterType(type);
-    if (filterType && HOUSEHOLD_TYPE_META[filterType]) {
-      return HOUSEHOLD_TYPE_META[filterType].iconColor;
-    }
-    
-    // Fallback for legacy or unknown types
+    if (filterType && HOUSEHOLD_TYPE_META[filterType]) return HOUSEHOLD_TYPE_META[filterType].iconColor;
+
     switch (type) {
       case 'family_with_kids':
-      case 'family': 
+      case 'family':
         return '#3b82f6';
-      case 'couple': 
+      case 'couple':
         return '#ec4899';
       case 'single_parent':
       case 'single':
-      case 'individual': 
+      case 'individual':
         return '#f59e0b';
-      default: 
+      default:
         return '#6b7280';
     }
   };
 
   const getHouseholdTypeLabel = (type?: string) => {
     const filterType = mapToFilterType(type);
-    if (filterType) {
-      return filterType; // Return the display label directly
-    }
-    
-    // Fallback for legacy or unknown types
+    if (filterType) return filterType;
+
     switch (type) {
-      case 'family_with_kids': 
+      case 'family_with_kids':
+      case 'single_parent':
         return 'Family w/ Kids';
-      case 'single_parent': 
-        return 'Family w/ Kids'; // Single parents are families with kids
-      case 'family': 
-        return 'Family';
-      case 'couple': 
-        return 'Singles/Couples';
+      case 'couple':
       case 'single':
-      case 'individual': 
+      case 'individual':
         return 'Singles/Couples';
-      default: 
+      default:
         return 'Household';
     }
   };
 
-  // Format distance for display
   const getDistanceText = (household: GGHousehold): string | null => {
-    // TODO: Get user's current location
-    // For now, using a default location (Portland, OR area)
     const userLat = 45.5152;
     const userLon = -122.6784;
-    
+
     const lat = (household as any).latitude;
     const lon = (household as any).longitude;
-    
+
     if (lat && lon) {
       const distance = calculateDistance(userLat, userLon, lat, lon);
       const isZipOnly = household.location_precision === 'zipcode';
-      
-      if (distance < 0.1) {
-        return isZipOnly ? '< 0.1 miles (approx)*' : '< 0.1 miles';
-      }
+
+      if (distance < 0.1) return isZipOnly ? '< 0.1 miles (approx)*' : '< 0.1 miles';
       return isZipOnly ? `~${distance.toFixed(1)} miles (approx)*` : `~${distance.toFixed(1)} miles`;
     }
     return null;
   };
 
   const getHouseholdName = (household: GGHousehold): string => {
-    // Check if household has an explicit name field first
-    if (household.name && household.name.trim()) {
-      return household.name;
-    }
-    // ✅ Match HouseholdSelector: show lastName directly for consistency
-    if (household.lastName) {
-      return household.lastName;
-    }
+    if (household.name && household.name.trim()) return household.name;
+    if (household.lastName) return household.lastName;
     if (household.adultNames && household.adultNames.length > 0) {
-      const names = household.adultNames.filter(n => n && n.trim());
-      if (names.length > 0) {
-        return names.length === 1 ? names[0] : names.join(' & ');
-      }
+      const names = household.adultNames.filter((n) => n && n.trim());
+      if (names.length > 0) return names.length === 1 ? names[0] : names.join(' & ');
     }
-    // Fallback: use email username or just "Household"
     if (household.email) {
       const username = household.email.split('@')[0];
       return `${username}'s Household`;
     }
-    return household.householdType === 'couple' ? 'Couple' : 
-           household.householdType === 'single' ? 'Neighbor' :
-           'Household';
+    return household.householdType === 'couple'
+      ? 'Couple'
+      : household.householdType === 'single'
+        ? 'Neighbor'
+        : 'Household';
   };
 
   const getKidsAges = (household: GGHousehold): number[] => {
     if (!household.kids || household.kids.length === 0) return [];
-    
     const today = new Date();
     return household.kids
-      .filter(kid => kid.birthYear && kid.birthMonth)
-      .map(kid => {
+      .filter((kid) => kid.birthYear && kid.birthMonth)
+      .map((kid) => {
         const birthDate = new Date(kid.birthYear!, (kid.birthMonth || 1) - 1);
         const ageInMonths = (today.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
         return Math.floor(ageInMonths / 12);
       })
-      .sort((a, b) => b - a); // Sort descending (oldest first)
+      .sort((a, b) => b - a);
   };
 
-  // Check if a kid's age matches the current filter range
   const isAgeInFilterRange = (age: number): boolean => {
-    // Only highlight if "Family w/ Kids" is selected (meaning age filter is active)
-    if (!selectedTypes.has("Family w/ Kids")) return false;
+    if (!selectedTypes.has('Family w/ Kids')) return false;
     return age >= ageMin && age <= ageMax;
   };
 
   const handleInviteToEvent = (household: GGHousehold, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    // Toggle dropdown for this specific household
     setInviteDropdownOpen(inviteDropdownOpen === household.id ? null : household.id || null);
   };
 
   const handleInviteToEventType = (household: GGHousehold, type: 'now' | 'future') => {
-    // ✅ Build invite context matching HouseholdSelector's new interface
-    const hasActiveFilters = selectedTypes.size > 0;
-    
+    const hasActiveFilters = selectedTypes.size > 0 || locationPrecision !== 'all';
+
     const inviteContext = {
       clickedHouseholdId: household.id || '',
       clickedHouseholdName: getHouseholdName(household),
-      // ✅ Use visibleHouseholdIds (single source of truth)
-      visibleHouseholdIds: hasActiveFilters 
-        ? filteredHouseholds.map(h => h.id || '').filter(id => id !== '')
-        : [],
-      // Store filter context (for display badges and logic)
+      visibleHouseholdIds: hasActiveFilters ? filteredHouseholds.map((h) => h.id || '').filter(Boolean) : [],
       filterContext: {
         types: Array.from(selectedTypes),
-        ageRange: selectedTypes.has("Family w/ Kids") ? { min: ageMin, max: ageMax } : null,
+        ageRange: selectedTypes.has('Family w/ Kids') ? { min: ageMin, max: ageMax } : null,
         hasFilters: hasActiveFilters,
-      }
+      },
     };
-    
-    // Navigate with state (no localStorage pollution)
-    if (type === 'now') {
-      navigate('/compose/happening', { state: { inviteContext } });
-    } else {
-      navigate('/compose/event', { state: { inviteContext } });
-    }
-    
-    // Close dropdown
+
+    if (type === 'now') navigate('/compose/happening', { state: { inviteContext } });
+    else navigate('/compose/event', { state: { inviteContext } });
+
     setInviteDropdownOpen(null);
   };
 
   const handleConnect = async (household: GGHousehold) => {
     if (!household.id) return;
-    
-    // Clear any previous error for this household
-    setConnectionErrors(prev => {
+
+    setConnectionErrors((prev) => {
       const next = new Map(prev);
       next.delete(household.id!);
       return next;
     });
-    
-    // Optimistic UI update
-    setConnectingIds(prev => new Set(prev).add(household.id!));
-    
-    // DEV: Log current user's household_id
-    if (import.meta.env.DEV) {
-      console.log('🔵 handleConnect:', {
-        targetHousehold: household.id,
-        targetName: getHouseholdName(household),
-        myHouseholdId,
-      });
-    }
-    
+
+    setConnectingIds((prev) => new Set(prev).add(household.id!));
+
     try {
       const success = await sendConnectionRequest(household.id);
       if (success) {
-        // Optimistically mark as pending
-        setPendingByHouseholdId(prev => {
-          const next = new Map(prev);
-          next.set(household.id!, 'pending');
-          return next;
-        });
-        
-        alert(`✅ Connection request sent to ${getHouseholdName(household)}!`);
-        
-        
-        if (import.meta.env.DEV) {
-          console.log('✅ Connection request succeeded');
-        }
+        // ✅ IMPORTANT: refresh so pendingByHouseholdId stores the real connectionId
+        await loadConnections();
       } else {
-        // Check if the error is about missing household - make a test request to get details
+        // fallback: try direct request to capture detail (DEV)
         try {
           const authHeaders = await getAuthHeaders();
           const testResponse = await fetch(`${API_BASE_URL}/api/connections`, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...authHeaders,
-            },
+            headers: { 'Content-Type': 'application/json', ...authHeaders },
             body: JSON.stringify({ household_id: household.id }),
           });
-          
+
           if (!testResponse.ok) {
             const errorData = await testResponse.json().catch(() => ({ detail: 'Unknown error' }));
-            
-            // Handle 409: connection already exists (treat as success and refresh)
+
             if (testResponse.status === 409) {
-              console.log('ℹ️ Connection request already exists, refreshing state...');
               await loadConnections();
               return;
             }
-            
-            const errorDetail = typeof errorData.detail === 'string' ? errorData.detail : `Status ${testResponse.status}`;
-            console.log(`❌ Connection failed: ${errorDetail}`);
-            setConnectionErrors(prev => {
+
+            const errorDetail =
+              typeof errorData.detail === 'string' ? errorData.detail : `Status ${testResponse.status}`;
+
+            setConnectionErrors((prev) => {
               const next = new Map(prev);
               next.set(household.id!, errorDetail);
               return next;
             });
-            
-            // Show detailed error in DEV, generic in prod
-            if (import.meta.env.DEV) {
-              alert(`❌ Connection failed: ${errorDetail}`);
-            } else {
-              alert(`❌ Failed to send connection request. Please try again.`);
-            }
+
+            if (import.meta.env.DEV) alert(`❌ Connection failed: ${errorDetail}`);
+            else alert(`❌ Failed to send connection request. Please try again.`);
             return;
           }
         } catch (testErr) {
           console.error('Error checking connection failure:', testErr);
         }
-        
+
         alert(`❌ Failed to send connection request. Please try again.`);
       }
     } catch (err) {
       console.error('Error sending connection request:', err);
       const errorMsg = err instanceof Error ? err.message : 'Unknown error';
-      
-      // Show detailed error in DEV
-      if (import.meta.env.DEV) {
-        alert(`❌ Connection error: ${errorMsg}`);
-      } else {
-        alert(`❌ Failed to send connection request. Please try again.`);
-      }
+      if (import.meta.env.DEV) alert(`❌ Connection error: ${errorMsg}`);
+      else alert(`❌ Failed to send connection request. Please try again.`);
     } finally {
-      setConnectingIds(prev => {
+      setConnectingIds((prev) => {
         const next = new Set(prev);
         next.delete(household.id!);
         return next;
@@ -773,31 +642,17 @@ export default function Discovery() {
     }
   };
 
-  const handleRespond = (household: GGHousehold) => {
-    const connectionId = pendingByHouseholdId.get(household.id!);
-    if (!connectionId) {
-      alert('❌ Could not find connection request');
-      return;
-    }
-    setRespondModal({
-      householdId: household.id!,
-      householdName: getHouseholdName(household),
-      connectionId
-    });
-  };
-
   const handleAcceptConnection = async () => {
     if (!respondModal) return;
     try {
       const success = await acceptConnection(respondModal.connectionId);
       if (success) {
-        alert(`✅ Accepted connection from ${respondModal.householdName}!`);
         setRespondModal(null);
         await loadConnections();
       }
     } catch (err) {
       console.error('Error accepting connection:', err);
-      alert(`❌ Failed to accept connection. Please try again.`);
+      alert('❌ Failed to accept connection. Please try again.');
     }
   };
 
@@ -806,128 +661,54 @@ export default function Discovery() {
     try {
       const success = await declineConnection(respondModal.connectionId);
       if (success) {
-        alert(`Declined connection from ${respondModal.householdName}`);
         setRespondModal(null);
+        await loadConnections();
       }
     } catch (err) {
       console.error('Error declining connection:', err);
-      alert(`❌ Failed to decline connection. Please try again.`);
+      alert('❌ Failed to decline connection. Please try again.');
     }
   };
 
   const handleMessage = async (household: GGHousehold) => {
     if (!household.id) return;
-    
     try {
       const thread = await getOrCreateThread(household.id);
-      navigate('/messages', { 
-        state: { 
+      navigate('/messages', {
+        state: {
           threadId: thread.threadId,
-          householdId: household.id, 
-          householdName: getHouseholdName(household) 
-        } 
+          householdId: household.id,
+          householdName: getHouseholdName(household),
+        },
       });
     } catch (error) {
       console.error('Failed to create thread:', error);
     }
   };
 
-  const isConnected = (householdId?: string) => {
-    return connectedHouseholdIds.includes(householdId || '');
-  };
-
-  const isConnecting = (householdId?: string) => {
-    return connectingIds.has(householdId || '');
-  };
-
-
-
-  const isPending = (householdId?: string) => {
-    return pendingByHouseholdId.has(householdId || '');
-  };
-
-
-  const getEventTimeDisplay = (event: GGEvent): string => {
-    if (event.when) return event.when;
-    if (event.startAt) {
-      const start = new Date(event.startAt);
-      const now = new Date();
-      const diffMinutes = Math.floor((now.getTime() - start.getTime()) / 60000);
-      
-      if (diffMinutes < 5) return 'Just started';
-      if (diffMinutes < 60) return `Started ${diffMinutes}m ago`;
-      const diffHours = Math.floor(diffMinutes / 60);
-      return `Started ${diffHours}h ago`;
-    }
-    return 'Happening now';
-  };
-
-  const getEventCategoryColor = (category?: string) => {
-    switch (category) {
-      case 'playdate': return '#ec4899';
-      case 'neighborhood': return '#3b82f6';
-      case 'celebrations': return '#a855f7';
-      case 'sports': return '#f59e0b';
-      case 'food': return '#10b981';
-      case 'pet': return '#8b5cf6';
-      default: return '#6b7280';
-    }
-  };
-
-  const getEventCategoryLabel = (category?: string) => {
-    switch (category) {
-      case 'playdate': return '🎪 Playdate';
-      case 'neighborhood': return '🏡 Neighborhood';
-      case 'celebrations': return '🎉 Celebrations';
-      case 'sports': return '⚽ Sports';
-      case 'food': return '🍕 Food';
-      case 'pet': return '🐶 Pets';
-      default: return '✨ Other';
-    }
-  };
-
-  const handleJoinEvent = (event: GGEvent) => {
-    navigate(`/calendar?event=${event.id}`);
-  };
+  const isConnected = (householdId?: string) => connectedHouseholdIds.includes(householdId || '');
+  const isConnecting = (householdId?: string) => connectingIds.has(householdId || '');
+  const isPending = (householdId?: string) => pendingByHouseholdId.has(householdId || '');
 
   return (
-    <>
-      <style dangerouslySetInnerHTML={{
-        __html: `
-          details[open] summary span:first-child {
-            transform: rotate(90deg);
-          }
-          details summary span:first-child {
-            display: inline-block;
-            transition: transform 0.2s;
-          }
-        `
-      }} />
-      <div style={{ minHeight: '100vh', background: '#f9fafb', paddingBottom: 80 }}>
-      {/* Header - Simplified */}
-      <div style={{ 
-        background: '#ffffff', 
-        borderBottom: '1px solid #e5e7eb',
-        position: 'sticky',
-        top: 0,
-        zIndex: 10
-      }}>
-        <div style={{ 
-          maxWidth: 900, 
-          margin: '0 auto', 
-          padding: '10px 20px 8px'
-        }}>
-          {/* Title + Quiet Orientation */}
-          <div style={{ marginBottom: 8 }}>
-            <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, marginBottom: 3, color: '#111827' }}>
-              Discover
-            </h1>
-            <p style={{ margin: 0, fontSize: 13, color: '#9ca3af', fontWeight: 400 }}>
-              {filteredHouseholds.length} {activeTab === 'connected' ? 'connected' : 'nearby'}
-            </p>
-          </div>
+    <div className="gg-page page-header-wrapper" style={{ paddingBottom: 80 }}>
+      {/* ✅ Fixed: style tag is now valid and closed */}
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+            details[open] summary span:first-child { transform: rotate(90deg); }
+            details summary span:first-child { display:inline-block; transition: transform 0.2s; }
+          `,
+        }}
+      />
 
-          {/* Tabs - Subtle, subordinate */}
+      {/* Header - normalized to match Home/Calendar/Me */}
+      <h1 className="page-header-title">Discover</h1>
+      <p className="page-header-subtitle">
+        {filteredHouseholds.length} {activeTab === 'connected' ? 'connected' : 'nearby'}
+      </p>
+
+          {/* Tabs */}
           <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
             <button
               onClick={() => setActiveTab('nearby')}
@@ -942,7 +723,7 @@ export default function Discovery() {
                 fontWeight: activeTab === 'nearby' ? 600 : 500,
                 cursor: 'pointer',
                 transition: 'all 0.15s',
-                borderBottom: activeTab === 'nearby' ? '2px solid #10b981' : '2px solid transparent'
+                borderBottom: activeTab === 'nearby' ? '2px solid #10b981' : '2px solid transparent',
               }}
             >
               Nearby ({nearbyHouseholds.length})
@@ -960,46 +741,35 @@ export default function Discovery() {
                 fontWeight: activeTab === 'connected' ? 600 : 500,
                 cursor: 'pointer',
                 transition: 'all 0.15s',
-                borderBottom: activeTab === 'connected' ? '2px solid #10b981' : '2px solid transparent'
+                borderBottom: activeTab === 'connected' ? '2px solid #10b981' : '2px solid transparent',
               }}
             >
               Connected ({connectedHouseholds.length})
             </button>
           </div>
 
-          {/* Filters - Always visible, Apple-like */}
-          <div style={{ 
-            marginTop: 12, 
-            paddingTop: 12, 
-            borderTop: '1px solid #f3f4f6'
-          }}>
-            <div style={{ 
-              fontSize: 11, 
-              fontWeight: 600, 
-              color: '#9ca3af', 
-              marginBottom: 10,
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em'
-            }}>
+          {/* Filters */}
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #f3f4f6' }}>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: '#9ca3af',
+                marginBottom: 10,
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+              }}
+            >
               Filters
             </div>
-            
-            {/* Household Type Filter */}
+
+            {/* Household Type */}
             <div style={{ marginBottom: 12 }}>
-              <div style={{ 
-                fontSize: 11, 
-                fontWeight: 600, 
-                color: '#6b7280', 
-                marginBottom: 8
-              }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 8 }}>
                 Household Type
               </div>
-              <div style={{ 
-                display: 'flex', 
-                gap: 6, 
-                flexWrap: 'wrap'
-              }}>
-                {(Object.keys(HOUSEHOLD_TYPE_META) as HouseholdType[]).map(type => {
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {(Object.keys(HOUSEHOLD_TYPE_META) as HouseholdType[]).map((type) => {
                   const { Icon, iconColor, iconBorder } = HOUSEHOLD_TYPE_META[type];
                   return (
                     <Chip
@@ -1016,8 +786,8 @@ export default function Discovery() {
               </div>
             </div>
 
-            {/* Age Range Filter - conditional */}
-            {selectedTypes.has("Family w/ Kids") && (
+            {/* Age Range */}
+            {selectedTypes.has('Family w/ Kids') && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
@@ -1025,13 +795,8 @@ export default function Discovery() {
                 transition={{ duration: 0.2 }}
                 style={{ marginBottom: 12 }}
               >
-                <div style={{ 
-                  fontSize: 11, 
-                  fontWeight: 600, 
-                  color: '#6b7280', 
-                  marginBottom: 8
-                }}>
-                  Kids' Ages: {ageMin}–{ageMax} years
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 8 }}>
+                  Kids&apos; Ages: {ageMin}–{ageMax} years
                 </div>
                 <div style={{ paddingLeft: 4, paddingRight: 4 }}>
                   <DualAgeRange
@@ -1049,24 +814,21 @@ export default function Discovery() {
               </motion.div>
             )}
 
-            {/* Location Precision Filter */}
+            {/* Location Precision */}
             <div>
-              <div style={{ 
-                fontSize: 11, 
-                fontWeight: 600, 
-                color: '#6b7280', 
-                marginBottom: 8
-              }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 8 }}>
                 Location Precision
               </div>
-              <div style={{ 
-                display: 'flex', 
-                gap: 4,
-                padding: '2px',
-                background: '#f3f4f6',
-                borderRadius: 6,
-                width: 'fit-content'
-              }}>
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 4,
+                  padding: '2px',
+                  background: '#f3f4f6',
+                  borderRadius: 6,
+                  width: 'fit-content',
+                }}
+              >
                 <button
                   onClick={() => setLocationPrecision('all')}
                   style={{
@@ -1078,7 +840,7 @@ export default function Discovery() {
                     background: locationPrecision === 'all' ? '#ffffff' : 'transparent',
                     color: locationPrecision === 'all' ? '#111827' : '#6b7280',
                     cursor: 'pointer',
-                    transition: 'all 0.15s'
+                    transition: 'all 0.15s',
                   }}
                 >
                   All
@@ -1094,7 +856,7 @@ export default function Discovery() {
                     background: locationPrecision === 'precise' ? '#dcfce7' : 'transparent',
                     color: locationPrecision === 'precise' ? '#166534' : '#6b7280',
                     cursor: 'pointer',
-                    transition: 'all 0.15s'
+                    transition: 'all 0.15s',
                   }}
                 >
                   Precise
@@ -1110,7 +872,7 @@ export default function Discovery() {
                     background: locationPrecision === 'approximate' ? '#fef3c7' : 'transparent',
                     color: locationPrecision === 'approximate' ? '#92400e' : '#6b7280',
                     cursor: 'pointer',
-                    transition: 'all 0.15s'
+                    transition: 'all 0.15s',
                   }}
                 >
                   Approx
@@ -1119,20 +881,22 @@ export default function Discovery() {
             </div>
           </div>
 
-          {/* Refine - Collapsible (DEV tools only) */}
+          {/* Dev Tools */}
           {import.meta.env.DEV && (
             <details style={{ marginTop: 12 }}>
-              <summary style={{ 
-                fontSize: 12, 
-                fontWeight: 600, 
-                color: '#6b7280',
-                cursor: 'pointer',
-                padding: '6px 0',
-                listStyle: 'none',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6
-              }}>
+              <summary
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: '#6b7280',
+                  cursor: 'pointer',
+                  padding: '6px 0',
+                  listStyle: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
                 <span style={{ fontSize: 10 }}>▶</span>
                 Dev Tools
               </summary>
@@ -1159,6 +923,7 @@ export default function Discovery() {
                     <Home size={10} />
                     {creatingHousehold ? 'Creating...' : 'Create Dev Household'}
                   </button>
+
                   <button
                     onClick={handleSeedHouseholds}
                     disabled={seeding}
@@ -1181,196 +946,242 @@ export default function Discovery() {
                     {seeding ? 'Seeding...' : 'Seed Households'}
                   </button>
                 </div>
+
                 {(householdCreationMessage || seedMessage) && (
-                  <div style={{
-                    marginTop: 6,
-                    fontSize: 10,
-                    color: (householdCreationMessage?.type || seedMessage?.type) === 'success' ? '#10b981' : '#ef4444',
-                    fontWeight: 500,
-                  }}>
+                  <div
+                    style={{
+                      marginTop: 6,
+                      fontSize: 10,
+                      color: (householdCreationMessage?.type || seedMessage?.type) === 'success' ? '#10b981' : '#ef4444',
+                      fontWeight: 500,
+                    }}
+                  >
                     {householdCreationMessage?.text || seedMessage?.text}
                   </div>
                 )}
               </div>
             </details>
           )}
-        </div>
-      </div>
 
-      {/* Content */}
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '12px 16px 24px' }}>
-
+        {/* Content */}
         {loading && (
-          <div style={{ textAlign: 'center', padding: 64, color: '#6b7280' }}>
-            Loading nearby households...
-          </div>
-        )}
+            <div style={{ textAlign: 'center', padding: 64, color: '#6b7280' }}>
+              Loading nearby households...
+            </div>
+          )}
 
-        {error && (
-          <div style={{ 
-            textAlign: 'center', 
-            padding: 32,
-            background: '#fef2f2',
-            borderRadius: 12,
-            color: '#991b1b',
-            fontWeight: 500
-          }}>
-            {error}
-          </div>
-        )}
-
-        {/* Growth Banner - Show when filtered results are sparse (1-4) */}
-        {!loading && !error && !growthMessageDismissed && 
-         filteredHouseholds.length >= 1 && filteredHouseholds.length <= 4 && 
-         activeTab === 'nearby' && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            style={{
-              background: '#f9fafb',
-              border: '1px solid #e5e7eb',
-              borderRadius: 8,
-              padding: '8px 32px 8px 10px',
-              marginBottom: 12,
-              textAlign: 'left',
-              position: 'relative',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8
-            }}
-          >
-            {/* Close button */}
-            <button
-              onClick={() => setGrowthMessageDismissed(true)}
+          {error && (
+            <div
               style={{
-                position: 'absolute',
-                top: 6,
-                right: 6,
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                padding: 4,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: 4,
-                color: '#6b7280',
-                opacity: 0.5,
-                transition: 'opacity 0.2s'
+                textAlign: 'center',
+                padding: 32,
+                background: '#fef2f2',
+                borderRadius: 12,
+                color: '#991b1b',
+                fontWeight: 500,
               }}
-              onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-              onMouseLeave={(e) => e.currentTarget.style.opacity = '0.5'}
-              aria-label="Dismiss message"
             >
-              <X size={14} />
-            </button>
-            
-            <div style={{ fontSize: 20, flexShrink: 0 }}>🌱</div>
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#111827', marginBottom: 1 }}>
-                  Your neighborhood is growing!
-                </div>
-                <div style={{ fontSize: 11, color: '#6b7280', lineHeight: 1.3 }}>
-                  Invite friends nearby to build your community faster.
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  // TODO: Add invite flow
-                  alert('Invite feature coming soon! Share GatherGrove with your neighbors.');
-                }}
+              {error}
+            </div>
+          )}
+
+          {/* Growth Banner */}
+          {!loading &&
+            !error &&
+            !growthMessageDismissed &&
+            filteredHouseholds.length >= 1 &&
+            filteredHouseholds.length <= 4 &&
+            activeTab === 'nearby' && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
                 style={{
-                  padding: '5px 10px',
-                  borderRadius: 6,
-                  border: '1.5px solid #10b981',
-                  background: 'transparent',
-                  color: '#10b981',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
+                  background: '#f9fafb',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: 8,
+                  padding: '8px 32px 8px 10px',
+                  marginBottom: 12,
+                  textAlign: 'left',
+                  position: 'relative',
+                  display: 'flex',
                   alignItems: 'center',
-                  gap: 4,
-                  whiteSpace: 'nowrap',
-                  flexShrink: 0,
-                  transition: 'all 0.2s'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = '#f0fdf4';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent';
+                  gap: 8,
                 }}
               >
-                <UserPlus size={11} />
-                Invite
-              </button>
-            </div>
-          </motion.div>
-        )}
-
-
-        {/* Empty State - TWO STATES: True Empty vs Filtered Empty */}
-        {!loading && !error && filteredHouseholds.length === 0 && (() => {
-          const hasFiltersActive = selectedTypes.size > 0 || locationPrecision !== 'all';
-          // Check against the unfiltered list for the current tab to determine true vs filtered empty
-          const unfilteredCount = activeTab === 'connected' ? connectedHouseholds.length : nearbyHouseholds.length;
-          const isFilteredEmpty = hasFiltersActive && unfilteredCount > 0;
-
-          if (activeTab === 'connected') {
-            // Connected tab empty state (unchanged)
-            return (
-              <div style={{ textAlign: 'center', padding: 64 }}>
-                <div style={{ fontSize: 48, marginBottom: 16 }}>👋</div>
-                <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: '#111827' }}>
-                  No connections yet
-                </h3>
-                <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 16, lineHeight: 1.6 }}>
-                  Connect with neighbors from the Nearby tab to start messaging and coordinating events
-                </p>
                 <button
-                  onClick={() => setActiveTab('nearby')}
+                  onClick={() => setGrowthMessageDismissed(true)}
                   style={{
-                    padding: '10px 20px',
-                    borderRadius: 10,
-                    border: '2px solid #10b981',
-                    background: '#10b981',
-                    color: '#ffffff',
-                    fontSize: 14,
-                    fontWeight: 600,
+                    position: 'absolute',
+                    top: 6,
+                    right: 6,
+                    background: 'transparent',
+                    border: 'none',
                     cursor: 'pointer',
-                    display: 'inline-flex',
+                    padding: 4,
+                    display: 'flex',
                     alignItems: 'center',
-                    gap: 6
+                    justifyContent: 'center',
+                    borderRadius: 4,
+                    color: '#6b7280',
+                    opacity: 0.5,
+                    transition: 'opacity 0.2s',
                   }}
+                  onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+                  onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.5')}
+                  aria-label="Dismiss message"
                 >
-                  Browse Nearby Neighbors
+                  <X size={14} />
                 </button>
-              </div>
-            );
-          }
 
-          if (isFilteredEmpty) {
-            // FILTERED EMPTY: User has households, but none match filters
-            return (
-              <div style={{ textAlign: 'center', padding: 64 }}>
-                <div style={{ fontSize: 48, marginBottom: 16 }}>🔍</div>
-                <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: '#111827' }}>
-                  No neighbors match your filters
-                </h3>
-                <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 16, lineHeight: 1.6 }}>
-                  Try adjusting your filters or invite more neighbors to grow your community.
-                </p>
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center' }}>
+                <div style={{ fontSize: 20, flexShrink: 0 }}>🌱</div>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#111827', marginBottom: 1 }}>
+                      Your neighborhood is growing!
+                    </div>
+                    <div style={{ fontSize: 11, color: '#6b7280', lineHeight: 1.3 }}>
+                      Invite friends nearby to build your community faster.
+                    </div>
+                  </div>
                   <button
-                    onClick={() => {
-                      setSelectedTypes(new Set());
-                      setLocationPrecision('all');
-                      setAgeMin(0);
-                      setAgeMax(18);
+                    onClick={() => alert('Invite feature coming soon! Share GatherGrove with your neighbors.')}
+                    style={{
+                      padding: '5px 10px',
+                      borderRadius: 6,
+                      border: '1.5px solid #10b981',
+                      background: 'transparent',
+                      color: '#10b981',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                      transition: 'all 0.2s',
                     }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#f0fdf4')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <UserPlus size={11} />
+                    Invite
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+          {/* Empty state(s) */}
+          {!loading &&
+            !error &&
+            filteredHouseholds.length === 0 &&
+            (() => {
+              const hasFiltersActive = selectedTypes.size > 0 || locationPrecision !== 'all';
+              const unfilteredCount = activeTab === 'connected' ? connectedHouseholds.length : nearbyHouseholds.length;
+              const isFilteredEmpty = hasFiltersActive && unfilteredCount > 0;
+
+              if (activeTab === 'connected') {
+                return (
+                  <div style={{ textAlign: 'center', padding: 64 }}>
+                    <div style={{ fontSize: 48, marginBottom: 16 }}>👋</div>
+                    <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: '#111827' }}>
+                      No connections yet
+                    </h3>
+                    <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 16, lineHeight: 1.6 }}>
+                      Connect with neighbors from the Nearby tab to start messaging and coordinating events
+                    </p>
+                    <button
+                      onClick={() => setActiveTab('nearby')}
+                      style={{
+                        padding: '10px 20px',
+                        borderRadius: 10,
+                        border: '2px solid #10b981',
+                        background: '#10b981',
+                        color: '#ffffff',
+                        fontSize: 14,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                      }}
+                    >
+                      Browse Nearby Neighbors
+                    </button>
+                  </div>
+                );
+              }
+
+              if (isFilteredEmpty) {
+                return (
+                  <div style={{ textAlign: 'center', padding: 64 }}>
+                    <div style={{ fontSize: 48, marginBottom: 16 }}>🔍</div>
+                    <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: '#111827' }}>
+                      No neighbors match your filters
+                    </h3>
+                    <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 16, lineHeight: 1.6 }}>
+                      Try adjusting your filters or invite more neighbors to grow your community.
+                    </p>
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center' }}>
+                      <button
+                        onClick={() => {
+                          setSelectedTypes(new Set());
+                          setLocationPrecision('all');
+                          setAgeMin(0);
+                          setAgeMax(18);
+                        }}
+                        style={{
+                          padding: '10px 20px',
+                          borderRadius: 10,
+                          border: '2px solid #10b981',
+                          background: '#10b981',
+                          color: '#ffffff',
+                          fontSize: 14,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                        }}
+                      >
+                        Clear Filters
+                      </button>
+                      <button
+                        onClick={() => alert('Invite feature coming soon! Share GatherGrove with your neighbors.')}
+                        style={{
+                          padding: '10px 20px',
+                          borderRadius: 10,
+                          border: '2px solid #e5e7eb',
+                          background: '#ffffff',
+                          color: '#6b7280',
+                          fontSize: 14,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                        }}
+                      >
+                        <UserPlus size={16} />
+                        Invite Neighbors
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <div style={{ textAlign: 'center', padding: 64 }}>
+                  <div style={{ fontSize: 48, marginBottom: 16 }}>🌱</div>
+                  <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: '#111827' }}>
+                    Still building your neighborhood
+                  </h3>
+                  <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 16, lineHeight: 1.6 }}>
+                    Be the first! Invite neighbors to join GatherGrove and start building your community.
+                  </p>
+                  <button
+                    onClick={() => alert('Invite feature coming soon! Share GatherGrove with your neighbors.')}
                     style={{
                       padding: '10px 20px',
                       borderRadius: 10,
@@ -1382,802 +1193,698 @@ export default function Discovery() {
                       cursor: 'pointer',
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: 6
-                    }}
-                  >
-                    Clear Filters
-                  </button>
-                  <button
-                    onClick={() => {
-                      alert('Invite feature coming soon! Share GatherGrove with your neighbors.');
-                    }}
-                    style={{
-                      padding: '10px 20px',
-                      borderRadius: 10,
-                      border: '2px solid #e5e7eb',
-                      background: '#ffffff',
-                      color: '#6b7280',
-                      fontSize: 14,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 6
+                      gap: 6,
                     }}
                   >
                     <UserPlus size={16} />
                     Invite Neighbors
                   </button>
-                </div>
-              </div>
-            );
-          }
 
-          // TRUE EMPTY: No households at all
-          return (
-            <div style={{ textAlign: 'center', padding: 64 }}>
-              <div style={{ fontSize: 48, marginBottom: 16 }}>🌱</div>
-              <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: '#111827' }}>
-                Still building your neighborhood
-              </h3>
-              <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 16, lineHeight: 1.6 }}>
-                Be the first! Invite neighbors to join GatherGrove and start building your community.
-              </p>
-              <button
-                onClick={() => {
-                  alert('Invite feature coming soon! Share GatherGrove with your neighbors.');
-                }}
-                style={{
-                  padding: '10px 20px',
-                  borderRadius: 10,
-                  border: '2px solid #10b981',
-                  background: '#10b981',
-                  color: '#ffffff',
-                  fontSize: 14,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6
-                }}
-              >
-                <UserPlus size={16} />
-                Invite Neighbors
-              </button>
-
-              {/* Dev-only seed button */}
-              {import.meta.env.DEV && (
-                <div style={{ marginTop: 24 }}>
-                  <button
-                    onClick={handleSeedHouseholds}
-                    disabled={seeding}
-                    style={{
-                      padding: '8px 16px',
-                      borderRadius: 8,
-                      border: '2px solid #6366f1',
-                      background: seeding ? '#e0e7ff' : '#6366f1',
-                      color: seeding ? '#6366f1' : '#ffffff',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: seeding ? 'not-allowed' : 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      opacity: seeding ? 0.6 : 1,
-                    }}
-                  >
-                    <Sparkles size={14} />
-                    {seeding ? 'Seeding...' : 'Seed Demo Households'}
-                  </button>
-                  {seedMessage && (
-                    <div style={{
-                      marginTop: 8,
-                      fontSize: 12,
-                      color: seedMessage.type === 'success' ? '#10b981' : '#ef4444',
-                      fontWeight: 500,
-                    }}>
-                      {seedMessage.text}
+                  {import.meta.env.DEV && (
+                    <div style={{ marginTop: 24 }}>
+                      <button
+                        onClick={handleSeedHouseholds}
+                        disabled={seeding}
+                        style={{
+                          padding: '8px 16px',
+                          borderRadius: 8,
+                          border: '2px solid #6366f1',
+                          background: seeding ? '#e0e7ff' : '#6366f1',
+                          color: seeding ? '#6366f1' : '#ffffff',
+                          fontSize: 13,
+                          fontWeight: 600,
+                          cursor: seeding ? 'not-allowed' : 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          opacity: seeding ? 0.6 : 1,
+                        }}
+                      >
+                        <Sparkles size={14} />
+                        {seeding ? 'Seeding...' : 'Seed Demo Households'}
+                      </button>
+                      {seedMessage && (
+                        <div
+                          style={{
+                            marginTop: 8,
+                            fontSize: 12,
+                            color: seedMessage.type === 'success' ? '#10b981' : '#ef4444',
+                            fontWeight: 500,
+                          }}
+                        >
+                          {seedMessage.text}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-              )}
-            </div>
-          );
-        })()}
+              );
+            })()}
 
-        {/* Household Cards */}
-        <div style={{ display: 'grid', gap: 10 }}>
-          {filteredHouseholds.map((household) => {
-            const kidsAges = getKidsAges(household);
-            const householdName = getHouseholdName(household);
-            const connected = isConnected(household.id);
-            const pending = isPending(household.id);
-            
-            return (
-              <motion.div
-                key={household.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                style={{
-                  background: '#ffffff',
-                  borderRadius: 12,
-                  padding: 12,
-                  border: '2px solid #e5e7eb',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-                whileHover={{ 
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
-                  borderColor: '#10b981'
-                }}
-              >
-                {/* Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 10 }}>
-                  <div style={{ flex: 1 }}>
-                    <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, color: '#111827' }}>
-                      {householdName}
-                    </h3>
-                    
-                    {/* Distance */}
-                    {getDistanceText(household) && (
-                      <div style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: 4, 
-                        marginBottom: 6
-                      }}>
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 3,
-                          padding: '2px 6px',
-                          borderRadius: 5,
-                          background: household.location_precision === 'zipcode' ? '#fef3c7' : '#dcfce7',
-                          border: household.location_precision === 'zipcode' ? '1px solid #fbbf24' : '1px solid #86efac',
-                          fontSize: 11,
-                          fontWeight: 600,
-                          color: household.location_precision === 'zipcode' ? '#92400e' : '#166534'
-                        }}>
-                          <MapPin size={11} />
-                          {getDistanceText(household)}
-                        </div>
-                      </div>
-                    )}
-                    
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      {/* Household Type Badge */}
-                      <div
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          padding: '3px 8px',
-                          borderRadius: 6,
-                          background: getHouseholdTypeColor(household.householdType) + '15',
-                          color: getHouseholdTypeColor(household.householdType),
-                          fontSize: 12,
-                          fontWeight: 600
-                        }}
-                      >
-                        {getHouseholdTypeIcon(household.householdType)}
-                        {getHouseholdTypeLabel(household.householdType)}
-                      </div>
-                      
-                      {/* Neighborhood */}
-                      {household.neighborhood && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 3, color: '#6b7280', fontSize: 12 }}>
-                          <MapPin size={12} />
-                          {household.neighborhood}
-                        </div>
-                      )}
+          {/* Household Cards */}
+          <div style={{ display: 'grid', gap: 10 }}>
+            {filteredHouseholds.map((household) => {
+              const kidsAges = getKidsAges(household);
+              const householdName = getHouseholdName(household);
+              const connected = isConnected(household.id);
+              const pending = isPending(household.id);
 
-                      {/* Connected Badge (only show in Nearby tab) */}
-                      {activeTab === 'nearby' && connected && (
-                        <div style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 3,
-                          padding: '3px 8px',
-                          borderRadius: 6,
-                          background: '#f0fdf4',
-                          border: '1px solid #d1fae5',
-                          fontSize: 11,
-                          fontWeight: 600,
-                          color: '#047857'
-                        }}>
-                          <UserPlus size={11} />
-                          Connected
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
+              return (
+                <motion.div
+                  key={household.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  style={{
+                    background: '#ffffff',
+                    borderRadius: 12,
+                    padding: 12,
+                    border: '2px solid #e5e7eb',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                  whileHover={{
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
+                    borderColor: '#10b981',
+                  }}
+                >
+                  {/* Header */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 10 }}>
+                    <div style={{ flex: 1 }}>
+                      <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, color: '#111827' }}>
+                        {householdName}
+                      </h3>
 
-                {/* Adults */}
-                {household.adultNames && household.adultNames.length > 0 && (
-                  <div style={{ marginBottom: 8 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 3 }}>
-                      Adults:
-                    </div>
-                    <div style={{ fontSize: 13, color: '#374151' }}>
-                      {household.adultNames.join(', ')}
-                    </div>
-                  </div>
-                )}
-
-                {/* Kids */}
-                {kidsAges.length > 0 && (
-                  <div style={{ marginBottom: 10 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 3 }}>
-                      Kids:
-                    </div>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      {kidsAges.map((age, idx) => {
-                        const isMatch = isAgeInFilterRange(age);
-                        return (
+                      {getDistanceText(household) && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
                           <div
-                            key={idx}
                             style={{
-                              padding: '3px 8px',
-                              borderRadius: 6,
-                              background: isMatch ? '#10b981' : '#f0fdf4',
-                              border: isMatch ? '2px solid #059669' : '1px solid #d1fae5',
-                              fontSize: 12,
-                              fontWeight: isMatch ? 700 : 600,
-                              color: isMatch ? '#ffffff' : '#047857',
-                              boxShadow: isMatch ? '0 2px 8px rgba(16, 185, 129, 0.3)' : 'none',
-                              transform: isMatch ? 'scale(1.05)' : 'scale(1)',
-                              transition: 'all 0.2s'
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 3,
+                              padding: '2px 6px',
+                              borderRadius: 5,
+                              background: household.location_precision === 'zipcode' ? '#fef3c7' : '#dcfce7',
+                              border: household.location_precision === 'zipcode' ? '1px solid #fbbf24' : '1px solid #86efac',
+                              fontSize: 11,
+                              fontWeight: 600,
+                              color: household.location_precision === 'zipcode' ? '#92400e' : '#166534',
                             }}
                           >
-                            {age} {age === 1 ? 'year' : 'years'}
+                            <MapPin size={11} />
+                            {getDistanceText(household)}
                           </div>
-                        );
-                      })}
+                        </div>
+                      )}
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <div
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            padding: '3px 8px',
+                            borderRadius: 6,
+                            background: getHouseholdTypeColor(household.householdType) + '15',
+                            color: getHouseholdTypeColor(household.householdType),
+                            fontSize: 12,
+                            fontWeight: 600,
+                          }}
+                        >
+                          {getHouseholdTypeIcon(household.householdType)}
+                          {getHouseholdTypeLabel(household.householdType)}
+                        </div>
+
+                        {household.neighborhood && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 3, color: '#6b7280', fontSize: 12 }}>
+                            <MapPin size={12} />
+                            {household.neighborhood}
+                          </div>
+                        )}
+
+                        {activeTab === 'nearby' && connected && (
+                          <div
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 3,
+                              padding: '3px 8px',
+                              borderRadius: 6,
+                              background: '#f0fdf4',
+                              border: '1px solid #d1fae5',
+                              fontSize: 11,
+                              fontWeight: 600,
+                              color: '#047857',
+                            }}
+                          >
+                            <UserPlus size={11} />
+                            Connected
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                )}
 
-                {/* Action Buttons */}
-                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                  {/* Invite to Event with dropdown */}
-                  <div style={{ flex: 1, position: 'relative' }} data-dropdown="invite-event">
-                    <button
-                      onClick={(e) => handleInviteToEvent(household, e)}
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        borderRadius: 8,
-                        border: '2px solid #e5e7eb',
-                        background: '#ffffff',
-                        color: '#6b7280',
-                        fontSize: 13,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 4,
-                        transition: 'all 0.2s'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = '#d1d5db';
-                        e.currentTarget.style.background = '#f9fafb';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = '#e5e7eb';
-                        e.currentTarget.style.background = '#ffffff';
-                      }}
-                    >
-                      <Calendar size={14} />
-                      Invite to Event
-                      <motion.div
-                        animate={{ rotate: inviteDropdownOpen === household.id ? 180 : 0 }}
-                        transition={{ duration: 0.2 }}
-                        style={{ display: 'flex', marginLeft: 2 }}
-                      >
-                        ▼
-                      </motion.div>
-                    </button>
+                  {/* Adults */}
+                  {household.adultNames && household.adultNames.length > 0 && (
+                    <div style={{ marginBottom: 8 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 3 }}>
+                        Adults:
+                      </div>
+                      <div style={{ fontSize: 13, color: '#374151' }}>{household.adultNames.join(', ')}</div>
+                    </div>
+                  )}
 
-                    {/* Dropdown menu */}
-                    {inviteDropdownOpen === household.id && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
+                  {/* Kids */}
+                  {kidsAges.length > 0 && (
+                    <div style={{ marginBottom: 10 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 3 }}>
+                        Kids:
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {kidsAges.map((age, idx) => {
+                          const isMatch = isAgeInFilterRange(age);
+                          return (
+                            <div
+                              key={idx}
+                              style={{
+                                padding: '3px 8px',
+                                borderRadius: 6,
+                                background: isMatch ? '#10b981' : '#f0fdf4',
+                                border: isMatch ? '2px solid #059669' : '1px solid #d1fae5',
+                                fontSize: 12,
+                                fontWeight: isMatch ? 700 : 600,
+                                color: isMatch ? '#ffffff' : '#047857',
+                                boxShadow: isMatch ? '0 2px 8px rgba(16, 185, 129, 0.3)' : 'none',
+                                transform: isMatch ? 'scale(1.05)' : 'scale(1)',
+                                transition: 'all 0.2s',
+                              }}
+                            >
+                              {age} {age === 1 ? 'year' : 'years'}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                    {/* Invite to Event */}
+                    <div style={{ flex: 1, position: 'relative' }} data-dropdown="invite-event">
+                      <button
+                        onClick={(e) => handleInviteToEvent(household, e)}
                         style={{
-                          position: 'absolute',
-                          top: '100%',
-                          left: 0,
-                          right: 0,
-                          marginTop: 8,
-                          background: '#ffffff',
-                          borderRadius: 12,
-                          boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                          width: '100%',
+                          padding: '8px 12px',
+                          borderRadius: 8,
                           border: '2px solid #e5e7eb',
-                          overflow: 'hidden',
-                          zIndex: 1000
+                          background: '#ffffff',
+                          color: '#6b7280',
+                          fontSize: 13,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 4,
+                          transition: 'all 0.2s',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.borderColor = '#d1d5db';
+                          e.currentTarget.style.background = '#f9fafb';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.borderColor = '#e5e7eb';
+                          e.currentTarget.style.background = '#ffffff';
                         }}
                       >
-                        <div
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleInviteToEventType(household, 'now');
-                          }}
-                          style={{
-                            padding: '12px 16px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 12,
-                            transition: 'background 0.2s',
-                            background: 'transparent'
-                          }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
-                          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                        <Calendar size={14} />
+                        Invite to Event
+                        <motion.div
+                          animate={{ rotate: inviteDropdownOpen === household.id ? 180 : 0 }}
+                          transition={{ duration: 0.2 }}
+                          style={{ display: 'flex', marginLeft: 2 }}
                         >
-                          <div style={{
-                            width: 36,
-                            height: 36,
-                            borderRadius: 10,
-                            background: '#fef3c7',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: 18
-                          }}>
-                            ⚡
-                          </div>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontWeight: 600, fontSize: 14, color: '#111827', marginBottom: 2 }}>
-                              Happening Now
-                            </div>
-                            <div style={{ fontSize: 12, color: '#6b7280' }}>
-                              Quick spontaneous gathering
-                            </div>
-                          </div>
-                        </div>
-                        <div style={{ height: 1, background: '#e5e7eb' }} />
-                        <div
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleInviteToEventType(household, 'future');
-                          }}
+                          ▼
+                        </motion.div>
+                      </button>
+
+                      {inviteDropdownOpen === household.id && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
                           style={{
-                            padding: '12px 16px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 12,
-                            transition: 'background 0.2s',
-                            background: 'transparent'
+                            position: 'absolute',
+                            top: '100%',
+                            left: 0,
+                            right: 0,
+                            marginTop: 8,
+                            background: '#ffffff',
+                            borderRadius: 12,
+                            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                            border: '2px solid #e5e7eb',
+                            overflow: 'hidden',
+                            zIndex: 1000,
                           }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
-                          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                         >
-                          <div style={{
-                            width: 36,
-                            height: 36,
-                            borderRadius: 10,
-                            background: '#dbeafe',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: 18
-                          }}>
-                            📅
-                          </div>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontWeight: 600, fontSize: 14, color: '#111827', marginBottom: 2 }}>
-                              Future Event
+                          <div
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleInviteToEventType(household, 'now');
+                            }}
+                            style={{
+                              padding: '12px 16px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 12,
+                              transition: 'background 0.2s',
+                              background: 'transparent',
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = '#f3f4f6')}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                          >
+                            <div
+                              style={{
+                                width: 36,
+                                height: 36,
+                                borderRadius: 10,
+                                background: '#fef3c7',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: 18,
+                              }}
+                            >
+                              ⚡
                             </div>
-                            <div style={{ fontSize: 12, color: '#6b7280' }}>
-                              Schedule for later
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontWeight: 600, fontSize: 14, color: '#111827', marginBottom: 2 }}>
+                                Happening Now
+                              </div>
+                              <div style={{ fontSize: 12, color: '#6b7280' }}>Quick spontaneous gathering</div>
                             </div>
                           </div>
-                        </div>
-                      </motion.div>
+
+                          <div style={{ height: 1, background: '#e5e7eb' }} />
+
+                          <div
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleInviteToEventType(household, 'future');
+                            }}
+                            style={{
+                              padding: '12px 16px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 12,
+                              transition: 'background 0.2s',
+                              background: 'transparent',
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = '#f3f4f6')}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                          >
+                            <div
+                              style={{
+                                width: 36,
+                                height: 36,
+                                borderRadius: 10,
+                                background: '#dbeafe',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: 18,
+                              }}
+                            >
+                              📅
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontWeight: 600, fontSize: 14, color: '#111827', marginBottom: 2 }}>
+                                Future Event
+                              </div>
+                              <div style={{ fontSize: 12, color: '#6b7280' }}>Schedule for later</div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </div>
+
+                    {/* Message / Pending / Connect */}
+                    {connected ? (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleMessage(household);
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: '8px 12px',
+                          borderRadius: 8,
+                          border: '2px solid #3b82f6',
+                          background: '#3b82f6',
+                          color: '#ffffff',
+                          fontSize: 13,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 4,
+                        }}
+                      >
+                        <MessageCircle size={14} />
+                        Message
+                      </button>
+                    ) : pending ? (
+                      <button
+                        disabled
+                        style={{
+                          flex: 1,
+                          padding: '8px 12px',
+                          borderRadius: 8,
+                          border: '2px solid #fbbf24',
+                          background: '#fef3c7',
+                          color: '#92400e',
+                          fontSize: 13,
+                          fontWeight: 600,
+                          cursor: 'not-allowed',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 4,
+                          opacity: 0.9,
+                        }}
+                      >
+                        <Clock size={14} />
+                        Pending
+                      </button>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleConnect(household);
+                        }}
+                        disabled={isConnecting(household.id)}
+                        style={{
+                          flex: 1,
+                          padding: '8px 12px',
+                          borderRadius: 8,
+                          border: '2px solid #3b82f6',
+                          background: '#ffffff',
+                          color: '#3b82f6',
+                          fontSize: 13,
+                          fontWeight: 600,
+                          cursor: isConnecting(household.id) ? 'not-allowed' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 4,
+                          opacity: isConnecting(household.id) ? 0.6 : 1,
+                        }}
+                      >
+                        <UserPlus size={14} />
+                        {isConnecting(household.id) ? 'Connecting...' : 'Connect'}
+                      </button>
                     )}
                   </div>
 
-                  {/* Show Message if connected, Pending if pending, Connect if neither */}
-                  {connected ? (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleMessage(household);
-                      }}
+                  {/* Connection Error */}
+                  {household.id && connectionErrors.has(household.id) && (
+                    <div
                       style={{
-                        flex: 1,
-                        padding: '8px 12px',
-                        borderRadius: 8,
-                        border: '2px solid #3b82f6',
-                        background: '#3b82f6',
-                        color: '#ffffff',
-                        fontSize: 13,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 4
+                        marginTop: 8,
+                        padding: '6px 10px',
+                        borderRadius: 6,
+                        background: '#fef2f2',
+                        border: '1px solid #fecaca',
+                        fontSize: 11,
+                        color: '#dc2626',
+                        fontWeight: 500,
+                        lineHeight: 1.4,
                       }}
                     >
-                      <MessageCircle size={14} />
-                      Message
-                    </button>
-                  ) : pending ? (
-                    <button
-                      disabled
-                      style={{
-                        flex: 1,
-                        padding: '8px 12px',
-                        borderRadius: 8,
-                        border: '2px solid #fbbf24',
-                        background: '#fef3c7',
-                        color: '#92400e',
-                        fontSize: 13,
-                        fontWeight: 600,
-                        cursor: 'not-allowed',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 4,
-                        opacity: 0.9
-                      }}
-                    >
-                      <Clock size={14} />
-                      Pending
-                    </button>
-                  ) : (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleConnect(household);
-                      }}
-                      disabled={isConnecting(household.id)}
-                      style={{
-                        flex: 1,
-                        padding: '8px 12px',
-                        borderRadius: 8,
-                        border: '2px solid #3b82f6',
-                        background: '#ffffff',
-                        color: '#3b82f6',
-                        fontSize: 13,
-                        fontWeight: 600,
-                        cursor: isConnecting(household.id) ? 'not-allowed' : 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 4,
-                        opacity: isConnecting(household.id) ? 0.6 : 1
-                      }}
-                    >
-                      <UserPlus size={14} />
-                      {isConnecting(household.id) ? 'Connecting...' : 'Connect'}
-                    </button>
+                      {connectionErrors.get(household.id)}
+                    </div>
                   )}
-                </div>
+                </motion.div>
+              );
+            })}
+          </div>
 
-                {/* Connection Error Message */}
-                {household.id && connectionErrors.has(household.id) && (
-                  <div style={{
-                    marginTop: 8,
-                    padding: '6px 10px',
-                    borderRadius: 6,
-                    background: '#fef2f2',
-                    border: '1px solid #fecaca',
-                    fontSize: 11,
-                    color: '#dc2626',
-                    fontWeight: 500,
-                    lineHeight: 1.4,
-                  }}>
-                    {connectionErrors.get(household.id)}
-                  </div>
-                )}
-              </motion.div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Fixed Create Event Action Button */}
-      <div style={{ position: 'relative' }} data-dropdown="create-event">
-        <button
-          onClick={() => setShowCreateDropdown(!showCreateDropdown)}
-          style={{
-            position: 'fixed',
-            bottom: 100,
-            right: 20,
-            width: 52,
-            height: 52,
-            padding: 0,
-            borderRadius: 9999,
-            border: 'none',
-            background: '#10b981',
-            color: '#ffffff',
-            fontSize: 26,
-            fontWeight: 500,
-            cursor: 'pointer',
-            boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            transition: 'all 0.2s',
-            zIndex: 50
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'scale(1.05)';
-            e.currentTarget.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.3)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'scale(1)';
-            e.currentTarget.style.boxShadow = '0 2px 8px rgba(16, 185, 129, 0.25)';
-          }}
-        >
-          +
-        </button>
-
-        {/* Dropdown Menu */}
-        {showCreateDropdown && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 10 }}
-            transition={{ duration: 0.15 }}
+        {/* Fixed Create Event Action Button */}
+        <div style={{ position: 'relative' }} data-dropdown="create-event">
+          <button
+            onClick={() => setShowCreateDropdown(!showCreateDropdown)}
             style={{
               position: 'fixed',
-              bottom: 162,
+              bottom: 100,
               right: 20,
-              background: '#ffffff',
-              border: '1px solid #e5e7eb',
-              borderRadius: 12,
-              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
-              minWidth: 240,
-              zIndex: 1000,
-              overflow: 'hidden'
+              width: 52,
+              height: 52,
+              padding: 0,
+              borderRadius: 9999,
+              border: 'none',
+              background: '#10b981',
+              color: '#ffffff',
+              fontSize: 26,
+              fontWeight: 500,
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.2s',
+              zIndex: 50,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'scale(1.05)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.3)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'scale(1)';
+              e.currentTarget.style.boxShadow = '0 2px 8px rgba(16, 185, 129, 0.25)';
             }}
           >
-            {/* Happening Now Option */}
-            <button
-              onClick={() => {
-                setShowCreateDropdown(false);
-                
-                // ✅ Pass the exact visible household IDs from Discovery's filtered list
-                const visibleHouseholdIds = filteredHouseholds.map(h => h.id).filter(Boolean) as string[];
-                
-                // DEV: Invariant check - ensure consistency
-                if (import.meta.env.DEV) {
-                  console.log('[Discovery→Compose] visibleHouseholds on screen:', filteredHouseholds.length);
-                  console.log('[Discovery→Compose] Passing household IDs:', visibleHouseholdIds.length);
-                  if (filteredHouseholds.length !== visibleHouseholdIds.length) {
-                    console.error('❌ MISMATCH: visible households != passed IDs');
-                  }
-                }
-                
-                // Build inviteContext with Discovery's exact filtered list
-                const inviteContext = {
-                  clickedHouseholdId: '',
-                  clickedHouseholdName: '',
-                  visibleHouseholdIds,
-                  filterContext: {
-                    types: Array.from(selectedTypes),
-                    ageRange: selectedTypes.has("Family w/ Kids") ? { min: ageMin, max: ageMax } : null,
-                    hasFilters: selectedTypes.size > 0 || locationPrecision !== 'all'
-                  }
-                };
-                
-                navigate('/compose/happening', { state: { inviteContext } });
-              }}
+            +
+          </button>
+
+          {showCreateDropdown && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 10 }}
+              transition={{ duration: 0.15 }}
               style={{
-                width: '100%',
-                padding: '14px 16px',
-                border: 'none',
-                background: 'transparent',
-                textAlign: 'left',
-                cursor: 'pointer',
-                transition: 'background 0.15s',
-                borderBottom: '1px solid #f3f4f6'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#f0fdf4';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
+                position: 'fixed',
+                bottom: 162,
+                right: 20,
+                background: '#ffffff',
+                border: '1px solid #e5e7eb',
+                borderRadius: 12,
+                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+                minWidth: 240,
+                zIndex: 1000,
+                overflow: 'hidden',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 8,
-                  background: '#fef3c7',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 18
-                }}>
-                  ⚡
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 2 }}>
-                    Happening Now
-                  </div>
-                  <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.3 }}>
-                    Quick spontaneous gathering
-                  </div>
-                </div>
-              </div>
-            </button>
-
-            {/* Future Event Option */}
-            <button
-              onClick={() => {
-                setShowCreateDropdown(false);
-                
-                // ✅ Pass the exact visible household IDs from Discovery's filtered list
-                const visibleHouseholdIds = filteredHouseholds.map(h => h.id).filter(Boolean) as string[];
-                
-                // DEV: Invariant check - ensure consistency
-                if (import.meta.env.DEV) {
-                  console.log('[Discovery→Compose] visibleHouseholds on screen:', filteredHouseholds.length);
-                  console.log('[Discovery→Compose] Passing household IDs:', visibleHouseholdIds.length);
-                  if (filteredHouseholds.length !== visibleHouseholdIds.length) {
-                    console.error('❌ MISMATCH: visible households != passed IDs');
-                  }
-                }
-                
-                // Build inviteContext with Discovery's exact filtered list
-                const inviteContext = {
-                  clickedHouseholdId: '',
-                  clickedHouseholdName: '',
-                  visibleHouseholdIds,
-                  filterContext: {
-                    types: Array.from(selectedTypes),
-                    ageRange: selectedTypes.has("Family w/ Kids") ? { min: ageMin, max: ageMax } : null,
-                    hasFilters: selectedTypes.size > 0 || locationPrecision !== 'all'
-                  }
-                };
-                
-                navigate('/compose/event', { state: { inviteContext } });
-              }}
-              style={{
-                width: '100%',
-                padding: '14px 16px',
-                border: 'none',
-                background: 'transparent',
-                textAlign: 'left',
-                cursor: 'pointer',
-                transition: 'background 0.15s'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#eff6ff';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 8,
-                  background: '#dbeafe',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 18
-                }}>
-                  📅
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 2 }}>
-                    Future Event
-                  </div>
-                  <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.3 }}>
-                    Schedule for later
-                  </div>
-                </div>
-              </div>
-            </button>
-          </motion.div>
-        )}
-      </div>
-
-      {/* Respond Modal */}
-      {respondModal && (
-        <div
-          onClick={() => setRespondModal(null)}
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 10000,
-          }}
-        >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: '#ffffff',
-              borderRadius: 16,
-              padding: 24,
-              maxWidth: 400,
-              width: '90%',
-              boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-            }}
-          >
-            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: '#111827' }}>
-              Connection Request
-            </h3>
-            <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 24 }}>
-              {respondModal.householdName} wants to connect with you.
-            </p>
-            
-            <div style={{ display: 'flex', gap: 12 }}>
               <button
-                onClick={handleAcceptConnection}
+                onClick={() => {
+                  setShowCreateDropdown(false);
+                  const visibleHouseholdIds = filteredHouseholds.map((h) => h.id).filter(Boolean) as string[];
+                  const inviteContext = {
+                    clickedHouseholdId: '',
+                    clickedHouseholdName: '',
+                    visibleHouseholdIds,
+                    filterContext: {
+                      types: Array.from(selectedTypes),
+                      ageRange: selectedTypes.has('Family w/ Kids') ? { min: ageMin, max: ageMax } : null,
+                      hasFilters: selectedTypes.size > 0 || locationPrecision !== 'all',
+                    },
+                  };
+                  navigate('/compose/happening', { state: { inviteContext } });
+                }}
                 style={{
-                  flex: 1,
+                  width: '100%',
+                  padding: '14px 16px',
+                  border: 'none',
+                  background: 'transparent',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  transition: 'background 0.15s',
+                  borderBottom: '1px solid #f3f4f6',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = '#f0fdf4')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 8,
+                      background: '#fef3c7',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 18,
+                    }}
+                  >
+                    ⚡
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 2 }}>Happening Now</div>
+                    <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.3 }}>Quick spontaneous gathering</div>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => {
+                  setShowCreateDropdown(false);
+                  const visibleHouseholdIds = filteredHouseholds.map((h) => h.id).filter(Boolean) as string[];
+                  const inviteContext = {
+                    clickedHouseholdId: '',
+                    clickedHouseholdName: '',
+                    visibleHouseholdIds,
+                    filterContext: {
+                      types: Array.from(selectedTypes),
+                      ageRange: selectedTypes.has('Family w/ Kids') ? { min: ageMin, max: ageMax } : null,
+                      hasFilters: selectedTypes.size > 0 || locationPrecision !== 'all',
+                    },
+                  };
+                  navigate('/compose/event', { state: { inviteContext } });
+                }}
+                style={{
+                  width: '100%',
+                  padding: '14px 16px',
+                  border: 'none',
+                  background: 'transparent',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = '#eff6ff')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 8,
+                      background: '#dbeafe',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 18,
+                    }}
+                  >
+                    📅
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 2 }}>Future Event</div>
+                    <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.3 }}>Schedule for later</div>
+                  </div>
+                </div>
+              </button>
+            </motion.div>
+          )}
+        </div>
+
+        {/* Respond Modal (kept, even if not currently wired to a button) */}
+        {respondModal && (
+          <div
+            onClick={() => setRespondModal(null)}
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0,0,0,0.5)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 10000,
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                background: '#ffffff',
+                borderRadius: 16,
+                padding: 24,
+                maxWidth: 400,
+                width: '90%',
+                boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+              }}
+            >
+              <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: '#111827' }}>
+                Connection Request
+              </h3>
+              <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 24 }}>
+                {respondModal.householdName} wants to connect with you.
+              </p>
+
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button
+                  onClick={handleAcceptConnection}
+                  style={{
+                    flex: 1,
+                    padding: '12px 16px',
+                    borderRadius: 10,
+                    border: 'none',
+                    background: '#10b981',
+                    color: '#ffffff',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Accept
+                </button>
+                <button
+                  onClick={handleDeclineConnection}
+                  style={{
+                    flex: 1,
+                    padding: '12px 16px',
+                    borderRadius: 10,
+                    border: '2px solid #e5e7eb',
+                    background: '#ffffff',
+                    color: '#6b7280',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Decline
+                </button>
+              </div>
+
+              <button
+                onClick={() => setRespondModal(null)}
+                style={{
+                  width: '100%',
+                  marginTop: 12,
                   padding: '12px 16px',
                   borderRadius: 10,
                   border: 'none',
-                  background: '#10b981',
-                  color: '#ffffff',
+                  background: 'transparent',
+                  color: '#9ca3af',
                   fontSize: 14,
                   fontWeight: 600,
                   cursor: 'pointer',
                 }}
               >
-                Accept
+                Cancel
               </button>
-              <button
-                onClick={handleDeclineConnection}
-                style={{
-                  flex: 1,
-                  padding: '12px 16px',
-                  borderRadius: 10,
-                  border: '2px solid #e5e7eb',
-                  background: '#ffffff',
-                  color: '#6b7280',
-                  fontSize: 14,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                Decline
-              </button>
-            </div>
-            
-            <button
-              onClick={() => setRespondModal(null)}
-              style={{
-                width: '100%',
-                marginTop: 12,
-                padding: '12px 16px',
-                borderRadius: 10,
-                border: 'none',
-                background: 'transparent',
-                color: '#9ca3af',
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              Cancel
-            </button>
-          </motion.div>
-        </div>
-      )}
+            </motion.div>
+          </div>
+        )}
     </div>
-    </>
   );
 }
