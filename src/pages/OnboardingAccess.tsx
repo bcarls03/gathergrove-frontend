@@ -5,8 +5,8 @@
  * Users sign in with Google, Apple, Facebook, or Microsoft.
  * This is the entry point for the V15 onboarding flow.
  */
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { OnboardingLayout } from "../components/OnboardingLayout";
 import {
@@ -14,15 +14,52 @@ import {
   signInWithApple,
   signInWithFacebook,
   signInWithMicrosoft,
+  isFirebaseReady,
 } from "../lib/firebase";
 import { signupUser, type UserSignupRequest } from "../lib/api";
 import { setOnboardingState } from "../lib/onboarding";
 
 export default function OnboardingAccess() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showMoreOptions, setShowMoreOptions] = useState(false);
+
+  // 🔧 DEV MODE: Check if OAuth buttons should be disabled
+  const isOAuthDisabledInDev = import.meta.env.DEV && !isFirebaseReady();
+  
+  // 🔧 DEV MODE: Check for noskip query param (allows back button to work)
+  const noskip = new URLSearchParams(location.search).get('noskip') === '1';
+  
+  // 🔧 DEV MODE: Check for autoskip query param (used by devtools fullReset)
+  const autoskipParam = new URLSearchParams(location.search).get('autoskip') === '1';
+  
+  // 🔧 DEV MODE: Check if auto-skip is allowed via location state or query param
+  // Only auto-skip if we navigated here programmatically from within the app
+  const allowAutoSkip = (location.state as any)?.allowAutoSkip === true || autoskipParam;
+
+
+  // 🔧 DEV MODE: Diagnostic logging
+  if (import.meta.env.DEV) {
+    console.log('[DEV] OnboardingAccess mounted:', {
+      pathname: location.pathname,
+      search: location.search,
+      noskip,
+      allowAutoSkip,
+      isFirebaseReady: isFirebaseReady(),
+      willSkip: allowAutoSkip && !noskip && !isFirebaseReady()
+    });
+  }
+
+  // 🔧 DEV MODE: Auto-skip if Firebase not ready (only if allowAutoSkip=true and noskip!=1)
+  useEffect(() => {
+    if (import.meta.env.DEV && allowAutoSkip && !noskip && !isFirebaseReady()) {
+      console.log("🔧 DEV MODE: Firebase not ready - auto-skip to address");
+      console.log("ℹ️ Set VITE_ALLOW_REAL_OAUTH_IN_DEV=true in .env.local to enable OAuth");
+      handleDevModeSkip();
+    }
+  }, [allowAutoSkip, noskip]);
 
   // 🔧 DEV MODE: Skip OAuth and go straight to address
   const handleDevModeSkip = () => {
@@ -42,6 +79,13 @@ export default function OnboardingAccess() {
   const handleOAuthSignIn = async (
     provider: "google" | "apple" | "facebook" | "microsoft"
   ) => {
+    // 🔧 DEV MODE: Guard against Firebase errors
+    if (import.meta.env.DEV && !isFirebaseReady()) {
+      console.warn("⚠️ DEV MODE: Firebase not ready - redirecting to skip flow");
+      setError("🔧 DEV MODE: OAuth is disabled. Use 'DEV MODE: Skip Auth' button below.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -213,7 +257,7 @@ export default function OnboardingAccess() {
           whileHover={{ scale: 1.01, boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)" }}
           whileTap={{ scale: 0.99 }}
           onClick={() => handleOAuthSignIn("google")}
-          disabled={loading}
+          disabled={loading || isOAuthDisabledInDev}
           style={{
             width: "100%",
             padding: "16px 20px",
@@ -223,7 +267,7 @@ export default function OnboardingAccess() {
             color: "#3c4043",
             fontSize: 16,
             fontWeight: 500,
-            cursor: loading ? "not-allowed" : "pointer",
+            cursor: (loading || isOAuthDisabledInDev) ? "not-allowed" : "pointer",
             marginBottom: 12,
             display: "flex",
             alignItems: "center",
@@ -231,7 +275,7 @@ export default function OnboardingAccess() {
             gap: 12,
             boxShadow: "0 1px 3px rgba(60, 64, 67, 0.08)",
             transition: "all 0.15s ease",
-            opacity: loading ? 0.6 : 1,
+            opacity: (loading || isOAuthDisabledInDev) ? 0.4 : 1,
           }}
         >
           <svg width="20" height="20" viewBox="0 0 24 24">
@@ -260,7 +304,7 @@ export default function OnboardingAccess() {
           whileHover={{ scale: 1.01, boxShadow: "0 4px 12px rgba(0, 0, 0, 0.2)" }}
           whileTap={{ scale: 0.99 }}
           onClick={() => handleOAuthSignIn("apple")}
-          disabled={loading}
+          disabled={loading || isOAuthDisabledInDev}
           style={{
             width: "100%",
             padding: "16px 20px",
@@ -270,7 +314,7 @@ export default function OnboardingAccess() {
             color: "#ffffff",
             fontSize: 16,
             fontWeight: 500,
-            cursor: loading ? "not-allowed" : "pointer",
+            cursor: (loading || isOAuthDisabledInDev) ? "not-allowed" : "pointer",
             marginBottom: 16,
             display: "flex",
             alignItems: "center",
@@ -278,7 +322,7 @@ export default function OnboardingAccess() {
             gap: 12,
             boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
             transition: "all 0.15s ease",
-            opacity: loading ? 0.6 : 1,
+            opacity: (loading || isOAuthDisabledInDev) ? 0.4 : 1,
           }}
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">

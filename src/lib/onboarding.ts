@@ -10,10 +10,12 @@ export type OnboardingState = {
   lastName?: string | null;
   email?: string | null;
   visibility?: "private" | "neighbors" | "public" | null;
+  password?: string | null;
   
   // Step 2: Household (OPTIONAL)
   skipHousehold?: boolean;
   householdName?: string | null;
+  householdType?: "family_with_kids" | "empty_nesters" | "singles_couples" | null;
   intendedHouseholdType?: "family_with_kids" | "empty_nesters" | "singles_couples" | null;
   kids?: OnboardingKid[];
   

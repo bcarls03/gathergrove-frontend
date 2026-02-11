@@ -247,7 +247,7 @@ export default function PublicRSVP() {
               Want to discover more local events?
             </p>
             <button
-              onClick={() => navigate("/onboarding/access")}
+              onClick={() => navigate("/onboarding/access", { state: { allowAutoSkip: true } })}
               style={{
                 width: "100%",
                 padding: "12px 24px",

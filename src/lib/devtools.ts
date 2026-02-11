@@ -66,9 +66,10 @@ export async function fullReset(): Promise<void> {
   clearLocalStorage();
   console.log('✅ Frontend storage cleared');
   
-  // 3. Reload page
+  // 3. Reload page with allowAutoSkip state
+  // Note: Using query param since window.location.href can't pass React Router state
   console.log('🔄 Reloading page...');
-  window.location.href = '/onboarding/access';
+  window.location.href = '/onboarding/access?autoskip=1';
 }
 
 // Make available in browser console for quick testing

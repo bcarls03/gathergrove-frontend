@@ -290,6 +290,10 @@ export type GGEvent = {
   cantCount?: number;
 
   status?: string | null; // e.g. "active" | "canceled"
+  
+  // Calendar integration fields
+  location?: string;
+  hostLabel?: string;
 };
 
 export type EventRsvpHousehold = {

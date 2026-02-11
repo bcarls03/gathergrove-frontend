@@ -3,11 +3,12 @@
  * SIMPLIFIED V15 Step 1: OAuth Authentication
  * Minimal version for testing - no fancy animations
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   signInWithGoogle,
   signInWithApple,
+  isFirebaseReady,
 } from "../lib/firebase";
 import { signupUser, type UserSignupRequest } from "../lib/api";
 import { setOnboardingState } from "../lib/onboarding";
@@ -17,7 +18,36 @@ export default function OnboardingAccessSimple() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // 🔧 DEV MODE: Auto-skip if Firebase not ready
+  useEffect(() => {
+    if (import.meta.env.DEV && !isFirebaseReady()) {
+      console.log("🔧 DEV MODE: Firebase not ready - auto-skipping to address");
+      // Set dummy state and skip
+      setOnboardingState({
+        firstName: "Dev",
+        lastName: "User",
+        email: "dev@example.com",
+      });
+      localStorage.setItem("gg:uid", "dev-user-123");
+      navigate("/onboarding/address");
+    }
+  }, []);
+
   const handleOAuthSignIn = async (provider: "google" | "apple") => {
+    // 🔧 DEV MODE: Guard against Firebase errors
+    if (import.meta.env.DEV && !isFirebaseReady()) {
+      console.warn("⚠️ DEV MODE: Firebase not ready - auto-skipping");
+      setError("🔧 DEV MODE: OAuth is disabled. Auto-redirecting...");
+      setOnboardingState({
+        firstName: "Dev",
+        lastName: "User",
+        email: "dev@example.com",
+      });
+      localStorage.setItem("gg:uid", "dev-user-123");
+      setTimeout(() => navigate("/onboarding/address"), 500);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 

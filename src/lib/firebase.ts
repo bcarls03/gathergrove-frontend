@@ -31,12 +31,59 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-// Check if Firebase config is complete
+/**
+ * 🔧 Validate API key is not a placeholder
+ * Real Firebase API keys are ~39 chars and don't contain placeholder text
+ */
+function isValidApiKey(key: string | undefined): boolean {
+  if (!key || typeof key !== 'string') return false;
+  if (key.length < 30) return false; // Real keys are longer
+  
+  const placeholderPatterns = [
+    'YOUR_',
+    'REPLACE_',
+    'CHANGEME',
+    'PLACEHOLDER',
+    'XXX',
+    'demo',
+    'test-key',
+    'example'
+  ];
+  
+  const lowerKey = key.toLowerCase();
+  return !placeholderPatterns.some(pattern => lowerKey.includes(pattern.toLowerCase()));
+}
+
+// Check if Firebase config is complete AND valid
 const isFirebaseConfigured = Boolean(
-  firebaseConfig.apiKey &&
+  isValidApiKey(firebaseConfig.apiKey) &&
   firebaseConfig.authDomain &&
   firebaseConfig.projectId
 );
+
+/**
+ * 🔧 DEV MODE: Check if real OAuth should be allowed in development
+ * Returns true only if explicitly enabled via VITE_ALLOW_REAL_OAUTH_IN_DEV=true
+ */
+function shouldAllowOAuthInDev(): boolean {
+  if (!import.meta.env.DEV) return true; // Always allow in production
+  return import.meta.env.VITE_ALLOW_REAL_OAUTH_IN_DEV === 'true';
+}
+
+/**
+ * 🔧 DEV MODE: Check if Firebase Auth is ready for use
+ * Returns true if Firebase is properly initialized and auth is available
+ */
+export function isFirebaseReady(): boolean {
+  const baseReady = isFirebaseConfigured && auth !== null;
+  
+  // In DEV, also check if OAuth is explicitly allowed
+  if (import.meta.env.DEV) {
+    return baseReady && shouldAllowOAuthInDev();
+  }
+  
+  return baseReady;
+}
 
 // Initialize Firebase
 let app: FirebaseApp | null = null;
@@ -142,6 +189,15 @@ async function signInWithEmulatorTestUser(provider: string): Promise<UserCredent
  * In production: uses real Google OAuth popup
  */
 export async function signInWithGoogle(): Promise<UserCredential> {
+  // 🔧 DEV MODE: Block OAuth if not explicitly enabled
+  if (import.meta.env.DEV && !shouldAllowOAuthInDev()) {
+    throw new Error(
+      '🔧 DEV MODE: Firebase OAuth is disabled. ' +
+      'Set VITE_ALLOW_REAL_OAUTH_IN_DEV=true in .env.local to enable, ' +
+      'or use "DEV MODE: Skip Auth" button.'
+    );
+  }
+  
   if (!auth) {
     throw new Error('Firebase Auth not initialized. Configure VITE_FIREBASE_* environment variables.');
   }
@@ -158,6 +214,15 @@ export async function signInWithGoogle(): Promise<UserCredential> {
  * In production: uses real Apple OAuth popup
  */
 export async function signInWithApple(): Promise<UserCredential> {
+  // 🔧 DEV MODE: Block OAuth if not explicitly enabled
+  if (import.meta.env.DEV && !shouldAllowOAuthInDev()) {
+    throw new Error(
+      '🔧 DEV MODE: Firebase OAuth is disabled. ' +
+      'Set VITE_ALLOW_REAL_OAUTH_IN_DEV=true in .env.local to enable, ' +
+      'or use "DEV MODE: Skip Auth" button.'
+    );
+  }
+  
   if (!auth) {
     throw new Error('Firebase Auth not initialized. Configure VITE_FIREBASE_* environment variables.');
   }
@@ -173,6 +238,15 @@ export async function signInWithApple(): Promise<UserCredential> {
  * In production: uses real Facebook OAuth popup
  */
 export async function signInWithFacebook(): Promise<UserCredential> {
+  // 🔧 DEV MODE: Block OAuth if not explicitly enabled
+  if (import.meta.env.DEV && !shouldAllowOAuthInDev()) {
+    throw new Error(
+      '🔧 DEV MODE: Firebase OAuth is disabled. ' +
+      'Set VITE_ALLOW_REAL_OAUTH_IN_DEV=true in .env.local to enable, ' +
+      'or use "DEV MODE: Skip Auth" button.'
+    );
+  }
+  
   if (!auth) {
     throw new Error('Firebase Auth not initialized. Configure VITE_FIREBASE_* environment variables.');
   }
@@ -188,6 +262,15 @@ export async function signInWithFacebook(): Promise<UserCredential> {
  * In production: uses real Microsoft OAuth popup
  */
 export async function signInWithMicrosoft(): Promise<UserCredential> {
+  // 🔧 DEV MODE: Block OAuth if not explicitly enabled
+  if (import.meta.env.DEV && !shouldAllowOAuthInDev()) {
+    throw new Error(
+      '🔧 DEV MODE: Firebase OAuth is disabled. ' +
+      'Set VITE_ALLOW_REAL_OAUTH_IN_DEV=true in .env.local to enable, ' +
+      'or use "DEV MODE: Skip Auth" button.'
+    );
+  }
+  
   if (!auth) {
     throw new Error('Firebase Auth not initialized. Configure VITE_FIREBASE_* environment variables.');
   }

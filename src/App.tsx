@@ -1,5 +1,5 @@
 // src/App.tsx
-import { useEffect } from "react";
+import { useEffect, lazy, Suspense } from "react";
 import {
   BrowserRouter,
   Routes,
@@ -9,29 +9,30 @@ import {
   useLocation,
 } from "react-router-dom";
 
-import Home from "./pages/Home.tsx";
-import Messages from "./pages/Messages.tsx";
-import ComposePost from "./pages/ComposePost.tsx";
-import SettingsNew from "./pages/SettingsNew.tsx";
-import SettingsHousehold from "./pages/SettingsHousehold.tsx";
-import Discovery from "./pages/Discovery.tsx";
-import TestAutoJoin from "./pages/TestAutoJoin.tsx";
-import Calendar from "./pages/Calendar.tsx";
+// Lazy-loaded page components for code splitting
+const Home = lazy(() => import("./pages/Home.tsx"));
+const Messages = lazy(() => import("./pages/Messages.tsx"));
+const ComposePost = lazy(() => import("./pages/ComposePost.tsx"));
+const SettingsNew = lazy(() => import("./pages/SettingsNew.tsx"));
+const SettingsHousehold = lazy(() => import("./pages/SettingsHousehold.tsx"));
+const Discovery = lazy(() => import("./pages/Discovery.tsx"));
+const TestAutoJoin = lazy(() => import("./pages/TestAutoJoin.tsx"));
+const Calendar = lazy(() => import("./pages/Calendar.tsx"));
 
-// ⬇️ NOTE: all default imports, no curly braces
-import OnboardingAccess from "./pages/OnboardingAccess.tsx";
-import OnboardingAccessSimple from "./pages/OnboardingAccessSimple.tsx";
-import OnboardingProfile from "./pages/OnboardingProfile.tsx";
-import OnboardingAddressSimple from "./pages/OnboardingAddressSimple.tsx";
-import OnboardingMagicMoment from "./pages/OnboardingMagicMoment.tsx";
-import OnboardingHousehold from "./pages/OnboardingHousehold";
-import { OnboardingHouseholdType } from "./pages/OnboardingHouseholdType.tsx";
-import { OnboardingKids } from "./pages/OnboardingKids.tsx";
-import { OnboardingPrivacy } from "./pages/OnboardingPrivacy.tsx";
-import OnboardingPreview from "./pages/OnboardingPreview.tsx";
-import OnboardingSave from "./pages/OnboardingSave.tsx";
-import PublicRSVP from "./pages/PublicRSVP.tsx";
-import PublicEventPage from "./pages/PublicEventPage.tsx";
+// Onboarding pages
+const OnboardingAccess = lazy(() => import("./pages/OnboardingAccess.tsx"));
+const OnboardingAccessSimple = lazy(() => import("./pages/OnboardingAccessSimple.tsx"));
+const OnboardingProfile = lazy(() => import("./pages/OnboardingProfile.tsx"));
+const OnboardingAddressSimple = lazy(() => import("./pages/OnboardingAddressSimple.tsx"));
+const OnboardingMagicMoment = lazy(() => import("./pages/OnboardingMagicMoment.tsx"));
+const OnboardingHousehold = lazy(() => import("./pages/OnboardingHousehold"));
+const OnboardingHouseholdType = lazy(() => import("./pages/OnboardingHouseholdType.tsx").then(m => ({ default: m.OnboardingHouseholdType })));
+const OnboardingKids = lazy(() => import("./pages/OnboardingKids.tsx").then(m => ({ default: m.OnboardingKids })));
+const OnboardingPrivacy = lazy(() => import("./pages/OnboardingPrivacy.tsx").then(m => ({ default: m.OnboardingPrivacy })));
+const OnboardingPreview = lazy(() => import("./pages/OnboardingPreview.tsx"));
+const OnboardingSave = lazy(() => import("./pages/OnboardingSave.tsx"));
+const PublicRSVP = lazy(() => import("./pages/PublicRSVP.tsx"));
+const PublicEventPage = lazy(() => import("./pages/PublicEventPage.tsx"));
 
 // Push notifications (Capacitor)
 import { initPushNotifications } from "./lib/notifications";
@@ -85,52 +86,54 @@ function AppShell() {
       )}
 
       <main style={{ padding: isOnboarding ? 0 : 16 }}>
-        <Routes>
-          {/* Onboarding flow - V15: OAuth → Location → Household Type → Kids (if family) → Privacy → Magic Moment → Save */}
-          <Route path="/onboarding/access" element={<OnboardingAccess />} />
-          <Route path="/onboarding/access-simple" element={<OnboardingAccessSimple />} />
-          <Route path="/onboarding/profile" element={<OnboardingProfile />} />
-          <Route path="/onboarding/address" element={<OnboardingAddressSimple />} />
-          <Route path="/onboarding/magical-moment" element={<Navigate to="/onboarding/magic-moment" replace />} />
-          <Route path="/onboarding/magic-moment" element={<OnboardingMagicMoment />} />
-          <Route
-            path="/onboarding/household"
-            element={<OnboardingHouseholdType />}
-          />
-          <Route path="/onboarding/household-old" element={<OnboardingHousehold />} />
-          <Route path="/onboarding/kids" element={<OnboardingKids />} />
-          <Route path="/onboarding/privacy" element={<OnboardingPrivacy />} />
-          {/* Redirect old profile route to new OAuth access route */}
-          <Route path="/onboarding/profile-old" element={<OnboardingProfile />} />
+        <Suspense fallback={<div style={{ padding: 16, textAlign: 'center' }}>Loading…</div>}>
+          <Routes>
+            {/* Onboarding flow - V15: OAuth → Location → Household Type → Kids (if family) → Privacy → Magic Moment → Save */}
+            <Route path="/onboarding/access" element={<OnboardingAccess />} />
+            <Route path="/onboarding/access-simple" element={<OnboardingAccessSimple />} />
+            <Route path="/onboarding/profile" element={<OnboardingProfile />} />
+            <Route path="/onboarding/address" element={<OnboardingAddressSimple />} />
+            <Route path="/onboarding/magical-moment" element={<Navigate to="/onboarding/magic-moment" replace />} />
+            <Route path="/onboarding/magic-moment" element={<OnboardingMagicMoment />} />
+            <Route
+              path="/onboarding/household"
+              element={<OnboardingHouseholdType />}
+            />
+            <Route path="/onboarding/household-old" element={<OnboardingHousehold />} />
+            <Route path="/onboarding/kids" element={<OnboardingKids />} />
+            <Route path="/onboarding/privacy" element={<OnboardingPrivacy />} />
+            {/* Redirect old profile route to new OAuth access route */}
+            <Route path="/onboarding/profile-old" element={<OnboardingProfile />} />
 
-          <Route path="/onboarding/preview" element={<OnboardingPreview />} />
-          <Route path="/onboarding/save" element={<OnboardingSave />} />
+            <Route path="/onboarding/preview" element={<OnboardingPreview />} />
+            <Route path="/onboarding/save" element={<OnboardingSave />} />
 
-          {/* Main tabs */}
-          <Route path="/" element={<Home />} />
-          <Route path="/calendar" element={<Calendar />} />
-          <Route path="/discovery" element={<Discovery />} />
-          <Route path="/me" element={<SettingsNew />} />
-          <Route path="/me/household" element={<SettingsHousehold />} />
-          {/* Redirect old routes to /me */}
-          <Route path="/settings" element={<Navigate to="/me" replace />} />
-          <Route path="/settings/household" element={<Navigate to="/me/household" replace />} />
-          <Route path="/profile" element={<Navigate to="/me" replace />} />
+            {/* Main tabs */}
+            <Route path="/" element={<Home />} />
+            <Route path="/calendar" element={<Calendar />} />
+            <Route path="/discovery" element={<Discovery />} />
+            <Route path="/me" element={<SettingsNew />} />
+            <Route path="/me/household" element={<SettingsHousehold />} />
+            {/* Redirect old routes to /me */}
+            <Route path="/settings" element={<Navigate to="/me" replace />} />
+            <Route path="/settings/household" element={<Navigate to="/me/household" replace />} />
+            <Route path="/profile" element={<Navigate to="/me" replace />} />
 
-          {/* Hidden-from-nav routes */}
-          <Route path="/messages" element={<Messages />} />
-          <Route path="/compose/:kind" element={<ComposePost />} />
-          <Route path="/compose/:kind/:id" element={<ComposePost />} />
-          <Route path="/test-autojoin" element={<TestAutoJoin />} />
-          
-          {/* Public RSVP - No authentication required */}
-          <Route path="/rsvp/:token" element={<PublicRSVP />} />
-          {/* Public event share links - :eventId is the event's UUID */}
-          <Route path="/e/:eventId" element={<PublicEventPage />} />
+            {/* Hidden-from-nav routes */}
+            <Route path="/messages" element={<Messages />} />
+            <Route path="/compose/:kind" element={<ComposePost />} />
+            <Route path="/compose/:kind/:id" element={<ComposePost />} />
+            <Route path="/test-autojoin" element={<TestAutoJoin />} />
+            
+            {/* Public RSVP - No authentication required */}
+            <Route path="/rsvp/:token" element={<PublicRSVP />} />
+            {/* Public event share links - :eventId is the event's UUID */}
+            <Route path="/e/:eventId" element={<PublicEventPage />} />
 
-          {/* Fallback */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
       </main>
     </div>
   );

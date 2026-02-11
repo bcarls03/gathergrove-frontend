@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import Logo from "../assets/gathergrove-logo.png";
 import { getOnboardingState } from "../lib/onboarding";
 
-export type StepKey = "access" | "address" | "household" | "kids" | "privacy" | "magic";
+export type StepKey = "access" | "address" | "household" | "kids" | "privacy" | "magic" | "preview" | "save";
 
 const ALL_STEPS: { key: StepKey; label: string }[] = [
   { key: "access", label: "Access" },
@@ -51,7 +51,10 @@ export function OnboardingLayout({
   
   const getBackRoute = () => {
     if (customBackRoute) return customBackRoute;
-    if (backStep === "access") return "/onboarding/access";
+    // 🔧 DEV MODE: Add noskip param when returning to access to prevent auto-skip loop
+    if (backStep === "access") {
+      return import.meta.env.DEV ? "/onboarding/access?noskip=1" : "/onboarding/access";
+    }
     if (backStep === "address") return "/onboarding/address";
     if (backStep === "household") return "/onboarding/household";
     if (backStep === "kids") return "/onboarding/kids";
@@ -60,6 +63,16 @@ export function OnboardingLayout({
   };
 
   const backHref = getBackRoute();
+  
+  // 🔧 DEV MODE: Diagnostic logging for back button
+  if (import.meta.env.DEV) {
+    console.log('[DEV] OnboardingLayout back button:', {
+      currentStep,
+      backStep,
+      backHref,
+      customBackRoute
+    });
+  }
 
   return (
     <div
