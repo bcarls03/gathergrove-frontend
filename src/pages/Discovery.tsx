@@ -397,6 +397,35 @@ export default function Discovery() {
     return R * c;
   };
 
+  // Ranking helpers for intent-first discovery ordering
+  const countMatchingKids = (household: GGHousehold, ageMin: number, ageMax: number): number => {
+    if (!household.kids || household.kids.length === 0) return 0;
+    const today = new Date();
+    return household.kids.filter((kid) => {
+      if (!kid.birthYear || !kid.birthMonth) return false;
+      const birthDate = new Date(kid.birthYear, (kid.birthMonth || 1) - 1);
+      const ageInMonths = (today.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
+      const ageInYears = Math.floor(ageInMonths / 12);
+      return ageInYears >= ageMin && ageInYears <= ageMax;
+    }).length;
+  };
+
+  const getUsableChildGenders = (kids?: GGHousehold['kids']): string[] => {
+    if (!kids || kids.length === 0) return [];
+    return kids
+      .map((kid) => kid.sex)
+      .filter((sex) => sex && sex !== 'prefer_not_to_say') as string[];
+  };
+
+  const computeChildGenderOverlap = (userKids?: GGHousehold['kids'], candidateKids?: GGHousehold['kids']): boolean | null => {
+    const userGenders = getUsableChildGenders(userKids);
+    const candidateGenders = getUsableChildGenders(candidateKids);
+    // If either side lacks usable genders, return null (neutral; no effect on ranking)
+    if (userGenders.length === 0 || candidateGenders.length === 0) return null;
+    // Check for overlap
+    return userGenders.some((g) => candidateGenders.includes(g));
+  };
+
   const filteredHouseholds = currentHouseholds
     .filter((h) => {
       if (selectedTypes.size > 0) {
@@ -427,17 +456,88 @@ export default function Discovery() {
       return true;
     })
     .sort((a, b) => {
-      const userLat = 45.5152;
-      const userLon = -122.6784;
+      // Intent-first ranking with deterministic tie-breakers
+      const isFamilyBrowsing = selectedTypes.has('Family w/ Kids');
+      
+      // TODO: Replace hardcoded coords with actual user profile lat/lng
+      const hasUserCoords = false; // Hardcoded coords are placeholders; treat as missing
 
-      const aLat = (a as any).latitude;
-      const aLon = (a as any).longitude;
-      const bLat = (b as any).latitude;
-      const bLon = (b as any).longitude;
+      if (isFamilyBrowsing) {
+        // Family browsing mode: prioritize age overlap, then distance, then optional gender overlap
+        
+        // 1. Primary: matchingKidsCount DESC (most age overlap first)
+        const aMatchingKids = countMatchingKids(a, ageMin, ageMax);
+        const bMatchingKids = countMatchingKids(b, ageMin, ageMax);
+        if (aMatchingKids !== bMatchingKids) {
+          return bMatchingKids - aMatchingKids; // DESC
+        }
 
-      const distanceA = aLat && aLon ? calculateDistance(userLat, userLon, aLat, aLon) : Infinity;
-      const distanceB = bLat && bLon ? calculateDistance(userLat, userLon, bLat, bLon) : Infinity;
-      return distanceA - distanceB;
+        // 2. Secondary: distance ASC (only if user coords exist)
+        if (hasUserCoords) {
+          const userLat = 45.5152;
+          const userLon = -122.6784;
+          const aLat = (a as any).latitude;
+          const aLon = (a as any).longitude;
+          const bLat = (b as any).latitude;
+          const bLon = (b as any).longitude;
+          
+          const distanceA = (aLat != null && aLon != null) 
+            ? calculateDistance(userLat, userLon, aLat, aLon) 
+            : Infinity;
+          const distanceB = (bLat != null && bLon != null) 
+            ? calculateDistance(userLat, userLon, bLat, bLon) 
+            : Infinity;
+          
+          if (distanceA !== distanceB) {
+            return distanceA - distanceB; // ASC
+          }
+        }
+
+        // 3. Tertiary: childGenderOverlap DESC (only if both sides have usable genders)
+        // Gender is kids-only, optional, never displayed, and has ZERO effect if missing
+        const userKids = undefined; // TODO: Get from actual user household when available
+        const aGenderOverlap = computeChildGenderOverlap(userKids, a.kids);
+        const bGenderOverlap = computeChildGenderOverlap(userKids, b.kids);
+        
+        // Only apply if both have non-null results (meaning both have usable gender data)
+        if (aGenderOverlap !== null && bGenderOverlap !== null) {
+          if (aGenderOverlap !== bGenderOverlap) {
+            return (bGenderOverlap ? 1 : 0) - (aGenderOverlap ? 1 : 0); // DESC (true > false)
+          }
+        }
+      } else {
+        // Non-family browsing mode: distance only
+        if (hasUserCoords) {
+          const userLat = 45.5152;
+          const userLon = -122.6784;
+          const aLat = (a as any).latitude;
+          const aLon = (a as any).longitude;
+          const bLat = (b as any).latitude;
+          const bLon = (b as any).longitude;
+          
+          const distanceA = (aLat != null && aLon != null) 
+            ? calculateDistance(userLat, userLon, aLat, aLon) 
+            : Infinity;
+          const distanceB = (bLat != null && bLon != null) 
+            ? calculateDistance(userLat, userLon, bLat, bLon) 
+            : Infinity;
+          
+          if (distanceA !== distanceB) {
+            return distanceA - distanceB; // ASC
+          }
+        }
+      }
+
+      // Deterministic tie-breakers prevent shuffle between renders
+      const aLastName = (a.lastName || '').toLowerCase();
+      const bLastName = (b.lastName || '').toLowerCase();
+      if (aLastName !== bLastName) {
+        return aLastName < bLastName ? -1 : 1; // ASC
+      }
+      
+      const aId = a.id || '';
+      const bId = b.id || '';
+      return aId < bId ? -1 : 1; // ASC
     });
 
   const getHouseholdTypeIcon = (type?: string) => {
