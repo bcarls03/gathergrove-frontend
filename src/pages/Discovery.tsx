@@ -632,7 +632,7 @@ export default function Discovery() {
         : 'Household';
   };
 
-  const getKidsAges = (household: GGHousehold): number[] => {
+  function getKidsAges(household: GGHousehold): number[] {
     if (!household.kids || household.kids.length === 0) return [];
     const today = new Date();
     return household.kids
@@ -643,7 +643,7 @@ export default function Discovery() {
         return Math.floor(ageInMonths / 12);
       })
       .sort((a, b) => b - a);
-  };
+  }
 
   const isAgeInFilterRange = (age: number): boolean => {
     if (!selectedTypes.has('Family w/ Kids')) return false;
