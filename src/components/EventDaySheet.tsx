@@ -1,13 +1,16 @@
 // src/components/EventDaySheet.tsx
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Calendar, Clock, MapPin, Download } from "lucide-react";
-import { useState, useEffect } from "react";
+import { X, Calendar, Clock, MapPin, Download, Upload, Trash2 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import type { GGEvent } from "../lib/api";
+import type { GGEvent, UserProfile } from "../lib/api";
 import {
   rsvpToEvent,
   leaveEventRsvp,
   fetchMyRsvp,
+  uploadEventPhoto,
+  deleteEventPhoto,
+  getMyProfile,
   type RSVPStatus,
 } from "../lib/api";
 import { downloadICS } from "../lib/calendar";
@@ -43,10 +46,28 @@ type EventRsvpState = Record<
 export default function EventDaySheet({ open, onClose, date, events }: Props) {
   const navigate = useNavigate();
   const [rsvpStates, setRsvpStates] = useState<EventRsvpState>({});
+  const [localEventPhotos, setLocalEventPhotos] = useState<Record<string, GGEvent['photos']>>({});
+  const [uploadingPhoto, setUploadingPhoto] = useState<string | null>(null);
+  const [currentUserProfile, setCurrentUserProfile] = useState<UserProfile | null>(null);
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   // Load RSVP states when events change
   useEffect(() => {
     if (!open || events.length === 0) return;
+
+    // Load current user profile
+    getMyProfile()
+      .then((profile) => setCurrentUserProfile(profile))
+      .catch((err) => console.error('Failed to load user profile:', err));
+
+    // Initialize local photo state from events
+    const photoMap: Record<string, GGEvent['photos']> = {};
+    events.forEach((event) => {
+      if (event.photos) {
+        photoMap[event.id] = event.photos;
+      }
+    });
+    setLocalEventPhotos(photoMap);
 
     events.forEach(async (event) => {
       try {
@@ -108,6 +129,73 @@ export default function EventDaySheet({ open, onClose, date, events }: Props) {
         ...prev,
         [eventId]: { ...prev[eventId], loading: false },
       }));
+    }
+  };
+
+  const handlePhotoUpload = async (eventId: string, file: File) => {
+    // Require user profile to be loaded
+    if (!currentUserProfile) {
+      alert('Please wait for profile to load.');
+      return;
+    }
+
+    // Client-side validation
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png'];
+    if (!validTypes.includes(file.type)) {
+      alert('Please upload a JPG or PNG image.');
+      return;
+    }
+
+    const maxSize = 2 * 1024 * 1024; // 2MB
+    if (file.size > maxSize) {
+      alert('Image must be smaller than 2MB.');
+      return;
+    }
+
+    // Check user photo limit (max 5 per event)
+    const currentPhotos = localEventPhotos[eventId] || [];
+    const userPhotoCount = currentPhotos.filter(p => p.uploadedByUserId === currentUserProfile.uid).length;
+    if (userPhotoCount >= 5) {
+      alert('You can upload a maximum of 5 photos per event.');
+      return;
+    }
+
+    setUploadingPhoto(eventId);
+
+    try {
+      const newPhoto = await uploadEventPhoto(eventId, file);
+      
+      // Append to local state (no refetch needed)
+      setLocalEventPhotos((prev) => ({
+        ...prev,
+        [eventId]: [...(prev[eventId] || []), newPhoto],
+      }));
+    } catch (err: any) {
+      console.error('Photo upload failed:', err);
+      alert(err.message || 'Failed to upload photo. Please try again.');
+    } finally {
+      setUploadingPhoto(null);
+      // Clear file input
+      if (fileInputRefs.current[eventId]) {
+        fileInputRefs.current[eventId]!.value = '';
+      }
+    }
+  };
+
+  const handlePhotoDelete = async (eventId: string, photoId: string) => {
+    if (!confirm('Delete this photo?')) return;
+
+    try {
+      await deleteEventPhoto(eventId, photoId);
+      
+      // Remove from local state
+      setLocalEventPhotos((prev) => ({
+        ...prev,
+        [eventId]: (prev[eventId] || []).filter(p => p.id !== photoId),
+      }));
+    } catch (err: any) {
+      console.error('Photo delete failed:', err);
+      alert(err.message || 'Failed to delete photo.');
     }
   };
 
@@ -254,6 +342,13 @@ export default function EventDaySheet({ open, onClose, date, events }: Props) {
                     const rsvp = rsvpStates[event.id];
                     const currentStatus = rsvp?.status;
                     const isLoading = rsvp?.loading;
+
+                    // Event Memory: Check if event is past and user attended
+                    const eventDate = new Date(event.startAt || event.when || '');
+                    const isPastEvent = eventDate < new Date();
+                    const userAttended = currentStatus === 'going';
+                    const photos = localEventPhotos[event.id] || [];
+                    const showEventMemory = isPastEvent && userAttended && photos !== undefined;
 
                     return (
                       <motion.div
@@ -450,6 +545,117 @@ export default function EventDaySheet({ open, onClose, date, events }: Props) {
                           <Download size={16} />
                           Add to Calendar
                         </button>
+
+                        {/* Event Memory Section */}
+                        {showEventMemory && (
+                          <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                              <h4 style={{ fontSize: 15, fontWeight: 600, color: '#374151', margin: 0 }}>
+                                Moments from this event
+                              </h4>
+                              {photos.length > 0 && (
+                                <span style={{ fontSize: 12, color: '#6b7280' }}>
+                                  {photos.length} {photos.length === 1 ? 'photo' : 'photos'}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Photo Grid */}
+                            {photos.length > 0 ? (
+                              <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
+                                gap: 8,
+                                marginBottom: 12,
+                              }}>
+                                {photos.map((photo) => {
+                                  const isOwner = currentUserProfile && photo.uploadedByUserId === currentUserProfile.uid;
+                                  return (
+                                    <div key={photo.id} style={{ position: 'relative', aspectRatio: '1', borderRadius: 8, overflow: 'hidden' }}>
+                                      <img
+                                        src={photo.url}
+                                        alt="Event memory"
+                                        style={{
+                                          width: '100%',
+                                          height: '100%',
+                                          objectFit: 'cover',
+                                        }}
+                                      />
+                                      {isOwner && (
+                                        <button
+                                          onClick={() => handlePhotoDelete(event.id, photo.id)}
+                                          style={{
+                                            position: 'absolute',
+                                            top: 4,
+                                            right: 4,
+                                            width: 24,
+                                            height: 24,
+                                            padding: 0,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                                            border: 'none',
+                                            borderRadius: 4,
+                                            cursor: 'pointer',
+                                          }}
+                                          title="Delete photo"
+                                        >
+                                          <Trash2 size={14} color="white" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div style={{
+                                textAlign: 'center',
+                                padding: '24px 16px',
+                                color: '#9ca3af',
+                                fontSize: 14,
+                              }}>
+                                <p style={{ margin: '0 0 8px' }}>No photos yet.</p>
+                                <p style={{ margin: 0, fontSize: 13 }}>Add a few photos to remember this moment.</p>
+                              </div>
+                            )}
+
+                            {/* Upload Button */}
+                            <input
+                              ref={(el) => { fileInputRefs.current[event.id] = el; }}
+                              type="file"
+                              accept="image/jpeg,image/jpg,image/png"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) handlePhotoUpload(event.id, file);
+                              }}
+                              style={{ display: 'none' }}
+                            />
+                            <button
+                              onClick={() => fileInputRefs.current[event.id]?.click()}
+                              disabled={uploadingPhoto === event.id}
+                              style={{
+                                width: '100%',
+                                padding: '10px 16px',
+                                fontSize: 14,
+                                fontWeight: 600,
+                                color: '#6b7280',
+                                backgroundColor: 'white',
+                                border: '2px dashed #d1d5db',
+                                borderRadius: 8,
+                                cursor: uploadingPhoto === event.id ? 'not-allowed' : 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 8,
+                                opacity: uploadingPhoto === event.id ? 0.6 : 1,
+                              }}
+                            >
+                              <Upload size={16} />
+                              {uploadingPhoto === event.id ? 'Uploading...' : 'Add Photos'}
+                            </button>
+                          </div>
+                        )}
                       </motion.div>
                     );
                   })}
