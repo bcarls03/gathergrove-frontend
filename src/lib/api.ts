@@ -294,6 +294,15 @@ export type GGEvent = {
   // Calendar integration fields
   location?: string;
   hostLabel?: string;
+
+  // Event Memory - photos from past events (attendees only)
+  photos?: Array<{
+    id: string;
+    url: string;
+    uploadedByUserId: string;
+    uploadedByName?: string;
+    createdAt: string;
+  }>;
 };
 
 export type EventRsvpHousehold = {
@@ -808,6 +817,48 @@ export async function submitPublicRSVP(token: string, rsvp: RSVPSubmit): Promise
     const res = await api.post(`/events/rsvp/${token}`, rsvp, {
       headers: { "Content-Type": "application/json" },
     });
+    return res.data;
+  } catch (e) {
+    throw unwrapAxiosError(e);
+  }
+}
+
+// ============================================================================
+// EVENT MEMORY API - Photos for past events (attendees only)
+// ============================================================================
+
+/**
+ * Upload a photo to a past event (attendees only).
+ * Backend enforces: event is past, user attended (RSVP'd "going").
+ */
+export async function uploadEventPhoto(eventId: string, file: File): Promise<{
+  id: string;
+  url: string;
+  uploadedByUserId: string;
+  uploadedByName?: string;
+  createdAt: string;
+}> {
+  try {
+    const formData = new FormData();
+    formData.append('photo', file);
+    
+    const res = await api.post(`/events/${eventId}/photos`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return res.data;
+  } catch (e) {
+    throw unwrapAxiosError(e);
+  }
+}
+
+/**
+ * Delete a photo from an event (photo owner only).
+ */
+export async function deleteEventPhoto(eventId: string, photoId: string): Promise<{ message: string }> {
+  try {
+    const res = await api.delete(`/events/${eventId}/photos/${photoId}`);
     return res.data;
   } catch (e) {
     throw unwrapAxiosError(e);

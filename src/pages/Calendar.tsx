@@ -1,9 +1,9 @@
 // src/pages/Calendar.tsx
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Clock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { fetchEvents, type GGEvent } from "../lib/api";
+import { fetchEvents, fetchMyRsvp, type GGEvent } from "../lib/api";
 import EventDaySheet from "../components/EventDaySheet.tsx";
 
 // Category colors
@@ -22,6 +22,8 @@ export default function Calendar() {
   const [events, setEvents] = useState<GGEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [timeLens, setTimeLens] = useState<'upcoming' | 'past'>('upcoming');
+  const [rsvpStates, setRsvpStates] = useState<Record<string, { status: 'going' | 'maybe' | 'declined' | null }>>({});
   
   // Load events for current month
   useEffect(() => {
@@ -33,6 +35,19 @@ export default function Calendar() {
     try {
       const data = await fetchEvents();
       setEvents(data);
+      
+      // Load RSVP states for all events
+      data.forEach(async (event) => {
+        try {
+          const rsvpData = await fetchMyRsvp(event.id);
+          setRsvpStates((prev) => ({
+            ...prev,
+            [event.id]: { status: rsvpData.userStatus },
+          }));
+        } catch {
+          // User hasn't RSVP'd to this event
+        }
+      });
     } catch (err) {
       console.error("Failed to load events:", err);
     } finally {
@@ -101,8 +116,38 @@ export default function Calendar() {
   // Selected date events
   const selectedDateEvents = useMemo(() => {
     if (!selectedDate) return [];
-    return getEventsForDate(selectedDate);
+    const dateStr = selectedDate.toISOString().split("T")[0];
+    return events.filter(event => {
+      const eventDateStr = event.startAt || event.when;
+      if (!eventDateStr) return false;
+      const eventDate = new Date(eventDateStr).toISOString().split("T")[0];
+      return eventDate === dateStr;
+    });
   }, [selectedDate, events]);
+
+  // Past events for Past view
+  const pastEvents = useMemo(() => {
+    if (timeLens !== 'past') return [];
+    
+    const now = new Date();
+    return events
+      .filter(event => {
+        // Check if event is past
+        const eventEnd = event.endAt ? new Date(event.endAt) : 
+                        event.startAt ? new Date(event.startAt) : null;
+        if (!eventEnd || eventEnd >= now) return false;
+        
+        // Check if user RSVP'd "going"
+        const userRsvp = rsvpStates[event.id]?.status;
+        return userRsvp === 'going';
+      })
+      .sort((a, b) => {
+        // Sort by date descending (most recent first)
+        const dateA = new Date(a.endAt || a.startAt || 0).getTime();
+        const dateB = new Date(b.endAt || b.startAt || 0).getTime();
+        return dateB - dateA;
+      });
+  }, [events, timeLens, rsvpStates]);
 
   // Navigation
   const goToPrevMonth = () => {
@@ -138,15 +183,64 @@ export default function Calendar() {
         Your GatherGrove commitments. Events sync with your personal calendar when you RSVP.
       </p>
 
-      {/* Month Navigation */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 24,
-        }}
-      >
+      {/* Time Lens Toggle */}
+      <div style={{ 
+        display: 'flex', 
+        gap: 8, 
+        padding: 4,
+        background: '#f3f4f6',
+        borderRadius: 8,
+        width: 'fit-content',
+        marginBottom: 24
+      }}>
+        <button
+          onClick={() => setTimeLens('upcoming')}
+          style={{
+            padding: '6px 16px',
+            borderRadius: 6,
+            border: 'none',
+            background: timeLens === 'upcoming' ? '#ffffff' : 'transparent',
+            color: timeLens === 'upcoming' ? '#111827' : '#6b7280',
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: 'pointer',
+            boxShadow: timeLens === 'upcoming' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+            transition: 'all 0.15s'
+          }}
+        >
+          Upcoming
+        </button>
+        <button
+          onClick={() => setTimeLens('past')}
+          style={{
+            padding: '6px 16px',
+            borderRadius: 6,
+            border: 'none',
+            background: timeLens === 'past' ? '#ffffff' : 'transparent',
+            color: timeLens === 'past' ? '#111827' : '#6b7280',
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: 'pointer',
+            boxShadow: timeLens === 'past' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+            transition: 'all 0.15s'
+          }}
+        >
+          Past
+        </button>
+      </div>
+
+      {/* Conditional Rendering: Month Grid OR Past Events List */}
+      {timeLens === 'upcoming' ? (
+        <>
+          {/* Month Navigation */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 24,
+            }}
+          >
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <h2 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>
             {monthYearLabel}
@@ -349,6 +443,122 @@ export default function Calendar() {
           }}
         >
           Loading events...
+        </div>
+      )}
+        </>
+      ) : (
+        // Past Events List
+        <div style={{ marginTop: 24 }}>
+          {pastEvents.length === 0 ? (
+            <div style={{ 
+              padding: 64, 
+              textAlign: 'center',
+              color: '#9ca3af',
+              fontSize: 14
+            }}>
+              <Clock size={40} style={{ margin: '0 auto 16px', opacity: 0.4 }} />
+              <p style={{ margin: 0, fontWeight: 500 }}>No past events yet</p>
+              <p style={{ fontSize: 13, marginTop: 8, color: '#d1d5db' }}>
+                Events you attended will appear here
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {pastEvents.map(event => {
+                const photoCount = event.photos?.length || 0;
+                const eventDate = new Date(event.startAt || event.endAt || '');
+                
+                return (
+                  <button
+                    key={event.id}
+                    onClick={() => {
+                      setSelectedDate(eventDate);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: 16,
+                      background: '#ffffff',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: 12,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      width: '100%',
+                      transition: 'all 0.15s'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = '#d1d5db';
+                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = '#e5e7eb';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ 
+                        fontSize: 16, 
+                        fontWeight: 600, 
+                        color: '#111827',
+                        marginBottom: 4,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {event.title}
+                      </div>
+                      <div style={{ 
+                        fontSize: 13, 
+                        color: '#6b7280',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6
+                      }}>
+                        <span>
+                          {eventDate.toLocaleDateString('en-US', {
+                            weekday: 'short',
+                            month: 'short',
+                            day: 'numeric',
+                            year: eventDate.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
+                          })}
+                        </span>
+                        {event.startAt && (
+                          <>
+                            <span>•</span>
+                            <span>
+                              {new Date(event.startAt).toLocaleTimeString('en-US', {
+                                hour: 'numeric',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    {photoCount > 0 && (
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '4px 10px',
+                        background: '#f0fdf4',
+                        border: '1px solid #86efac',
+                        borderRadius: 6,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: '#166534',
+                        flexShrink: 0,
+                        marginLeft: 12
+                      }}>
+                        📷 {photoCount}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
