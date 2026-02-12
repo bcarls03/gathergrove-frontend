@@ -2,7 +2,7 @@
 // V15 Step 3: Simple household type selection (required for discovery quality)
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Home, Heart } from "lucide-react";
+import { UsersRound, Home, UserRound } from "lucide-react";
 import { motion } from "framer-motion";
 import { OnboardingLayout } from "../components/OnboardingLayout";
 import { setOnboardingState } from "../lib/onboarding";
@@ -12,25 +12,25 @@ type HouseholdType = "family_with_kids" | "empty_nesters" | "singles_couples";
 const householdOptions = [
   {
     type: "family_with_kids" as HouseholdType,
-    icon: Users,
-    iconBg: "#dbeafe",
-    iconColor: "#2563eb",
+    icon: UsersRound,
+    iconBg: "#f1f5f9",
+    iconColor: "#334155",
     title: "Family with Kids",
     subtitle: "Household with children at home",
   },
   {
     type: "empty_nesters" as HouseholdType,
     icon: Home,
-    iconBg: "#fce7f3",
-    iconColor: "#db2777",
+    iconBg: "#f1f5f9",
+    iconColor: "#334155",
     title: "Empty Nesters",
     subtitle: "Children have moved out",
   },
   {
     type: "singles_couples" as HouseholdType,
-    icon: Heart,
-    iconBg: "#fef3c7",
-    iconColor: "#f59e0b",
+    icon: UserRound,
+    iconBg: "#f1f5f9",
+    iconColor: "#334155",
     title: "Singles/Couples",
     subtitle: "Household without children",
   },
@@ -113,8 +113,8 @@ export function OnboardingHouseholdType() {
                   cursor: "pointer",
                   transition: "all 0.2s ease",
                   boxShadow: isSelected
-                    ? "0 8px 16px rgba(16, 185, 129, 0.15)"
-                    : "0 1px 3px rgba(0, 0, 0, 0.1)",
+                    ? "0 4px 8px rgba(16, 185, 129, 0.10)"
+                    : "0 1px 2px rgba(0, 0, 0, 0.05)",
                   textAlign: "left",
                 }}
               >
@@ -131,7 +131,7 @@ export function OnboardingHouseholdType() {
                     flexShrink: 0,
                   }}
                 >
-                  <Icon size={24} style={{ color: option.iconColor }} />
+                  <Icon size={24} strokeWidth={2} style={{ color: option.iconColor }} />
                 </div>
 
                 {/* Text */}
