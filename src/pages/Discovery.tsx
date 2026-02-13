@@ -254,12 +254,38 @@ export default function Discovery() {
     }
   };
 
+  // Normalize household types to canonical backend raw values for filtering
+  const normalizeHouseholdTypeRaw = (raw?: string): string | undefined => {
+    if (!raw) return raw;
+    
+    // Already canonical backend values - return as-is
+    if (raw === "family_with_kids" || raw === "empty_nesters" || raw === "couple" || raw === "single") {
+      return raw;
+    }
+    
+    // Map display labels to backend values
+    if (raw === "Family w/ Kids" || raw === "Family with Kids") return "family_with_kids";
+    if (raw === "Empty Nesters") return "empty_nesters";
+    if (raw === "Singles/Couples") return "couple";
+    
+    // Map legacy/older internal values
+    if (raw === "family" || raw === "single_parent") return "family_with_kids";
+    
+    // Unknown - return as-is
+    return raw;
+  };
+
   const loadHouseholds = async () => {
     setLoading(true);
     setError(null);
     try {
       const data = await fetchHouseholds();
-      setHouseholds(data);
+      // Normalize household types for dev-created households
+      const normalized = data.map(h => ({
+        ...h,
+        householdType: normalizeHouseholdTypeRaw(h.householdType),
+      }));
+      setHouseholds(normalized);
     } catch (err) {
       console.error('Failed to load households:', err);
       setError('Failed to load households');
@@ -374,11 +400,16 @@ export default function Discovery() {
     switch (type) {
       case 'family_with_kids':
       case 'single_parent':
-        return 'Family w/ Kids';
+      case 'family':
+      case 'Family w/ Kids':
+      case 'Family with Kids':
+        return 'Family with Kids' as HouseholdType;
       case 'empty_nesters':
+      case 'Empty Nesters':
         return 'Empty Nesters';
       case 'couple':
       case 'single':
+      case 'Singles/Couples':
         return 'Singles/Couples';
       default:
         return null;
@@ -441,7 +472,7 @@ export default function Discovery() {
         if (locationPrecision === 'approximate' && !isApproximate) return false;
       }
 
-      if (selectedTypes.has('Family w/ Kids')) {
+      if (selectedTypes.has('Family with Kids' as HouseholdType)) {
         const hasMatchingKid = h.kids?.some((kid) => {
           if (!kid.birthYear || !kid.birthMonth) return false;
           const today = new Date();
@@ -457,7 +488,7 @@ export default function Discovery() {
     })
     .sort((a, b) => {
       // Intent-first ranking with deterministic tie-breakers
-      const isFamilyBrowsing = selectedTypes.has('Family w/ Kids');
+      const isFamilyBrowsing = selectedTypes.has('Family with Kids' as HouseholdType);
       
       // TODO: Replace hardcoded coords with actual user profile lat/lng
       const hasUserCoords = false; // Hardcoded coords are placeholders; treat as missing
@@ -587,7 +618,7 @@ export default function Discovery() {
     switch (type) {
       case 'family_with_kids':
       case 'single_parent':
-        return 'Family w/ Kids';
+        return 'Family with Kids';
       case 'couple':
       case 'single':
       case 'individual':
@@ -646,7 +677,7 @@ export default function Discovery() {
   }
 
   const isAgeInFilterRange = (age: number): boolean => {
-    if (!selectedTypes.has('Family w/ Kids')) return false;
+    if (!selectedTypes.has('Family with Kids' as HouseholdType)) return false;
     return age >= ageMin && age <= ageMax;
   };
 
@@ -664,7 +695,7 @@ export default function Discovery() {
       visibleHouseholdIds: hasActiveFilters ? filteredHouseholds.map((h) => h.id || '').filter(Boolean) : [],
       filterContext: {
         types: Array.from(selectedTypes),
-        ageRange: selectedTypes.has('Family w/ Kids') ? { min: ageMin, max: ageMax } : null,
+        ageRange: selectedTypes.has('Family with Kids' as HouseholdType) ? { min: ageMin, max: ageMax } : null,
         hasFilters: hasActiveFilters,
       },
     };
@@ -887,7 +918,7 @@ export default function Discovery() {
             </div>
 
             {/* Age Range */}
-            {selectedTypes.has('Family w/ Kids') && (
+            {selectedTypes.has('Family with Kids' as HouseholdType) && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
@@ -1799,7 +1830,7 @@ export default function Discovery() {
                     visibleHouseholdIds,
                     filterContext: {
                       types: Array.from(selectedTypes),
-                      ageRange: selectedTypes.has('Family w/ Kids') ? { min: ageMin, max: ageMax } : null,
+                      ageRange: selectedTypes.has('Family with Kids' as HouseholdType) ? { min: ageMin, max: ageMax } : null,
                       hasFilters: selectedTypes.size > 0 || locationPrecision !== 'all',
                     },
                   };
@@ -1850,7 +1881,7 @@ export default function Discovery() {
                     visibleHouseholdIds,
                     filterContext: {
                       types: Array.from(selectedTypes),
-                      ageRange: selectedTypes.has('Family w/ Kids') ? { min: ageMin, max: ageMax } : null,
+                      ageRange: selectedTypes.has('Family with Kids' as HouseholdType) ? { min: ageMin, max: ageMax } : null,
                       hasFilters: selectedTypes.size > 0 || locationPrecision !== 'all',
                     },
                   };
