@@ -486,13 +486,15 @@ export default function Discovery() {
       }
 
       if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        const matchesLastName = h.lastName?.toLowerCase().includes(query);
-        const matchesHouseholdName = (h as any).householdName?.toLowerCase().includes(query);
-        const matchesAdultName = (h as any).adults?.some((adult: any) => adult.name?.toLowerCase().includes(query));
-        const matchesNeighborhood = h.neighborhood?.toLowerCase().includes(query);
-        if (!matchesLastName && !matchesHouseholdName && !matchesAdultName && !matchesNeighborhood) {
-          return false;
+        const query = searchQuery.trim().toLowerCase();
+        if (query) {
+          const matchesLastName = h.lastName?.toLowerCase().includes(query);
+          const matchesHouseholdName = h.name?.toLowerCase().includes(query);
+          const matchesAdultName = h.adultNames?.some((name) => name?.toLowerCase().includes(query));
+          const matchesNeighborhood = h.neighborhood?.toLowerCase().includes(query);
+          if (!matchesLastName && !matchesHouseholdName && !matchesAdultName && !matchesNeighborhood) {
+            return false;
+          }
         }
       }
 
@@ -907,21 +909,65 @@ export default function Discovery() {
             </div>
 
             {/* Search */}
-            <div style={{ marginBottom: 12 }}>
+            <div style={{ marginBottom: 12, position: 'relative' }}>
+              <div style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', pointerEvents: 'none' }}>
+                🔍
+              </div>
               <input
                 type="text"
-                placeholder="Search nearby households…"
+                placeholder="Search by last name, adult name, or neighborhood…"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape' && searchQuery) {
+                    setSearchQuery('');
+                  }
+                }}
                 style={{
                   width: '100%',
-                  padding: '8px 12px',
+                  padding: '8px 12px 8px 32px',
                   fontSize: 14,
                   border: '1px solid #d1d5db',
                   borderRadius: 6,
                   outline: 'none',
+                  background: '#f9fafb',
+                  transition: 'border-color 0.2s, background 0.2s',
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = '#3b82f6';
+                  e.currentTarget.style.background = '#ffffff';
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = '#d1d5db';
+                  e.currentTarget.style.background = '#f9fafb';
                 }}
               />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  style={{
+                    position: 'absolute',
+                    right: 8,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#6b7280',
+                    cursor: 'pointer',
+                    padding: 4,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 18,
+                    lineHeight: 1,
+                    transition: 'color 0.2s',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = '#111827')}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = '#6b7280')}
+                >
+                  ×
+                </button>
+              )}
             </div>
 
             {/* Household Type */}
@@ -1239,8 +1285,9 @@ export default function Discovery() {
             filteredHouseholds.length === 0 &&
             (() => {
               const hasFiltersActive = selectedTypes.size > 0 || locationPrecision !== 'all';
+              const hasSearchActive = searchQuery.trim().length > 0;
               const unfilteredCount = activeTab === 'connected' ? connectedHouseholds.length : nearbyHouseholds.length;
-              const isFilteredEmpty = hasFiltersActive && unfilteredCount > 0;
+              const isFilteredEmpty = (hasFiltersActive || hasSearchActive) && unfilteredCount > 0;
 
               if (activeTab === 'connected') {
                 return (
@@ -1279,7 +1326,7 @@ export default function Discovery() {
                   <div style={{ textAlign: 'center', padding: 64 }}>
                     <div style={{ fontSize: 48, marginBottom: 16 }}>🔍</div>
                     <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: '#111827' }}>
-                      No neighbors match your filters
+                      {hasSearchActive ? 'No households match your search' : 'No neighbors match your filters'}
                     </h3>
                     <p style={{ fontSize: 14, color: '#6b7280', marginBottom: 16, lineHeight: 1.6 }}>
                       Try adjusting your filters or invite more neighbors to grow your community.
@@ -1291,6 +1338,7 @@ export default function Discovery() {
                           setLocationPrecision('all');
                           setAgeMin(0);
                           setAgeMax(18);
+                          setSearchQuery('');
                         }}
                         style={{
                           padding: '10px 20px',
