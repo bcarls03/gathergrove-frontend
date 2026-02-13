@@ -84,6 +84,7 @@ export default function Discovery() {
   const [ageMin, setAgeMin] = useState<number>(savedFilters.ageMin);
   const [ageMax, setAgeMax] = useState<number>(savedFilters.ageMax);
   const [locationPrecision, setLocationPrecision] = useState<LocationPrecision>(savedFilters.locationPrecision);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Connected household IDs from API
   const [connectedHouseholdIds, setConnectedHouseholdIds] = useState<string[]>([]);
@@ -482,6 +483,17 @@ export default function Discovery() {
           return ageInYears >= ageMin && ageInYears <= ageMax;
         });
         if (!hasMatchingKid) return false;
+      }
+
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const matchesLastName = h.lastName?.toLowerCase().includes(query);
+        const matchesHouseholdName = (h as any).householdName?.toLowerCase().includes(query);
+        const matchesAdultName = (h as any).adults?.some((adult: any) => adult.name?.toLowerCase().includes(query));
+        const matchesNeighborhood = h.neighborhood?.toLowerCase().includes(query);
+        if (!matchesLastName && !matchesHouseholdName && !matchesAdultName && !matchesNeighborhood) {
+          return false;
+        }
       }
 
       return true;
@@ -892,6 +904,24 @@ export default function Discovery() {
               }}
             >
               Filters
+            </div>
+
+            {/* Search */}
+            <div style={{ marginBottom: 12 }}>
+              <input
+                type="text"
+                placeholder="Search nearby households…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  fontSize: 14,
+                  border: '1px solid #d1d5db',
+                  borderRadius: 6,
+                  outline: 'none',
+                }}
+              />
             </div>
 
             {/* Household Type */}
