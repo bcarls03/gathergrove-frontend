@@ -1,6 +1,6 @@
 // src/pages/SettingsNew.tsx
 import { useEffect, useState } from "react";
-import { User, Mail, Home, Users, Link as LinkIcon, Unlink, Save, Baby, Heart, Plus, X, Search } from "lucide-react";
+import { User, Mail, Home, UsersRound, Link as LinkIcon, Unlink, Save, Baby, UserRound, Heart, Plus, X, Search } from "lucide-react";
 import { motion } from "framer-motion";
 import {
   getMyProfile,
@@ -16,6 +16,14 @@ import {
   type HouseholdCreate,
   type HouseholdUpdate,
 } from "../lib/api";
+import { HOUSEHOLD_TYPE_META, type HouseholdType as HouseholdTypeLabel } from "../components/filters/householdMeta";
+
+// Mapping from API snake_case to display labels
+const HOUSEHOLD_TYPE_LABEL: Record<HouseholdType, HouseholdTypeLabel> = {
+  family_with_kids: "Family with Kids",
+  empty_nesters: "Empty Nesters",
+  singles_couples: "Singles/Couples",
+};
 
 const cardStyle: React.CSSProperties = {
   marginTop: 16,
@@ -536,6 +544,35 @@ export default function SettingsNew() {
                   <option value="empty_nesters">Empty Nesters</option>
                   <option value="singles_couples">Singles/Couples</option>
                 </select>
+                
+                {/* Visual Preview of Selected Type */}
+                {householdType && (() => {
+                  const label = HOUSEHOLD_TYPE_LABEL[householdType];
+                  const meta = HOUSEHOLD_TYPE_META[label];
+                  const Icon = meta.Icon;
+                  
+                  return (
+                    <div style={{ marginTop: 12, padding: 12, borderRadius: 8, background: "#f9fafb", border: "1px solid #e5e7eb" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <div style={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: 8,
+                          background: meta.iconBg,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                        }}>
+                          <Icon size={18} color={meta.iconColor} />
+                        </div>
+                        <span style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>
+                          {label}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Create Button */}
@@ -617,13 +654,13 @@ export default function SettingsNew() {
                       width: 48,
                       height: 48,
                       borderRadius: 12,
-                      background: "#dbeafe",
+                      background: "#f1f5f9",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       flexShrink: 0,
                     }}>
-                      <Users size={24} color="#2563eb" />
+                      <UsersRound size={24} color="#334155" />
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 15, fontWeight: 600, color: "#111827", marginBottom: 2 }}>
@@ -656,13 +693,13 @@ export default function SettingsNew() {
                       width: 48,
                       height: 48,
                       borderRadius: 12,
-                      background: "#fce7f3",
+                      background: "#f1f5f9",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       flexShrink: 0,
                     }}>
-                      <Home size={24} color="#db2777" />
+                      <Home size={24} color="#334155" />
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 15, fontWeight: 600, color: "#111827", marginBottom: 2 }}>
@@ -695,13 +732,13 @@ export default function SettingsNew() {
                       width: 48,
                       height: 48,
                       borderRadius: 12,
-                      background: "#fef3c7",
+                      background: "#f1f5f9",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       flexShrink: 0,
                     }}>
-                      <Heart size={24} color="#f59e0b" />
+                      <UserRound size={24} color="#334155" />
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 15, fontWeight: 600, color: "#111827", marginBottom: 2 }}>
@@ -725,7 +762,7 @@ export default function SettingsNew() {
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <Users size={16} style={{ color: "#6b7280" }} />
+                  <UsersRound size={16} style={{ color: "#6b7280" }} />
                   <span style={{ fontSize: 13, color: "#6b7280" }}>
                     Members: {household.member_uids?.length || 1}
                   </span>
@@ -755,7 +792,7 @@ export default function SettingsNew() {
                   }}
                 >
                   <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <Users size={16} />
+                    <UsersRound size={16} />
                     Manage Members & Invites
                   </span>
                   <span>→</span>

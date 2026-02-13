@@ -1,25 +1,28 @@
 // src/components/filters/householdMeta.ts
-import { Users, Home, Heart } from "lucide-react";
+import { UsersRound, Home, UserRound } from "lucide-react";
 
-export type HouseholdType = "Family w/ Kids" | "Empty Nesters" | "Singles/Couples";
+export type HouseholdType = "Family with Kids" | "Empty Nesters" | "Singles/Couples";
 
 export const HOUSEHOLD_TYPE_META: Record<
   HouseholdType,
-  { Icon: typeof Users; iconColor: string; iconBorder: string }
+  { Icon: typeof UsersRound; iconColor: string; iconBorder: string; iconBg: string }
 > = {
-  "Family w/ Kids": {
-    Icon: Users,
-    iconColor: "#3b82f6", // blue-500
-    iconBorder: "#93c5fd", // blue-300
+  "Family with Kids": {
+    Icon: UsersRound,
+    iconColor: "#334155", // slate-700
+    iconBorder: "#cbd5e1", // slate-300
+    iconBg: "#f1f5f9", // slate-100
   },
   "Empty Nesters": {
     Icon: Home,
-    iconColor: "#f59e0b", // amber-500
-    iconBorder: "#fcd34d", // amber-300
+    iconColor: "#334155", // slate-700
+    iconBorder: "#cbd5e1", // slate-300
+    iconBg: "#f1f5f9", // slate-100
   },
   "Singles/Couples": {
-    Icon: Heart,
-    iconColor: "#ec4899", // pink-500
-    iconBorder: "#f9a8d4", // pink-300
+    Icon: UserRound,
+    iconColor: "#334155", // slate-700
+    iconBorder: "#cbd5e1", // slate-300
+    iconBg: "#f1f5f9", // slate-100
   },
 };
