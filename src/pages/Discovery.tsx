@@ -86,6 +86,10 @@ export default function Discovery() {
   const [locationPrecision, setLocationPrecision] = useState<LocationPrecision>(savedFilters.locationPrecision);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Kids' Gender filter
+  type KidsGenderFilter = 'all' | 'girls' | 'boys';
+  const [kidsGenderFilter, setKidsGenderFilter] = useState<KidsGenderFilter>('all');
+
   // Connected household IDs from API
   const [connectedHouseholdIds, setConnectedHouseholdIds] = useState<string[]>([]);
   const [connectingIds, setConnectingIds] = useState<Set<string>>(new Set());
@@ -146,6 +150,13 @@ export default function Discovery() {
     loadConnections();
     loadEvents();
   }, []);
+
+  // Reset Kids' Gender filter when Family with Kids is deselected
+  useEffect(() => {
+    if (!selectedTypes.has('Family with Kids' as HouseholdType)) {
+      setKidsGenderFilter('all');
+    }
+  }, [selectedTypes]);
 
   // Save filters to sessionStorage whenever they change
   useEffect(() => {
@@ -483,6 +494,10 @@ export default function Discovery() {
           return ageInYears >= ageMin && ageInYears <= ageMax;
         });
         if (!hasMatchingKid) return false;
+
+        // Kids' Gender filter (only when Family with Kids is active)
+        if (kidsGenderFilter === 'girls' && !hasKidSex(h, 'girls')) return false;
+        if (kidsGenderFilter === 'boys' && !hasKidSex(h, 'boys')) return false;
       }
 
       if (searchQuery) {
@@ -726,6 +741,16 @@ export default function Discovery() {
     if (s.startsWith('f')) return 'Girl';
     if (s.startsWith('m')) return 'Boy';
     return '';
+  }
+
+  function hasKidSex(household: GGHousehold, target: 'girls' | 'boys'): boolean {
+    if (!household.kids || household.kids.length === 0) return false;
+    return household.kids.some((kid) => {
+      const sex = (kid.sex || '').toLowerCase();
+      if (target === 'girls') return sex.startsWith('f');
+      if (target === 'boys') return sex.startsWith('m');
+      return false;
+    });
   }
 
   const isAgeInFilterRange = (age: number): boolean => {
@@ -1056,6 +1081,52 @@ export default function Discovery() {
                       setAgeMax(nextMax);
                     }}
                   />
+                </div>
+              </motion.div>
+            )}
+
+            {/* Kids' Gender */}
+            {selectedTypes.has('Family with Kids' as HouseholdType) && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2 }}
+                style={{ marginBottom: 12 }}
+              >
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 8 }}>
+                  Kids&apos; Gender
+                </div>
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: 4,
+                    padding: '2px',
+                    background: '#f3f4f6',
+                    borderRadius: 8,
+                  }}
+                >
+                  {(['all', 'girls', 'boys'] as const).map((option) => (
+                    <button
+                      key={option}
+                      onClick={() => setKidsGenderFilter(option)}
+                      style={{
+                        flex: 1,
+                        padding: '6px 10px',
+                        borderRadius: 6,
+                        border: 'none',
+                        background: kidsGenderFilter === option ? '#ffffff' : 'transparent',
+                        color: kidsGenderFilter === option ? '#111827' : '#6b7280',
+                        fontSize: 12,
+                        fontWeight: kidsGenderFilter === option ? 600 : 500,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                        boxShadow: kidsGenderFilter === option ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
+                      }}
+                    >
+                      {option === 'all' ? 'All' : option === 'girls' ? 'Girls' : 'Boys'}
+                    </button>
+                  ))}
                 </div>
               </motion.div>
             )}
@@ -1621,19 +1692,35 @@ export default function Discovery() {
                           })
                           .sort((a, b) => b.age - a.age)
                           .map((kid, idx) => {
-                            const isMatch = isAgeInFilterRange(kid.age);
+                            const isAgeMatch = isAgeInFilterRange(kid.age);
+                            
+                            // Gender filter matching
+                            const kidSex = (kid.sex || '').toLowerCase();
+                            const isGirl = kidSex.startsWith('f');
+                            const isBoy = kidSex.startsWith('m');
+                            
+                            let isGenderMatch = true; // Default when filter is "all"
+                            if (kidsGenderFilter === 'girls') {
+                              isGenderMatch = isGirl;
+                            } else if (kidsGenderFilter === 'boys') {
+                              isGenderMatch = isBoy;
+                            }
+                            
+                            // Combined match: age filter (if active) AND gender filter (if active)
+                            const isMatch = isAgeMatch && isGenderMatch;
                             const genderSuffix = getGenderSuffix(kid.sex);
+                            
                             return (
                               <div
                                 key={idx}
                                 style={{
                                   padding: '3px 8px',
                                   borderRadius: 6,
-                                  background: isMatch ? '#10b981' : '#f0fdf4',
-                                  border: isMatch ? '2px solid #059669' : '1px solid #d1fae5',
+                                  background: isMatch ? '#10b981' : '#f3f4f6',
+                                  border: isMatch ? '2px solid #059669' : '1px solid rgba(15,23,42,0.10)',
                                   fontSize: 12,
                                   fontWeight: isMatch ? 700 : 600,
-                                  color: isMatch ? '#ffffff' : '#047857',
+                                  color: isMatch ? '#ffffff' : '#6b7280',
                                   boxShadow: isMatch ? '0 2px 8px rgba(16, 185, 129, 0.3)' : 'none',
                                   transform: isMatch ? 'scale(1.05)' : 'scale(1)',
                                   transition: 'all 0.2s',
