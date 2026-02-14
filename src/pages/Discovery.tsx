@@ -690,6 +690,44 @@ export default function Discovery() {
       .sort((a, b) => b - a);
   }
 
+  function getKidsAgesByGender(household: GGHousehold): { girlsAges: number[]; boysAges: number[] } {
+    if (!household.kids || household.kids.length === 0) return { girlsAges: [], boysAges: [] };
+    
+    const today = new Date();
+    const girlsAges: number[] = [];
+    const boysAges: number[] = [];
+    
+    household.kids.forEach((kid) => {
+      if (!kid.birthYear || !kid.birthMonth) return;
+      
+      const birthDate = new Date(kid.birthYear, (kid.birthMonth || 1) - 1);
+      const ageInMonths = (today.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
+      const age = Math.floor(ageInMonths / 12);
+      
+      const sex = (kid.sex || '').toLowerCase();
+      if (sex.startsWith('f')) {
+        girlsAges.push(age);
+      } else if (sex.startsWith('m')) {
+        boysAges.push(age);
+      }
+      // Ignore unknown/unspecified
+    });
+    
+    // Sort descending (oldest to youngest) to match chip display order
+    girlsAges.sort((a, b) => b - a);
+    boysAges.sort((a, b) => b - a);
+    
+    return { girlsAges, boysAges };
+  }
+
+  function getGenderSuffix(sex?: string | null): string {
+    if (!sex) return '';
+    const s = sex.toLowerCase();
+    if (s.startsWith('f')) return 'Girl';
+    if (s.startsWith('m')) return 'Boy';
+    return '';
+  }
+
   const isAgeInFilterRange = (age: number): boolean => {
     if (!selectedTypes.has('Family with Kids' as HouseholdType)) return false;
     return age >= ageMin && age <= ageMax;
@@ -1455,6 +1493,7 @@ export default function Discovery() {
           <div style={{ display: 'grid', gap: 10, width: '100%', boxSizing: 'border-box' }}>
             {filteredHouseholds.map((household) => {
               const kidsAges = getKidsAges(household);
+              const { girlsAges, boysAges } = getKidsAgesByGender(household);
               const householdName = getHouseholdName(household);
               const connected = isConnected(household.id);
               const pending = isPending(household.id);
@@ -1571,28 +1610,54 @@ export default function Discovery() {
                         Kids:
                       </div>
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        {kidsAges.map((age, idx) => {
-                          const isMatch = isAgeInFilterRange(age);
-                          return (
-                            <div
-                              key={idx}
-                              style={{
-                                padding: '3px 8px',
-                                borderRadius: 6,
-                                background: isMatch ? '#10b981' : '#f0fdf4',
-                                border: isMatch ? '2px solid #059669' : '1px solid #d1fae5',
-                                fontSize: 12,
-                                fontWeight: isMatch ? 700 : 600,
-                                color: isMatch ? '#ffffff' : '#047857',
-                                boxShadow: isMatch ? '0 2px 8px rgba(16, 185, 129, 0.3)' : 'none',
-                                transform: isMatch ? 'scale(1.05)' : 'scale(1)',
-                                transition: 'all 0.2s',
-                              }}
-                            >
-                              {age} {age === 1 ? 'year' : 'years'}
-                            </div>
-                          );
-                        })}
+                        {household.kids
+                          ?.filter((kid) => kid.birthYear && kid.birthMonth)
+                          .map((kid) => {
+                            const birthDate = new Date(kid.birthYear!, (kid.birthMonth || 1) - 1);
+                            const today = new Date();
+                            const ageInMonths = (today.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
+                            const age = Math.floor(ageInMonths / 12);
+                            return { age, sex: kid.sex };
+                          })
+                          .sort((a, b) => b.age - a.age)
+                          .map((kid, idx) => {
+                            const isMatch = isAgeInFilterRange(kid.age);
+                            const genderSuffix = getGenderSuffix(kid.sex);
+                            return (
+                              <div
+                                key={idx}
+                                style={{
+                                  padding: '3px 8px',
+                                  borderRadius: 6,
+                                  background: isMatch ? '#10b981' : '#f0fdf4',
+                                  border: isMatch ? '2px solid #059669' : '1px solid #d1fae5',
+                                  fontSize: 12,
+                                  fontWeight: isMatch ? 700 : 600,
+                                  color: isMatch ? '#ffffff' : '#047857',
+                                  boxShadow: isMatch ? '0 2px 8px rgba(16, 185, 129, 0.3)' : 'none',
+                                  transform: isMatch ? 'scale(1.05)' : 'scale(1)',
+                                  transition: 'all 0.2s',
+                                }}
+                              >
+                                <span style={{ fontWeight: 800, letterSpacing: '-0.01em', lineHeight: 1 }}>
+                                  {kid.age}y
+                                </span>
+                                {genderSuffix && (
+                                  <span
+                                    style={{
+                                      fontSize: 11.5,
+                                      opacity: 0.78,
+                                      fontWeight: 600,
+                                      marginLeft: 6,
+                                      lineHeight: 1,
+                                    }}
+                                  >
+                                    {genderSuffix}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
                       </div>
                     </div>
                   )}
