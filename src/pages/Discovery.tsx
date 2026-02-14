@@ -932,6 +932,7 @@ export default function Discovery() {
                   outline: 'none',
                   background: '#f9fafb',
                   transition: 'border-color 0.2s, background 0.2s',
+                  boxSizing: 'border-box',
                 }}
                 onFocus={(e) => {
                   e.currentTarget.style.borderColor = '#3b82f6';
@@ -1005,7 +1006,7 @@ export default function Discovery() {
                 <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 8 }}>
                   Kids&apos; Ages: {ageMin}–{ageMax} years
                 </div>
-                <div style={{ paddingLeft: 4, paddingRight: 4 }}>
+                <div style={{ paddingLeft: 6, paddingRight: 6, width: '100%', boxSizing: 'border-box' }}>
                   <DualAgeRange
                     min={0}
                     max={18}
@@ -1451,7 +1452,7 @@ export default function Discovery() {
             })()}
 
           {/* Household Cards */}
-          <div style={{ display: 'grid', gap: 10 }}>
+          <div style={{ display: 'grid', gap: 10, width: '100%', boxSizing: 'border-box' }}>
             {filteredHouseholds.map((household) => {
               const kidsAges = getKidsAges(household);
               const householdName = getHouseholdName(household);
