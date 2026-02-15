@@ -1688,7 +1688,12 @@ export default function Discovery() {
                             const today = new Date();
                             const ageInMonths = (today.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
                             const age = Math.floor(ageInMonths / 12);
-                            return { age, sex: kid.sex };
+                            return {
+                              age,
+                              sex: kid.sex,
+                              awayAtCollege: Boolean(kid.awayAtCollege),
+                              canBabysit: Boolean(kid.canBabysit),
+                            };
                           })
                           .sort((a, b) => b.age - a.age)
                           .map((kid, idx) => {
@@ -1742,10 +1747,49 @@ export default function Discovery() {
                                     {genderSuffix}
                                   </span>
                                 )}
+                                {kid.awayAtCollege && (
+                                  <span
+                                    style={{
+                                      fontSize: 9.5,
+                                      opacity: 0.62,
+                                      fontWeight: 500,
+                                      marginLeft: 6,
+                                      lineHeight: 1,
+                                    }}
+                                  >
+                                    Away
+                                  </span>
+                                )}
                               </div>
                             );
                           })}
                       </div>
+                      
+                      {/* Babysitting badge */}
+                      {household.kids?.some((kid) => {
+                        if (!kid.birthYear || !kid.birthMonth || !kid.canBabysit) return false;
+                        const birthDate = new Date(kid.birthYear, (kid.birthMonth || 1) - 1);
+                        const today = new Date();
+                        const ageInMonths = (today.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
+                        const age = Math.floor(ageInMonths / 12);
+                        return age >= 13 && age <= 25;
+                      }) && (
+                        <div style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '3px 8px',
+                          borderRadius: 6,
+                          background: 'rgba(16,185,129,0.10)',
+                          fontSize: 12,
+                          fontWeight: 500,
+                          color: '#166534',
+                          marginTop: 6,
+                        }}>
+                          <span style={{ fontSize: 14 }}>🧑‍🍼</span>
+                          <span>Babysitting help</span>
+                        </div>
+                      )}
                     </div>
                   )}
 
