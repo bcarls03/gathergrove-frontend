@@ -2,10 +2,10 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getOnboardingState, setOnboardingState } from "../lib/onboarding";
-import { Eye, Lock, MapPin, Search } from "lucide-react";
+import { Eye, Lock, MapPin, Search, Users, Heart, Home } from "lucide-react";
 import { OnboardingLayout } from "../components/OnboardingLayout";
 import { createHousehold, updateMyProfile, type GGHousehold } from "../lib/api";
-import { HouseholdCard } from "../components/HouseholdCard";
+import HouseholdCard from "../components/HouseholdCard";
 
 function OnboardingPrivacyInner() {
   const navigate = useNavigate();
@@ -190,6 +190,72 @@ function OnboardingPrivacyInner() {
     neighborhood: "Your Neighborhood",
   };
 
+  // Helper functions for HouseholdCard
+  const getHouseholdTypeIcon = (type?: string) => {
+    switch (type) {
+      case 'family_with_kids':
+      case 'family':
+        return <Users size={16} />;
+      case 'couple':
+        return <Heart size={16} />;
+      case 'single_parent':
+      case 'single':
+      case 'individual':
+        return <Home size={16} />;
+      default:
+        return <Users size={16} />;
+    }
+  };
+
+  const getHouseholdTypeColor = (type?: string) => {
+    switch (type) {
+      case 'family_with_kids':
+      case 'family':
+        return '#3b82f6';
+      case 'couple':
+        return '#ec4899';
+      case 'single_parent':
+      case 'single':
+      case 'individual':
+        return '#f59e0b';
+      default:
+        return '#6b7280';
+    }
+  };
+
+  const getHouseholdTypeLabel = (type?: string) => {
+    switch (type) {
+      case 'family_with_kids':
+      case 'single_parent':
+        return 'Family with Kids';
+      case 'couple':
+      case 'single':
+      case 'individual':
+        return 'Singles/Couples';
+      default:
+        return 'Household';
+    }
+  };
+
+  const getDistanceText = () => null;
+  
+  const normalizeKidGender = (sex?: string | null) => {
+    const s = (sex || "").trim().toLowerCase();
+    if (!s) return null;
+    if (s === "girl" || s === "female" || s === "f") return "girl";
+    if (s === "boy" || s === "male" || s === "m") return "boy";
+    return null;
+  };
+
+  const getGenderSuffix = (sex?: string | null) => {
+    const s = (sex || "").trim().toLowerCase();
+    if (s === "female" || s === "girl" || s === "f") return "Girl";
+    if (s === "male" || s === "boy" || s === "m") return "Boy";
+    return "";
+  };
+
+  const isAgeInFilterRange = () => true;
+
   return (
     <OnboardingLayout currentStep="privacy">
       <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 24px 48px' }}>
@@ -214,13 +280,23 @@ function OnboardingPrivacyInner() {
             </p>
           </div>
 
-          {/* Household Preview Card - Using canonical HouseholdCard component */}
+          {/* Household Preview Card */}
           <div style={{ marginBottom: 24 }}>
             <HouseholdCard
               household={previewHousehold}
+              householdName={householdName}
+              connected={false}
+              activeTab="nearby"
+              isAgeInFilterRange={isAgeInFilterRange}
+              kidsGenderFilter="all"
+              normalizeKidGender={normalizeKidGender}
+              getGenderSuffix={getGenderSuffix}
+              getDistanceText={getDistanceText}
+              getHouseholdTypeColor={getHouseholdTypeColor}
+              getHouseholdTypeIcon={getHouseholdTypeIcon}
+              getHouseholdTypeLabel={getHouseholdTypeLabel}
+              kidsAges={kidsAges}
               variant="preview"
-              showConnectedBadge={false}
-              isAgeFilterActive={false}
             />
           </div>
 

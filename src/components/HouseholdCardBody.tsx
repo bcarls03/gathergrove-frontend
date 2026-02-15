@@ -19,6 +19,7 @@ type HouseholdCardBodyProps = {
   getHouseholdTypeIcon: (type?: string) => ReactElement;
   getHouseholdTypeLabel: (type?: string) => string;
   kidsAges: number[];
+  variant?: 'discovery' | 'preview';
 };
 
 export default function HouseholdCardBody({
@@ -35,6 +36,7 @@ export default function HouseholdCardBody({
   getHouseholdTypeIcon,
   getHouseholdTypeLabel,
   kidsAges,
+  variant = 'discovery',
 }: HouseholdCardBodyProps) {
   return (
     <>
@@ -45,7 +47,7 @@ export default function HouseholdCardBody({
             {householdName}
           </h3>
 
-          {getDistanceText(household) && (
+          {variant === 'discovery' && getDistanceText(household) && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
               <div
                 style={{
@@ -75,8 +77,9 @@ export default function HouseholdCardBody({
                 gap: 4,
                 padding: '3px 8px',
                 borderRadius: 6,
-                background: getHouseholdTypeColor(household.householdType) + '15',
-                color: getHouseholdTypeColor(household.householdType),
+                background: variant === 'preview' ? '#f3f4f6' : getHouseholdTypeColor(household.householdType) + '15',
+                border: variant === 'preview' ? '1px solid #e5e7eb' : undefined,
+                color: variant === 'preview' ? '#374151' : getHouseholdTypeColor(household.householdType),
                 fontSize: 12,
                 fontWeight: 600,
               }}
@@ -163,7 +166,8 @@ export default function HouseholdCardBody({
                 }
                 
                 // Combined match: age filter (if active) AND gender filter (if active)
-                const isMatch = isAgeMatch && isGenderMatch;
+                // In preview mode, force no match styling
+                const isMatch = variant === 'preview' ? false : (isAgeMatch && isGenderMatch);
                 const genderSuffix = getGenderSuffix(sex);
                 
                 return (
