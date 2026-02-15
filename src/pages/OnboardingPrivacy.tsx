@@ -4,7 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { getOnboardingState, setOnboardingState } from "../lib/onboarding";
 import { Eye, Lock, MapPin, Search } from "lucide-react";
 import { OnboardingLayout } from "../components/OnboardingLayout";
-import { createHousehold, updateMyProfile } from "../lib/api";
+import { createHousehold, updateMyProfile, type GGHousehold } from "../lib/api";
+import { HouseholdCard } from "../components/HouseholdCard";
 
 function OnboardingPrivacyInner() {
   const navigate = useNavigate();
@@ -173,6 +174,22 @@ function OnboardingPrivacyInner() {
     return "Household";
   };
 
+  // Convert onboarding state to GGHousehold format for HouseholdCard
+  const previewHousehold: GGHousehold = {
+    lastName: state.lastName || state.firstName || "Your",
+    adultNames: [state.firstName || "You"].filter(Boolean),
+    householdType: state.intendedHouseholdType || "singles_couples",
+    kids: state.kids?.map(kid => ({
+      birthYear: kid.birthYear || null,
+      birthMonth: kid.birthMonth || null,
+      sex: (kid as any).sex ?? (kid as any).gender ?? null,
+      awayAtCollege: (kid as any).awayAtCollege ?? (kid as any).away ?? false,
+      canBabysit: (kid as any).canBabysit ?? false,
+    })) || [],
+    location_precision: "zipcode",
+    neighborhood: "Your Neighborhood",
+  };
+
   return (
     <OnboardingLayout currentStep="privacy">
       <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 24px 48px' }}>
@@ -197,53 +214,14 @@ function OnboardingPrivacyInner() {
             </p>
           </div>
 
-          {/* Household Preview Card - "Proof Sheet" */}
-          <div
-            style={{
-              marginBottom: 24,
-              padding: 20,
-              borderRadius: 16,
-              background: "#ffffff",
-              border: "2px solid #e5e7eb",
-              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
-              {/* Avatar Circle */}
-              <div
-                style={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: "50%",
-                  background: "linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                  fontSize: 24,
-                  fontWeight: 700,
-                  color: "#1e40af",
-                }}
-              >
-                {householdName.charAt(0).toUpperCase()}
-              </div>
-
-              {/* Card Content */}
-              <div style={{ flex: 1 }}>
-                <h3 style={{ fontSize: 18, fontWeight: 700, color: "#111827", marginBottom: 8 }}>
-                  The {householdName} Household
-                </h3>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 8 }}>
-                  <span style={{ fontSize: 14, color: "#6b7280" }}>
-                    📍 ~0.4 miles away
-                  </span>
-                  <span style={{ fontSize: 14, color: "#6b7280" }}>
-                    👨‍👩‍👧‍👦 {getHouseholdTypeText()}
-                    {hasKids && kidsAges.length > 0 && ` (Ages ${kidsAges.join(', ')})`}
-                  </span>
-                </div>
-              </div>
-            </div>
+          {/* Household Preview Card - Using canonical HouseholdCard component */}
+          <div style={{ marginBottom: 24 }}>
+            <HouseholdCard
+              household={previewHousehold}
+              variant="preview"
+              showConnectedBadge={false}
+              isAgeFilterActive={false}
+            />
           </div>
 
           {/* Two-Column Summary */}
