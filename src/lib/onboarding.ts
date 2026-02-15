@@ -33,6 +33,8 @@ export type OnboardingKid = {
   birthYear?: number;  // Store birth year for auto-updating age
   birthMonth?: number; // Store birth month (1-12) for auto-updating age
   available_for_babysitting?: boolean;
+  awayAtCollege?: boolean;
+  canBabysit?: boolean;
 };
 
 const KEY = "gg:onboarding";

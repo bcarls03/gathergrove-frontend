@@ -12,6 +12,8 @@ type Kid = {
   birthYear: string;  // "2018", "2019", etc.
   birthMonth: string; // "1" to "12"
   gender: "male" | "female" | "prefer_not_to_say" | "";
+  awayAtCollege?: boolean;
+  canBabysit?: boolean;
 };
 
 // Generate year options (current year back 25 years for kids 0-25)
@@ -71,14 +73,16 @@ export function OnboardingKids() {
         birthYear: k.birthYear?.toString() || "",
         birthMonth: k.birthMonth?.toString() || "",
         gender: k.gender || "",
+        awayAtCollege: k.awayAtCollege || false,
+        canBabysit: k.canBabysit || false,
       }))
-    : [{ id: "1", birthYear: "", birthMonth: "", gender: "" }];
+    : [{ id: "1", birthYear: "", birthMonth: "", gender: "", awayAtCollege: false, canBabysit: false }];
   
   const [kids, setKids] = useState<Kid[]>(initialKids);
   const [saving, setSaving] = useState(false);
 
   const addKid = () => {
-    setKids([...kids, { id: Date.now().toString(), birthYear: "", birthMonth: "", gender: "" }]);
+    setKids([...kids, { id: Date.now().toString(), birthYear: "", birthMonth: "", gender: "", awayAtCollege: false, canBabysit: false }]);
   };
 
   const removeKid = (id: string) => {
@@ -88,6 +92,10 @@ export function OnboardingKids() {
   };
 
   const updateKid = (id: string, field: "birthYear" | "birthMonth" | "gender", value: string) => {
+    setKids(kids.map((k) => (k.id === id ? { ...k, [field]: value } : k)));
+  };
+
+  const updateKidBoolean = (id: string, field: "awayAtCollege" | "canBabysit", value: boolean) => {
     setKids(kids.map((k) => (k.id === id ? { ...k, [field]: value } : k)));
   };
 
@@ -107,6 +115,8 @@ export function OnboardingKids() {
           gender: k.gender === "" ? null : k.gender,
           birthYear: Number(k.birthYear),
           birthMonth: Number(k.birthMonth),
+          awayAtCollege: k.awayAtCollege || false,
+          canBabysit: k.canBabysit || false,
         };
       }),
     });
@@ -314,6 +324,85 @@ export function OnboardingKids() {
                 </div>
               </div>
 
+              {/* Conditional Checkboxes - shown based on age */}
+              {kid.birthYear && kid.birthMonth && (() => {
+                const currentAge = calculateAge(Number(kid.birthYear), Number(kid.birthMonth));
+                
+                return (
+                  <>
+                    {/* Lives away from home - only show if age >= 18 */}
+                    {currentAge >= 18 && (
+                      <div style={{ marginBottom: 12 }}>
+                        <label style={{ 
+                          display: "flex", 
+                          alignItems: "flex-start", 
+                          gap: 10, 
+                          cursor: "pointer",
+                          padding: "10px 12px",
+                          borderRadius: 10,
+                          border: kid.awayAtCollege ? "1px solid #10b981" : "1px solid #e5e7eb",
+                          background: kid.awayAtCollege ? "rgba(16, 185, 129, 0.10)" : "#ffffff",
+                          transition: "all 0.2s ease",
+                        }}>
+                          <input
+                            type="checkbox"
+                            checked={kid.awayAtCollege || false}
+                            onChange={(e) => updateKidBoolean(kid.id, "awayAtCollege", e.target.checked)}
+                            style={{
+                              marginTop: 2,
+                              width: 16,
+                              height: 16,
+                              cursor: "pointer",
+                              accentColor: "#059669",
+                            }}
+                          />
+                          <div style={{ flex: 1 }}>
+                            <span style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>
+                              Lives away from home (college, work, etc.)
+                            </span>
+                            <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
+                              Use this if they're usually away for school or work, not just visiting.
+                            </div>
+                          </div>
+                        </label>
+                      </div>
+                    )}
+
+                    {/* Can help with babysitting - only show if age >= 13 AND age <= 25 */}
+                    {currentAge >= 13 && currentAge <= 25 && (
+                      <div style={{ marginBottom: 12 }}>
+                        <label style={{ 
+                          display: "flex", 
+                          alignItems: "center", 
+                          gap: 10, 
+                          cursor: "pointer",
+                          padding: "10px 12px",
+                          borderRadius: 10,
+                          border: kid.canBabysit ? "1px solid #10b981" : "1px solid #e5e7eb",
+                          background: kid.canBabysit ? "rgba(16, 185, 129, 0.10)" : "#ffffff",
+                          transition: "all 0.2s ease",
+                        }}>
+                          <input
+                            type="checkbox"
+                            checked={kid.canBabysit || false}
+                            onChange={(e) => updateKidBoolean(kid.id, "canBabysit", e.target.checked)}
+                            style={{
+                              width: 16,
+                              height: 16,
+                              cursor: "pointer",
+                              accentColor: "#059669",
+                            }}
+                          />
+                          <span style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>
+                            Can help with babysitting / parent helper
+                          </span>
+                        </label>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+
               {/* Summary Preview - shows after all fields filled */}
               {kid.birthYear && kid.birthMonth && (() => {
                 const currentAge = calculateAge(Number(kid.birthYear), Number(kid.birthMonth));
@@ -390,7 +479,7 @@ export function OnboardingKids() {
                   Used to help families find playmate matches. When parents filter for specific ages and genders, your household will appear in those results.
                 </p>
                 <p style={{ fontSize: 13, color: '#059669', lineHeight: 1.5, margin: 0, fontWeight: 500 }}>
-                  Gender is only shown in filtered searches, never on your public household card.
+                  Gender is shown alongside age to help families find compatible playmates.
                 </p>
               </div>
             </div>
