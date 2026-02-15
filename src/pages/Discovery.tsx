@@ -719,7 +719,7 @@ export default function Discovery() {
       const ageInMonths = (today.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
       const age = Math.floor(ageInMonths / 12);
       
-      const sex = (kid.sex || '').toLowerCase();
+      const sex = (kid.sex ?? (kid as any).gender ?? '').toLowerCase();
       if (sex.startsWith('f')) {
         girlsAges.push(age);
       } else if (sex.startsWith('m')) {
@@ -735,20 +735,29 @@ export default function Discovery() {
     return { girlsAges, boysAges };
   }
 
-  function getGenderSuffix(sex?: string | null): string {
-    if (!sex) return '';
-    const s = sex.toLowerCase();
-    if (s.startsWith('f')) return 'Girl';
-    if (s.startsWith('m')) return 'Boy';
-    return '';
+  function getGenderSuffix(sex?: string | null) {
+    const s = (sex || "").trim().toLowerCase();
+
+    if (s === "female" || s === "girl" || s === "f") return "Girl";
+    if (s === "male" || s === "boy" || s === "m") return "Boy";
+
+    return "";
+  }
+
+  function normalizeKidGender(sex?: string | null) {
+    const s = (sex || "").trim().toLowerCase();
+    if (!s) return null;
+    if (s === "girl" || s === "female" || s === "f") return "girl";
+    if (s === "boy" || s === "male" || s === "m") return "boy";
+    return null;
   }
 
   function hasKidSex(household: GGHousehold, target: 'girls' | 'boys'): boolean {
     if (!household.kids || household.kids.length === 0) return false;
     return household.kids.some((kid) => {
-      const sex = (kid.sex || '').toLowerCase();
-      if (target === 'girls') return sex.startsWith('f');
-      if (target === 'boys') return sex.startsWith('m');
+      const normalized = normalizeKidGender(kid.sex ?? (kid as any).gender ?? null);
+      if (target === 'girls') return normalized === 'girl';
+      if (target === 'boys') return normalized === 'boy';
       return false;
     });
   }
@@ -1688,9 +1697,10 @@ export default function Discovery() {
                             const today = new Date();
                             const ageInMonths = (today.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
                             const age = Math.floor(ageInMonths / 12);
+                            const sex = kid.sex ?? (kid as any).gender ?? null;
                             return {
                               age,
-                              sex: kid.sex,
+                              sex: sex,
                               awayAtCollege: Boolean(kid.awayAtCollege),
                               canBabysit: Boolean(kid.canBabysit),
                             };
@@ -1699,21 +1709,20 @@ export default function Discovery() {
                           .map((kid, idx) => {
                             const isAgeMatch = isAgeInFilterRange(kid.age);
                             
-                            // Gender filter matching
-                            const kidSex = (kid.sex || '').toLowerCase();
-                            const isGirl = kidSex.startsWith('f');
-                            const isBoy = kidSex.startsWith('m');
+                            // Gender filter matching - use normalization for consistency
+                            const sex = kid.sex;
+                            const normalizedGender = normalizeKidGender(sex);
                             
                             let isGenderMatch = true; // Default when filter is "all"
                             if (kidsGenderFilter === 'girls') {
-                              isGenderMatch = isGirl;
+                              isGenderMatch = normalizedGender === 'girl';
                             } else if (kidsGenderFilter === 'boys') {
-                              isGenderMatch = isBoy;
+                              isGenderMatch = normalizedGender === 'boy';
                             }
                             
                             // Combined match: age filter (if active) AND gender filter (if active)
                             const isMatch = isAgeMatch && isGenderMatch;
-                            const genderSuffix = getGenderSuffix(kid.sex);
+                            const genderSuffix = getGenderSuffix(sex);
                             
                             return (
                               <div
