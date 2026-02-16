@@ -78,10 +78,10 @@ export function OnboardingHouseholdType() {
               lineHeight: 1.2,
             }}
           >
-            Tell us about your household
+            Which best describes your home right now?
           </h1>
           <p style={{ fontSize: 16, color: "#6b7280", lineHeight: 1.5, whiteSpace: "nowrap" }}>
-            This helps us suggest the most relevant connections for you.
+            This helps us suggest the most relevant neighbors for you.
           </p>
         </motion.div>
 
