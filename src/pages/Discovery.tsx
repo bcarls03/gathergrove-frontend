@@ -1584,18 +1584,19 @@ export default function Discovery() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   style={{
-                    background: '#ffffff',
+                    background: '#f9fafb',
                     borderRadius: 12,
                     padding: 12,
-                    border: '2px solid #e5e7eb',
+                    border: '1px solid #e5e7eb',
                     cursor: 'pointer',
                     transition: 'all 0.2s',
                   }}
                   whileHover={{
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
+                    boxShadow: '0 6px 18px rgba(0,0,0,0.07)',
                     borderColor: '#10b981',
                   }}
                 >
+<<<<<<< HEAD
                   <HouseholdCardBody
                     household={household}
                     householdName={householdName}
@@ -1611,6 +1612,127 @@ export default function Discovery() {
                     getHouseholdTypeLabel={getHouseholdTypeLabel}
                     kidsAges={kidsAges}
                   />
+=======
+                  {/* Header */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 10 }}>
+                    <div style={{ flex: 1 }}>
+                      <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, color: '#111827' }}>
+                        {householdName}
+                      </h3>
+
+                      {getDistanceText(household) && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 3,
+                              padding: '2px 6px',
+                              borderRadius: 5,
+                              background: household.location_precision === 'zipcode' ? '#fef3c7' : '#f0fdf4',
+                              border: household.location_precision === 'zipcode' ? '1px solid #fbbf24' : 'none',
+                              fontSize: 11,
+                              fontWeight: 500,
+                              color: household.location_precision === 'zipcode' ? '#92400e' : '#065f46',
+                            }}
+                          >
+                            <MapPin size={11} />
+                            {getDistanceText(household)}
+                          </div>
+                        </div>
+                      )}
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <div
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            padding: '3px 8px',
+                            borderRadius: 6,
+                            background: getHouseholdTypeColor(household.householdType) + '15',
+                            color: getHouseholdTypeColor(household.householdType),
+                            fontSize: 12,
+                            fontWeight: 600,
+                          }}
+                        >
+                          {getHouseholdTypeIcon(household.householdType)}
+                          {getHouseholdTypeLabel(household.householdType)}
+                        </div>
+
+                        {household.neighborhood && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 3, color: '#6b7280', fontSize: 12 }}>
+                            <MapPin size={12} />
+                            {household.neighborhood}
+                          </div>
+                        )}
+
+                        {activeTab === 'nearby' && connected && (
+                          <div
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 3,
+                              padding: '3px 8px',
+                              borderRadius: 6,
+                              background: '#f0fdf4',
+                              border: '1px solid #d1fae5',
+                              fontSize: 11,
+                              fontWeight: 600,
+                              color: '#047857',
+                            }}
+                          >
+                            <UserPlus size={11} />
+                            Connected
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Adults */}
+                  {household.adultNames && household.adultNames.length > 0 && (
+                    <div style={{ marginBottom: 8 }}>
+                      <div style={{ fontSize: 11, fontWeight: 500, color: '#9ca3af', letterSpacing: '0.3px', marginBottom: 3 }}>
+                        Adults:
+                      </div>
+                      <div style={{ fontSize: 13, color: '#374151' }}>{household.adultNames.join(', ')}</div>
+                    </div>
+                  )}
+
+                  {/* Kids */}
+                  {kidsAges.length > 0 && (
+                    <div style={{ marginBottom: 10 }}>
+                      <div style={{ fontSize: 11, fontWeight: 500, color: '#9ca3af', letterSpacing: '0.3px', marginBottom: 3 }}>
+                        Kids:
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {kidsAges.map((age, idx) => {
+                          const isMatch = isAgeInFilterRange(age);
+                          return (
+                            <div
+                              key={idx}
+                              style={{
+                                padding: '3px 8px',
+                                borderRadius: 6,
+                                background: isMatch ? '#10b981' : '#f0fdf4',
+                                border: isMatch ? '2px solid #059669' : '1px solid #d1fae5',
+                                fontSize: 12,
+                                fontWeight: isMatch ? 700 : 600,
+                                color: isMatch ? '#ffffff' : '#047857',
+                                boxShadow: isMatch ? '0 2px 8px rgba(16, 185, 129, 0.3)' : 'none',
+                                transform: isMatch ? 'scale(1.05)' : 'scale(1)',
+                                transition: 'all 0.2s',
+                              }}
+                            >
+                              {age} {age === 1 ? 'year' : 'years'}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+>>>>>>> chore/household-card-polish
 
                   {/* Action Buttons */}
                   <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
