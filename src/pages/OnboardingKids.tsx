@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { Plus, X } from "lucide-react";
 import { OnboardingLayout } from "../components/OnboardingLayout";
 import { getOnboardingState, setOnboardingState } from "../lib/onboarding";
+import { updateMyHousehold, getMyHousehold, type Kid as APIKid, type HouseholdType } from "../lib/api";
 
 type Kid = {
   id: string;
@@ -80,6 +81,7 @@ export function OnboardingKids() {
   
   const [kids, setKids] = useState<Kid[]>(initialKids);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const addKid = () => {
     setKids([...kids, { id: Date.now().toString(), birthYear: "", birthMonth: "", gender: "", awayAtCollege: false, canBabysit: false }]);
@@ -99,30 +101,66 @@ export function OnboardingKids() {
     setKids(kids.map((k) => (k.id === id ? { ...k, [field]: value } : k)));
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     // At least one kid with birth year, month, and gender required
     const validKids = kids.filter((k) => k.birthYear && k.birthMonth && k.gender);
     if (validKids.length === 0 || saving) return;
 
     setSaving(true);
+    setError(null);
 
-    // Save kids to onboarding state with age_range calculated from birth year/month
-    setOnboardingState({
-      kids: validKids.map((k) => {
+    try {
+      // Get onboarding state for household info
+      const state = getOnboardingState();
+      
+      // Map kids to API format with exact age in years
+      const apiKids: APIKid[] = validKids.map((k) => {
         const age = calculateAge(Number(k.birthYear), Number(k.birthMonth));
+        const ageRange = getAgeRange(age);
+        
         return {
-          age_range: getAgeRange(age),
-          gender: k.gender === "" ? null : k.gender,
-          birthYear: Number(k.birthYear),
-          birthMonth: Number(k.birthMonth),
-          awayAtCollege: k.awayAtCollege || false,
-          canBabysit: k.canBabysit || false,
+          age_years: age,
+          age_range: ageRange, // Keep for backward compatibility
+          gender: k.gender === "" ? null : (k.gender as "male" | "female" | "prefer_not_to_say"),
+          available_for_babysitting: k.canBabysit || false,
         };
-      }),
-    });
+      });
 
-    // Go to Step 5: Privacy Review
-    navigate("/onboarding/privacy");
+      // Check if household already exists
+      const existingHousehold = await getMyHousehold();
+      
+      if (existingHousehold) {
+        // Update existing household with kids (ONLY if household exists)
+        await updateMyHousehold({
+          household_type: state.intendedHouseholdType as HouseholdType || existingHousehold.household_type,
+          kids: apiKids,
+        });
+      }
+      // If no household exists, defer creation to OnboardingPrivacy
+      // (which has the household name generation logic)
+
+      // Save kids to onboarding state for OnboardingPrivacy to use
+      setOnboardingState({
+        kids: validKids.map((k) => {
+          const age = calculateAge(Number(k.birthYear), Number(k.birthMonth));
+          return {
+            age_range: getAgeRange(age),
+            age_years: age,
+            gender: k.gender === "" ? null : k.gender,
+            birthYear: Number(k.birthYear),
+            birthMonth: Number(k.birthMonth),
+            awayAtCollege: k.awayAtCollege || false,
+            canBabysit: k.canBabysit || false,
+          };
+        }),
+      });
+
+      // Go to Step 5: Privacy Review
+      navigate("/onboarding/privacy");
+    } catch (err: any) {
+      setError(err?.message || "Failed to save. Please try again.");
+      setSaving(false);
+    }
   };
 
   const handleSkip = () => {
@@ -485,6 +523,23 @@ export function OnboardingKids() {
             </div>
           </motion.div>
         </motion.div>
+
+        {/* Error Message */}
+        {error && (
+          <div
+            style={{
+              marginBottom: 16,
+              padding: "12px 16px",
+              borderRadius: 12,
+              background: "#fef2f2",
+              border: "1px solid #fecaca",
+            }}
+          >
+            <p style={{ fontSize: 13, color: "#dc2626", margin: 0 }}>
+              {error}
+            </p>
+          </div>
+        )}
 
         {/* Continue Button */}
         <motion.button
