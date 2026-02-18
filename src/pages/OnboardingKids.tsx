@@ -143,13 +143,14 @@ export function OnboardingKids() {
       setOnboardingState({
         kids: validKids.map((k) => {
           const age = calculateAge(Number(k.birthYear), Number(k.birthMonth));
+          const normalizedAwayAtCollege = age >= 18 ? Boolean(k.awayAtCollege) : false;
           return {
             age_range: getAgeRange(age),
             age_years: age,
             gender: k.gender === "" ? null : k.gender,
             birthYear: Number(k.birthYear),
             birthMonth: Number(k.birthMonth),
-            awayAtCollege: k.awayAtCollege || false,
+            awayAtCollege: normalizedAwayAtCollege,
             canBabysit: k.canBabysit || false,
           };
         }),
