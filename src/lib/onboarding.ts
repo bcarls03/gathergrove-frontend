@@ -29,6 +29,7 @@ export type OnboardingState = {
 
 export type OnboardingKid = {
   age_range: "0-2" | "3-5" | "6-8" | "9-12" | "13-17" | "18+";
+  age_years?: number;  // Exact age in years (computed from birthYear/birthMonth)
   gender?: "male" | "female" | "prefer_not_to_say" | null;
   birthYear?: number;  // Store birth year for auto-updating age
   birthMonth?: number; // Store birth month (1-12) for auto-updating age
