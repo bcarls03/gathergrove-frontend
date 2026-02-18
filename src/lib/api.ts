@@ -172,6 +172,7 @@ export type HouseholdType = "family_with_kids" | "empty_nesters" | "singles_coup
 
 export type Kid = {
   age_range: "0-2" | "3-5" | "6-8" | "9-12" | "13-17" | "18+";
+  age_years?: number; // Exact age in years (preferred over age_range for new data)
   gender?: "male" | "female" | "prefer_not_to_say" | null;
   interests?: string[] | null;
   available_for_babysitting?: boolean;
