@@ -18,6 +18,57 @@ import {
 } from "../lib/api";
 import { HOUSEHOLD_TYPE_META, type HouseholdType as HouseholdTypeLabel } from "../components/filters/householdMeta";
 
+// ============================================================================
+// INTENT TYPES (Person-level)
+// ============================================================================
+type IntentKid = {
+  birthYear: number;
+  birthMonth: number | null;
+  gender?: "male" | "female" | "prefer_not_to_say" | null;
+  awayAtCollege?: boolean;
+  canBabysit?: boolean;
+};
+
+type UserIntent = {
+  household_type?: HouseholdType | null;
+  kids?: IntentKid[] | null;
+};
+
+// Helper to save person-level intent
+async function saveUserIntent(intent: UserIntent): Promise<void> {
+  const { getAuthHeaders } = await import("../lib/api");
+  const headers = await getAuthHeaders();
+  
+  const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || "http://localhost:8000"}/users/me`, {
+    method: "PATCH",
+    headers: {
+      ...headers,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(intent),
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to save intent: ${response.status} ${errorText}`);
+  }
+}
+
+// Helper to get person-level intent (embedded in profile response)
+async function getUserIntent(): Promise<UserIntent | null> {
+  try {
+    const { getMyProfile } = await import("../lib/api");
+    const profile = await getMyProfile();
+    // Backend may return intent fields on profile
+    return {
+      household_type: (profile as any).household_type || null,
+      kids: (profile as any).kids || null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 // Mapping from API snake_case to display labels
 const HOUSEHOLD_TYPE_LABEL: Record<HouseholdType, HouseholdTypeLabel> = {
   family_with_kids: "Family with Kids",
@@ -86,9 +137,11 @@ export default function SettingsNew() {
   // Kids State
   type Kid = {
     id: string;
-    birthMonth: string;
     birthYear: string;
-    gender: string;
+    birthMonth: string;
+    gender: "male" | "female" | "prefer_not_to_say" | "";
+    awayAtCollege?: boolean;
+    canBabysit?: boolean;
   };
   const [kids, setKids] = useState<Kid[]>([]);
 
@@ -228,6 +281,28 @@ export default function SettingsNew() {
       setLastName(data.last_name);
       setEmail(data.email);
       setVisibility(data.visibility || "neighbors");
+      
+      // Load person-level intent (kids + householdType)
+      const intent = await getUserIntent();
+      if (intent) {
+        // Initialize householdType from intent if available
+        if (intent.household_type) {
+          setHouseholdType(intent.household_type);
+        }
+        
+        // Initialize kids from intent if available
+        if (intent.kids && Array.isArray(intent.kids)) {
+          const loadedKids = intent.kids.map((k, idx) => ({
+            id: `${idx + 1}`,
+            birthYear: k.birthYear.toString(),
+            birthMonth: k.birthMonth ? k.birthMonth.toString() : "",
+            gender: (k.gender || "") as "male" | "female" | "prefer_not_to_say" | "",
+            awayAtCollege: k.awayAtCollege || false,
+            canBabysit: k.canBabysit || false,
+          }));
+          setKids(loadedKids);
+        }
+      }
     } catch (err: any) {
       console.error("Failed to load profile:", err);
       setError("Failed to load profile");
@@ -458,26 +533,6 @@ export default function SettingsNew() {
             />
           </div>
 
-          {/* Visibility */}
-          <div>
-            <label htmlFor="visibility" style={labelStyle}>
-              Profile Visibility
-            </label>
-            <select
-              id="visibility"
-              value={visibility}
-              onChange={(e) => setVisibility(e.target.value as UserVisibility)}
-              style={inputStyle}
-            >
-              <option value="private">Private (only me)</option>
-              <option value="neighbors">Neighbors (default)</option>
-              <option value="public">Public (everyone)</option>
-            </select>
-            <p style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
-              Who can see your profile in the directory
-            </p>
-          </div>
-
           {/* Save Profile Button */}
           <motion.button
             whileTap={{ scale: 0.98 }}
@@ -497,7 +552,398 @@ export default function SettingsNew() {
       </div>
 
       {/* =================================================================== */}
-      {/* SECTION 2: HOUSEHOLD */}
+      {/* SECTION 2: LIFE STAGE (INTENT) */}
+      {/* =================================================================== */}
+      <div style={cardStyle}>
+        <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+          <UserRound size={20} />
+          Life Stage
+        </h2>
+
+        <div style={{ display: "grid", gap: 16 }}>
+          <div>
+            <label htmlFor="lifeStage" style={labelStyle}>
+              Household Type
+            </label>
+            <select
+              id="lifeStage"
+              value={householdType}
+              onChange={(e) => setHouseholdType(e.target.value as HouseholdType)}
+              style={inputStyle}
+            >
+              <option value="">Not specified</option>
+              <option value="family_with_kids">Family with Kids</option>
+              <option value="empty_nesters">Empty Nesters</option>
+              <option value="singles_couples">Singles/Couples</option>
+            </select>
+            <p style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
+              Used only to improve matching. Never shown publicly.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* =================================================================== */}
+      {/* SECTION 3: KIDS (INTENT) */}
+      {/* =================================================================== */}
+      {householdType === "family_with_kids" && (
+        <div style={cardStyle}>
+          <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+            <Baby size={20} />
+            Kids
+          </h2>
+
+          <p style={{ fontSize: 14, color: "#6b7280", marginBottom: 16 }}>
+            No names or photos needed. Just ages to help find playmates.
+          </p>
+
+          {kids.map((kid, index) => {
+            // Calculate current age for conditional rendering
+            const calculateAge = (birthYear: number, birthMonth: number): number => {
+              const today = new Date();
+              const currentYear = today.getFullYear();
+              const currentMonth = today.getMonth() + 1;
+              let age = currentYear - birthYear;
+              if (currentMonth < birthMonth) {
+                age -= 1;
+              }
+              return Math.max(0, age);
+            };
+
+            const currentAge = kid.birthYear && kid.birthMonth 
+              ? calculateAge(Number(kid.birthYear), Number(kid.birthMonth))
+              : null;
+
+            return (
+              <div key={kid.id} style={{ 
+                padding: 20, 
+                borderRadius: 16, 
+                border: "2px solid #e5e7eb", 
+                marginBottom: 16,
+                background: "#ffffff",
+                boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)"
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>Child {index + 1}</span>
+                  {kids.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setKids(kids.filter(k => k.id !== kid.id))}
+                      style={{
+                        padding: 4,
+                        border: "none",
+                        background: "transparent",
+                        color: "#ef4444",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <X size={18} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Birth Year */}
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ display: "block", fontSize: 13, fontWeight: 500, color: "#6b7280", marginBottom: 6 }}>
+                    Birth Year *
+                  </label>
+                  <select
+                    value={kid.birthYear}
+                    onChange={(e) => {
+                      const updated = [...kids];
+                      updated[index].birthYear = e.target.value;
+                      setKids(updated);
+                    }}
+                    style={{
+                      width: "100%",
+                      padding: "12px 16px",
+                      borderRadius: 12,
+                      border: "2px solid #e5e7eb",
+                      fontSize: 14,
+                      outline: "none",
+                      backgroundColor: "#ffffff",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <option value="">Select year</option>
+                    {Array.from({ length: 26 }, (_, i) => {
+                      const year = new Date().getFullYear() - i;
+                      return <option key={year} value={year}>{year}</option>;
+                    })}
+                  </select>
+                </div>
+
+                {/* Birth Month */}
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ display: "block", fontSize: 13, fontWeight: 500, color: "#6b7280", marginBottom: 6 }}>
+                    Birth Month *
+                  </label>
+                  <select
+                    value={kid.birthMonth}
+                    onChange={(e) => {
+                      const updated = [...kids];
+                      updated[index].birthMonth = e.target.value;
+                      setKids(updated);
+                    }}
+                    style={{
+                      width: "100%",
+                      padding: "12px 16px",
+                      borderRadius: 12,
+                      border: "2px solid #e5e7eb",
+                      fontSize: 14,
+                      outline: "none",
+                      backgroundColor: "#ffffff",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <option value="">Select month</option>
+                    {[
+                      { value: "1", label: "January" },
+                      { value: "2", label: "February" },
+                      { value: "3", label: "March" },
+                      { value: "4", label: "April" },
+                      { value: "5", label: "May" },
+                      { value: "6", label: "June" },
+                      { value: "7", label: "July" },
+                      { value: "8", label: "August" },
+                      { value: "9", label: "September" },
+                      { value: "10", label: "October" },
+                      { value: "11", label: "November" },
+                      { value: "12", label: "December" },
+                    ].map((month) => (
+                      <option key={month.value} value={month.value}>
+                        {month.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Gender - Button Toggles */}
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ display: "block", fontSize: 13, fontWeight: 500, color: "#6b7280", marginBottom: 6 }}>
+                    Gender (optional)
+                  </label>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {[
+                      { value: "male" as const, label: "Male" },
+                      { value: "female" as const, label: "Female" },
+                      { value: "prefer_not_to_say" as const, label: "Prefer not to say" },
+                    ].map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => {
+                          const updated = [...kids];
+                          updated[index].gender = option.value;
+                          setKids(updated);
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: "10px 12px",
+                          borderRadius: 10,
+                          border: kid.gender === option.value ? "2px solid #10b981" : "2px solid #e5e7eb",
+                          background: kid.gender === option.value ? "#f0fdf4" : "#ffffff",
+                          fontSize: 13,
+                          fontWeight: kid.gender === option.value ? 600 : 500,
+                          color: kid.gender === option.value ? "#10b981" : "#6b7280",
+                          cursor: "pointer",
+                          transition: "all 0.2s ease",
+                        }}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Conditional Checkboxes - shown based on age */}
+                {currentAge !== null && (
+                  <>
+                    {/* Lives away from home - only show if age >= 18 */}
+                    {currentAge >= 18 && (
+                      <div style={{ marginBottom: 12 }}>
+                        <label style={{ 
+                          display: "flex", 
+                          alignItems: "flex-start", 
+                          gap: 10, 
+                          cursor: "pointer",
+                          padding: "10px 12px",
+                          borderRadius: 10,
+                          border: kid.awayAtCollege ? "1px solid #10b981" : "1px solid #e5e7eb",
+                          background: kid.awayAtCollege ? "rgba(16, 185, 129, 0.10)" : "#ffffff",
+                          transition: "all 0.2s ease",
+                        }}>
+                          <input
+                            type="checkbox"
+                            checked={kid.awayAtCollege || false}
+                            onChange={(e) => {
+                              const updated = [...kids];
+                              updated[index].awayAtCollege = e.target.checked;
+                              setKids(updated);
+                            }}
+                            style={{
+                              marginTop: 2,
+                              width: 16,
+                              height: 16,
+                              cursor: "pointer",
+                              accentColor: "#059669",
+                            }}
+                          />
+                          <div style={{ flex: 1 }}>
+                            <span style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>
+                              Lives away from home (college, work, etc.)
+                            </span>
+                            <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
+                              Use this if they're usually away for school or work, not just visiting.
+                            </div>
+                          </div>
+                        </label>
+                      </div>
+                    )}
+
+                    {/* Can help with babysitting - only show if age >= 13 AND age <= 25 */}
+                    {currentAge >= 13 && currentAge <= 25 && (
+                      <div style={{ marginBottom: 12 }}>
+                        <label style={{ 
+                          display: "flex", 
+                          alignItems: "center", 
+                          gap: 10, 
+                          cursor: "pointer",
+                          padding: "10px 12px",
+                          borderRadius: 10,
+                          border: kid.canBabysit ? "1px solid #10b981" : "1px solid #e5e7eb",
+                          background: kid.canBabysit ? "rgba(16, 185, 129, 0.10)" : "#ffffff",
+                          transition: "all 0.2s ease",
+                        }}>
+                          <input
+                            type="checkbox"
+                            checked={kid.canBabysit || false}
+                            onChange={(e) => {
+                              const updated = [...kids];
+                              updated[index].canBabysit = e.target.checked;
+                              setKids(updated);
+                            }}
+                            style={{
+                              width: 16,
+                              height: 16,
+                              cursor: "pointer",
+                              accentColor: "#059669",
+                            }}
+                          />
+                          <span style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>
+                            Can help with babysitting / parent helper
+                          </span>
+                        </label>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* Summary Preview - shows after birth year and month filled */}
+                {kid.birthYear && kid.birthMonth && currentAge !== null && (
+                  <div
+                    style={{
+                      marginTop: 12,
+                      padding: "10px 14px",
+                      borderRadius: 10,
+                      background: "#f0fdf4",
+                      border: "1px solid #d1fae5",
+                    }}
+                  >
+                    <span style={{ fontSize: 13, color: "#065f46", fontWeight: 500 }}>
+                      Currently {currentAge} year{currentAge === 1 ? '' : 's'} old
+                      {kid.gender && (
+                        ` • ${kid.gender === "male" ? "Male" : kid.gender === "female" ? "Female" : "Prefer not to say"}`
+                      )}
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          <motion.button
+            type="button"
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setKids([...kids, { 
+              id: crypto.randomUUID(), 
+              birthYear: "", 
+              birthMonth: "", 
+              gender: "",
+              awayAtCollege: false,
+              canBabysit: false,
+            }])}
+            style={{
+              ...buttonStyle,
+              background: "#f3f4f6",
+              color: "#374151",
+              border: "2px solid #e5e7eb",
+              marginBottom: 16,
+              width: "100%",
+              justifyContent: "center",
+            }}
+          >
+            <Plus size={16} />
+            Add Child
+          </motion.button>
+
+          <motion.button
+            type="button"
+            whileTap={{ scale: 0.98 }}
+            onClick={async () => {
+              setProfileSaving(true);
+              setError(null);
+              setSuccess(null);
+
+              try {
+                // Convert UI kids to IntentKid format
+                const intentKids: IntentKid[] = kids
+                  .filter(k => k.birthYear && k.birthMonth) // Only save complete kids
+                  .map(k => ({
+                    birthYear: Number(k.birthYear),
+                    birthMonth: k.birthMonth ? Number(k.birthMonth) : null,
+                    gender: k.gender || null,
+                    awayAtCollege: k.awayAtCollege || false,
+                    canBabysit: k.canBabysit || false,
+                  }));
+
+                // Save intent (kids + householdType)
+                await saveUserIntent({
+                  household_type: householdType || null,
+                  kids: intentKids.length > 0 ? intentKids : null,
+                });
+
+                setSuccess("Kids and life stage saved successfully!");
+                setTimeout(() => setSuccess(null), 3000);
+
+                // Reload to confirm saved state
+                await loadProfile();
+              } catch (err: any) {
+                console.error("Failed to save kids:", err);
+                setError(err?.message || "Failed to save kids. The backend may not support person-level intent yet.");
+                setTimeout(() => setError(null), 5000);
+              } finally {
+                setProfileSaving(false);
+              }
+            }}
+            disabled={profileSaving}
+            style={{
+              ...buttonStyle,
+              background: profileSaving ? "#d1d5db" : "#10b981",
+              color: "#ffffff",
+              width: "100%",
+              justifyContent: "center",
+              opacity: profileSaving ? 0.6 : 1,
+            }}
+          >
+            <Save size={16} />
+            {profileSaving ? "Saving..." : "Save Kids & Life Stage"}
+          </motion.button>
+        </div>
+      )}
+
+      {/* =================================================================== */}
+      {/* SECTION 4: HOUSEHOLD (STRUCTURAL) */}
       {/* =================================================================== */}
       <div style={cardStyle}>
         <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
@@ -506,10 +952,13 @@ export default function SettingsNew() {
         </h2>
 
         {!household ? (
-          // No household - show creation form
+          // No household - show info and creation option
           <div>
+            <p style={{ fontSize: 14, color: "#6b7280", marginBottom: 8 }}>
+              You're not linked to a household yet.
+            </p>
             <p style={{ fontSize: 14, color: "#6b7280", marginBottom: 16 }}>
-              You're not part of a household yet. Create one below.
+              Adults join by invitation. No shared logins.
             </p>
 
             <div style={{ display: "grid", gap: 16 }}>
@@ -528,64 +977,17 @@ export default function SettingsNew() {
                 />
               </div>
 
-              {/* Household Type */}
-              <div>
-                <label htmlFor="householdType" style={labelStyle}>
-                  Household Type
-                </label>
-                <select
-                  id="householdType"
-                  value={householdType}
-                  onChange={(e) => setHouseholdType(e.target.value as HouseholdType)}
-                  style={inputStyle}
-                >
-                  <option value="">Select type</option>
-                  <option value="family_with_kids">Family with Kids</option>
-                  <option value="empty_nesters">Empty Nesters</option>
-                  <option value="singles_couples">Singles/Couples</option>
-                </select>
-                
-                {/* Visual Preview of Selected Type */}
-                {householdType && (() => {
-                  const label = HOUSEHOLD_TYPE_LABEL[householdType];
-                  const meta = HOUSEHOLD_TYPE_META[label];
-                  const Icon = meta.Icon;
-                  
-                  return (
-                    <div style={{ marginTop: 12, padding: 12, borderRadius: 8, background: "#f9fafb", border: "1px solid #e5e7eb" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <div style={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: 8,
-                          background: meta.iconBg,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          flexShrink: 0,
-                        }}>
-                          <Icon size={18} color={meta.iconColor} />
-                        </div>
-                        <span style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>
-                          {label}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-
               {/* Create Button */}
               <motion.button
                 whileTap={{ scale: 0.98 }}
                 onClick={handleCreateHousehold}
-                disabled={householdSaving || !householdName.trim() || !householdType}
+                disabled={householdSaving || !householdName.trim()}
                 style={{
                   ...buttonStyle,
-                  background: householdName.trim() && householdType ? "#10b981" : "#d1d5db",
+                  background: householdName.trim() ? "#10b981" : "#d1d5db",
                   color: "#ffffff",
                   opacity: householdSaving ? 0.6 : 1,
-                  cursor: householdName.trim() && householdType ? "pointer" : "not-allowed",
+                  cursor: householdName.trim() ? "pointer" : "not-allowed",
                 }}
               >
                 <Home size={16} />
@@ -627,129 +1029,6 @@ export default function SettingsNew() {
                   onChange={(e) => setHouseholdName(e.target.value)}
                   style={inputStyle}
                 />
-              </div>
-
-              {/* Household Type - Card Based Selection */}
-              <div>
-                <label style={labelStyle}>Household Type</label>
-                <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 8 }}>
-                  {/* Family with Kids */}
-                  <button
-                    type="button"
-                    onClick={() => setHouseholdType("family_with_kids")}
-                    style={{
-                      padding: 16,
-                      borderRadius: 12,
-                      border: householdType === "family_with_kids" ? "2px solid #10b981" : "2px solid #e5e7eb",
-                      background: householdType === "family_with_kids" ? "#f0fdf4" : "#ffffff",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 12,
-                      textAlign: "left",
-                      transition: "all 0.2s ease",
-                    }}
-                  >
-                    <div style={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 12,
-                      background: "#f1f5f9",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                    }}>
-                      <UsersRound size={24} color="#334155" />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 15, fontWeight: 600, color: "#111827", marginBottom: 2 }}>
-                        Family with Kids
-                      </div>
-                      <div style={{ fontSize: 13, color: "#6b7280" }}>
-                        Household with children at home
-                      </div>
-                    </div>
-                  </button>
-
-                  {/* Empty Nesters */}
-                  <button
-                    type="button"
-                    onClick={() => setHouseholdType("empty_nesters")}
-                    style={{
-                      padding: 16,
-                      borderRadius: 12,
-                      border: householdType === "empty_nesters" ? "2px solid #10b981" : "2px solid #e5e7eb",
-                      background: householdType === "empty_nesters" ? "#f0fdf4" : "#ffffff",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 12,
-                      textAlign: "left",
-                      transition: "all 0.2s ease",
-                    }}
-                  >
-                    <div style={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 12,
-                      background: "#f1f5f9",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                    }}>
-                      <Home size={24} color="#334155" />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 15, fontWeight: 600, color: "#111827", marginBottom: 2 }}>
-                        Empty Nesters
-                      </div>
-                      <div style={{ fontSize: 13, color: "#6b7280" }}>
-                        Children have moved out
-                      </div>
-                    </div>
-                  </button>
-
-                  {/* Singles/Couples */}
-                  <button
-                    type="button"
-                    onClick={() => setHouseholdType("singles_couples")}
-                    style={{
-                      padding: 16,
-                      borderRadius: 12,
-                      border: householdType === "singles_couples" ? "2px solid #10b981" : "2px solid #e5e7eb",
-                      background: householdType === "singles_couples" ? "#f0fdf4" : "#ffffff",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 12,
-                      textAlign: "left",
-                      transition: "all 0.2s ease",
-                    }}
-                  >
-                    <div style={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 12,
-                      background: "#f1f5f9",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                    }}>
-                      <UserRound size={24} color="#334155" />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 15, fontWeight: 600, color: "#111827", marginBottom: 2 }}>
-                        Singles/Couples
-                      </div>
-                      <div style={{ fontSize: 13, color: "#6b7280" }}>
-                        Household without children
-                      </div>
-                    </div>
-                  </button>
-                </div>
               </div>
 
               {/* Member Count */}
@@ -838,207 +1117,7 @@ export default function SettingsNew() {
       </div>
 
       {/* =================================================================== */}
-      {/* SECTION 3: KIDS */}
-      {/* =================================================================== */}
-      {(() => {
-        const shouldShow = household && householdType === "family_with_kids";
-        console.log("🧒 Kids section check:", { household: !!household, householdType, shouldShow });
-        return shouldShow;
-      })() && (
-        <div style={cardStyle}>
-          <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
-            <Baby size={20} />
-            Children
-          </h2>
-
-          <p style={{ fontSize: 14, color: "#6b7280", marginBottom: 16 }}>
-            Add your children to help find families with kids of similar ages. No names or photos needed.
-          </p>
-
-          {kids.map((kid, index) => (
-            <div key={kid.id} style={{ 
-              padding: 20, 
-              borderRadius: 16, 
-              border: "2px solid #e5e7eb", 
-              marginBottom: 16,
-              background: "#ffffff",
-              boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)"
-            }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                <span style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>Child {index + 1}</span>
-                {kids.length > 1 && (
-                  <button
-                    onClick={() => setKids(kids.filter(k => k.id !== kid.id))}
-                    style={{
-                      padding: 4,
-                      border: "none",
-                      background: "transparent",
-                      color: "#ef4444",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <X size={18} />
-                  </button>
-                )}
-              </div>
-
-              {/* Birth Year */}
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ display: "block", fontSize: 13, fontWeight: 500, color: "#6b7280", marginBottom: 6 }}>
-                  Birth Year *
-                </label>
-                <select
-                  value={kid.birthYear}
-                  onChange={(e) => {
-                    const updated = [...kids];
-                    updated[index].birthYear = e.target.value;
-                    setKids(updated);
-                  }}
-                  style={{
-                    width: "100%",
-                    padding: "12px 16px",
-                    borderRadius: 12,
-                    border: "2px solid #e5e7eb",
-                    fontSize: 14,
-                    outline: "none",
-                    backgroundColor: "#ffffff",
-                    cursor: "pointer",
-                  }}
-                >
-                  <option value="">Select year</option>
-                  {Array.from({ length: 26 }, (_, i) => {
-                    const year = new Date().getFullYear() - i;
-                    return <option key={year} value={year}>{year}</option>;
-                  })}
-                </select>
-              </div>
-
-              {/* Birth Month */}
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ display: "block", fontSize: 13, fontWeight: 500, color: "#6b7280", marginBottom: 6 }}>
-                  Birth Month *
-                </label>
-                <select
-                  value={kid.birthMonth}
-                  onChange={(e) => {
-                    const updated = [...kids];
-                    updated[index].birthMonth = e.target.value;
-                    setKids(updated);
-                  }}
-                  style={{
-                    width: "100%",
-                    padding: "12px 16px",
-                    borderRadius: 12,
-                    border: "2px solid #e5e7eb",
-                    fontSize: 14,
-                    outline: "none",
-                    backgroundColor: "#ffffff",
-                    cursor: "pointer",
-                  }}
-                >
-                  <option value="">Select month</option>
-                  {[
-                    { value: "1", label: "January" },
-                    { value: "2", label: "February" },
-                    { value: "3", label: "March" },
-                    { value: "4", label: "April" },
-                    { value: "5", label: "May" },
-                    { value: "6", label: "June" },
-                    { value: "7", label: "July" },
-                    { value: "8", label: "August" },
-                    { value: "9", label: "September" },
-                    { value: "10", label: "October" },
-                    { value: "11", label: "November" },
-                    { value: "12", label: "December" },
-                  ].map((month) => (
-                    <option key={month.value} value={month.value}>
-                      {month.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Gender - Button Toggles */}
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ display: "block", fontSize: 13, fontWeight: 500, color: "#6b7280", marginBottom: 6 }}>
-                  Gender (optional)
-                </label>
-                <div style={{ display: "flex", gap: 8 }}>
-                  {[
-                    { value: "male", label: "Male" },
-                    { value: "female", label: "Female" },
-                    { value: "prefer_not_to_say", label: "Prefer not to say" },
-                  ].map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => {
-                        const updated = [...kids];
-                        updated[index].gender = option.value;
-                        setKids(updated);
-                      }}
-                      style={{
-                        flex: 1,
-                        padding: "10px 12px",
-                        borderRadius: 10,
-                        border: kid.gender === option.value ? "2px solid #10b981" : "2px solid #e5e7eb",
-                        background: kid.gender === option.value ? "#f0fdf4" : "#ffffff",
-                        fontSize: 13,
-                        fontWeight: kid.gender === option.value ? 600 : 500,
-                        color: kid.gender === option.value ? "#10b981" : "#6b7280",
-                        cursor: "pointer",
-                        transition: "all 0.2s ease",
-                      }}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ))}
-
-          <motion.button
-            whileTap={{ scale: 0.98 }}
-            onClick={() => setKids([...kids, { 
-              id: crypto.randomUUID(), 
-              birthMonth: "", 
-              birthYear: "", 
-              gender: "" 
-            }])}
-            style={{
-              ...buttonStyle,
-              background: "#f3f4f6",
-              color: "#374151",
-              border: "2px solid #e5e7eb",
-              marginBottom: 16,
-            }}
-          >
-            <Plus size={16} />
-            Add Child
-          </motion.button>
-
-          <motion.button
-            whileTap={{ scale: 0.98 }}
-            onClick={async () => {
-              // TODO: Save kids to backend
-              console.log("Saving kids:", kids);
-              setSuccess("Children saved successfully!");
-              setTimeout(() => setSuccess(null), 3000);
-            }}
-            style={{
-              ...buttonStyle,
-              background: "#10b981",
-              color: "#ffffff",
-            }}
-          >
-            <Save size={16} />
-            Save Children
-          </motion.button>
-        </div>
-      )}
-
-      {/* =================================================================== */}
-      {/* SECTION 4: INTERESTS */}
+      {/* SECTION 5: INTERESTS (DO NOT CHANGE ANYTHING INSIDE THIS SECTION) */}
       {/* =================================================================== */}
       <div style={cardStyle}>
         <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
@@ -1232,6 +1311,37 @@ export default function SettingsNew() {
           <Save size={16} />
           Save Interests
         </motion.button>
+      </div>
+
+      {/* =================================================================== */}
+      {/* SECTION 6: PRIVACY & VISIBILITY (TRUST) */}
+      {/* =================================================================== */}
+      <div style={cardStyle}>
+        <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+          <User size={20} />
+          Privacy & Visibility
+        </h2>
+
+        <div style={{ display: "grid", gap: 16 }}>
+          <div>
+            <label htmlFor="visibility" style={labelStyle}>
+              Profile Visibility
+            </label>
+            <select
+              id="visibility"
+              value={visibility}
+              onChange={(e) => setVisibility(e.target.value as UserVisibility)}
+              style={inputStyle}
+            >
+              <option value="private">Private (only me)</option>
+              <option value="neighbors">Neighbors (default)</option>
+              <option value="public">Public (everyone)</option>
+            </select>
+            <p style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
+              Who can see your profile in the directory
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Profile Info */}
