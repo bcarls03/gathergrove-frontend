@@ -58,6 +58,7 @@ function readStorage(): OnboardingState | null {
       householdName: parsed.householdName ?? null,
       intendedHouseholdType: parsed.intendedHouseholdType ?? parsed.householdType ?? null, // V16: intent vs identity
       kids: Array.isArray(parsed.kids) ? parsed.kids : [],
+      householdCreated: parsed.householdCreated ?? false,
       // Legacy fields
       neighborhoodCode: parsed.neighborhoodCode ?? null,
       adults: Array.isArray(parsed.adults) ? parsed.adults : [],
