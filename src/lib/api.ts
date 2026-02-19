@@ -496,7 +496,7 @@ export async function getMyHousehold(): Promise<Household | null> {
  */
 export async function updateMyHousehold(payload: HouseholdUpdate): Promise<Household> {
   try {
-    const res = await api.put("/users/me/household", payload, {
+    const res = await api.post("/households", payload, {
       headers: { "Content-Type": "application/json" },
     });
     return res.data as Household;

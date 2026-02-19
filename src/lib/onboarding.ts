@@ -18,6 +18,7 @@ export type OnboardingState = {
   householdType?: "family_with_kids" | "empty_nesters" | "singles_couples" | null;
   intendedHouseholdType?: "family_with_kids" | "empty_nesters" | "singles_couples" | null;
   kids?: OnboardingKid[];
+  householdCreated?: boolean; // Track if household was created to avoid 404s
   
   // Step 5: Privacy (NEW)
   visibleToNeighbors?: boolean; // Default true
