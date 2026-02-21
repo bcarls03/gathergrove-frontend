@@ -127,7 +127,8 @@ export function OnboardingKids() {
       });
 
       // Check if household already exists
-      const existingHousehold = await getMyHousehold();
+      // During initial onboarding, skip API call to avoid 404 noise
+      const existingHousehold = state.householdCreated ? await getMyHousehold() : null;
       
       if (existingHousehold) {
         // Update existing household with kids (ONLY if household exists)

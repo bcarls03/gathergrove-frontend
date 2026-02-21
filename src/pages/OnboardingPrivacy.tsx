@@ -68,7 +68,8 @@ function OnboardingPrivacyInner() {
       // (Note: OnboardingKids may have already updated the household if one existed)
       if (state.intendedHouseholdType) {
         // Check if household already exists
-        const existingHousehold = await getMyHousehold();
+        // During initial onboarding, skip API call to avoid 404 noise
+        const existingHousehold = state.householdCreated ? await getMyHousehold() : null;
         
         if (!existingHousehold) {
           // Generate household name with proper fallbacks
@@ -110,10 +111,13 @@ function OnboardingPrivacyInner() {
               household_type: state.intendedHouseholdType,
               kids: apiKids,
             });
+            // Mark household as created to avoid 404s in future onboarding steps
+            setOnboardingState({ householdCreated: true });
           } catch (householdErr: any) {
             // If already linked to a household, that's okay - just continue
             if (householdErr?.message?.includes("already linked to household")) {
               console.log("User already has a household, continuing to magic moment");
+              setOnboardingState({ householdCreated: true });
             } else {
               // For other errors, throw to outer catch block
               throw householdErr;
@@ -121,6 +125,7 @@ function OnboardingPrivacyInner() {
           }
         } else {
           console.log("Household already exists, skipping creation");
+          setOnboardingState({ householdCreated: true });
         }
       }
 
