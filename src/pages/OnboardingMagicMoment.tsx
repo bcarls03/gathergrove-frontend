@@ -2,6 +2,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getOnboardingState } from "../lib/onboarding";
+import { fetchHouseholds } from "../lib/api";
+import type { GGHousehold } from "../lib/api";
 import { Sparkles, Users } from "lucide-react";
 import { OnboardingLayout } from "../components/OnboardingLayout";
 
@@ -19,59 +21,53 @@ function OnboardingMagicMomentInner() {
   const [loading, setLoading] = useState(true);
   const [households, setHouseholds] = useState<BlurredHousehold[]>([]);
 
-  // Simulate fetching nearby households (in production, call API)
+  // Fetch real households from API
   useEffect(() => {
     const fetchNearbyHouseholds = async () => {
-      // TODO: Replace with real API call: GET /api/discovery/nearby
-      // For now, generate mock data based on user's household type
-      
-      await new Promise(resolve => setTimeout(resolve, 800)); // Simulate loading
-
-      const isFamily = state.intendedHouseholdType === "family_with_kids";
-      
-      // Generate 3-5 mock households
-      const mockHouseholds: BlurredHousehold[] = [
-        {
-          id: "1",
-          type: "family",
-          kidsAges: [5, 8],
-          distance: 0.3,
-        },
-        {
-          id: "2",
-          type: "family",
-          kidsAges: [3],
-          distance: 0.5,
-        },
-        {
-          id: "3",
-          type: "couple",
-          distance: 0.7,
-        },
-        {
-          id: "4",
-          type: "family",
-          kidsAges: [7, 10],
-          distance: 0.9,
-        },
-        {
-          id: "5",
-          type: "empty_nester",
-          distance: 1.2,
-        },
-      ];
-
-      // Filter to show relevant households (families see more families)
-      const filtered = isFamily
-        ? mockHouseholds.filter(h => h.type === "family" || Math.random() > 0.5)
-        : mockHouseholds;
-
-      setHouseholds(filtered.slice(0, 5));
-      setLoading(false);
+      try {
+        const apiHouseholds = await fetchHouseholds();
+        
+        // Map API households to BlurredHousehold format
+        const mapped: BlurredHousehold[] = apiHouseholds.map((h: GGHousehold, idx) => {
+          // Determine household type
+          let type: "family" | "couple" | "empty_nester" = "couple";
+          if (h.householdType === "family_with_kids" || (h.kids && h.kids.length > 0)) {
+            type = "family";
+          } else if (h.householdType === "empty_nester") {
+            type = "empty_nester";
+          }
+          
+          // Calculate kids ages from birth year
+          let kidsAges: number[] | undefined;
+          if (h.kids && h.kids.length > 0) {
+            const currentYear = new Date().getFullYear();
+            kidsAges = h.kids
+              .filter(k => k.birthYear != null)
+              .map(k => currentYear - k.birthYear!)
+              .filter(age => age >= 0 && age < 100); // Sanity check
+          }
+          
+          return {
+            id: h.id || h.uid || `household-${idx}`,
+            type,
+            kidsAges: kidsAges && kidsAges.length > 0 ? kidsAges : undefined,
+            distance: 0, // No distance calculation yet
+          };
+        });
+        
+        // Show up to 5 households
+        setHouseholds(mapped.slice(0, 5));
+      } catch (error) {
+        console.error("Failed to fetch households:", error);
+        // Fall back to empty array - existing UI handles this
+        setHouseholds([]);
+      } finally {
+        setLoading(false);
+      }
     };
 
     fetchNearbyHouseholds();
-  }, [state.intendedHouseholdType]);
+  }, []);
 
   const handleBrowseNeighbors = () => {
     // Primary CTA: Go to browse neighbors page
