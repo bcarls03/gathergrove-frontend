@@ -446,6 +446,7 @@ export default function Discovery() {
     if (!household.kids || household.kids.length === 0) return 0;
     const today = new Date();
     return household.kids.filter((kid) => {
+      if (kid.awayAtCollege || (kid as any).away_from_home) return false;
       if (!kid.birthYear || !kid.birthMonth) return false;
       const birthDate = new Date(kid.birthYear, (kid.birthMonth || 1) - 1);
       const ageInMonths = (today.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
