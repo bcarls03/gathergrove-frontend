@@ -16,7 +16,7 @@ import {
 import { motion } from 'framer-motion';
 
 import {
-  fetchHouseholds,
+  fetchPeople,
   fetchEvents,
   getMyProfile,
   type GGHousehold,
@@ -292,7 +292,7 @@ export default function Discovery() {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchHouseholds();
+      const data = await fetchPeople();
       // Normalize household types for dev-created households
       const normalized = data.map(h => ({
         ...h,

@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getOnboardingState } from "../lib/onboarding";
-import { fetchHouseholds } from "../lib/api";
+import { fetchPeople } from "../lib/api";
 import type { GGHousehold } from "../lib/api";
 import { Sparkles, Users } from "lucide-react";
 import { OnboardingLayout } from "../components/OnboardingLayout";
@@ -25,7 +25,7 @@ function OnboardingMagicMomentInner() {
   useEffect(() => {
     const fetchNearbyHouseholds = async () => {
       try {
-        const apiHouseholds = await fetchHouseholds();
+        const apiHouseholds = await fetchPeople();
         
         // Map API households to BlurredHousehold format
         const mapped: BlurredHousehold[] = apiHouseholds.map((h: GGHousehold, idx) => {
