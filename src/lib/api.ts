@@ -477,6 +477,7 @@ export async function createHousehold(payload: HouseholdCreate): Promise<Househo
 
 /**
  * Get current user's household (if they have one).
+ * Returns null if user has no household (404 is expected).
  */
 export async function getMyHousehold(): Promise<Household | null> {
   try {
@@ -485,7 +486,7 @@ export async function getMyHousehold(): Promise<Household | null> {
   } catch (e) {
     const ax = e as AxiosError;
     if (ax?.response?.status === 404) {
-      return null; // User doesn't have a household
+      return null; // User doesn't have a household (expected)
     }
     throw unwrapAxiosError(e);
   }
@@ -565,18 +566,41 @@ export async function upsertUser(payload?: Partial<GGUser>): Promise<GGUser> {
   }
 }
 
-export async function fetchHouseholds(params?: {
+/**
+ * Fetch discoverable people/households.
+ * Uses /households endpoint which includes full household details including kids.
+ * The /people endpoint is too lightweight (missing kids array).
+ */
+export async function fetchPeople(params?: {
   neighborhood?: string;
-  household_type?: string;
+  type?: string;
+  ageMin?: number;
+  ageMax?: number;
+  search?: string;
 }): Promise<GGHousehold[]> {
-  console.warn("fetchHouseholds is deprecated - use people discovery instead");
   try {
-    const res = await api.get("/households", { params: params || {} });
+    // Map frontend param names to backend param names
+    const backendParams: any = {};
+    if (params?.neighborhood) backendParams.neighborhood = params.neighborhood;
+    if (params?.type) backendParams.household_type = params.type;
+    
+    const res = await api.get("/households", { params: backendParams });
     const data = res.data;
     return (Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []) as GGHousehold[];
   } catch (e) {
     throw unwrapAxiosError(e);
   }
+}
+
+/**
+ * @deprecated Use fetchPeople() instead.
+ */
+export async function fetchHouseholds(params?: {
+  neighborhood?: string;
+  household_type?: string;
+}): Promise<GGHousehold[]> {
+  console.warn("fetchHouseholds() is deprecated - use fetchPeople() instead");
+  return fetchPeople({ neighborhood: params?.neighborhood, type: params?.household_type });
 }
 
 export async function upsertMyHousehold(payload: Partial<GGHousehold>): Promise<GGHousehold> {
