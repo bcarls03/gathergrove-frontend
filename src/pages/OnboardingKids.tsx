@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import { Plus, X } from "lucide-react";
 import { OnboardingLayout } from "../components/OnboardingLayout";
 import { getOnboardingState, setOnboardingState } from "../lib/onboarding";
-import { updateMyHousehold, getMyHousehold, type Kid as APIKid, type HouseholdType } from "../lib/api";
+import { updateMyHousehold, getMyHousehold, updateMyIntent, type Kid as APIKid, type HouseholdType } from "../lib/api";
 
 type Kid = {
   id: string;
@@ -113,32 +113,25 @@ export function OnboardingKids() {
       // Get onboarding state for household info
       const state = getOnboardingState();
       
-      // Map kids to API format with exact age in years
-      const apiKids: APIKid[] = validKids.map((k) => {
+      // Convert kids to intent format (birthYear/birthMonth as ints)
+      const intentKids = validKids.map((k) => {
         const age = calculateAge(Number(k.birthYear), Number(k.birthMonth));
-        const ageRange = getAgeRange(age);
+        const normalizedAwayAtCollege = age >= 18 ? Boolean(k.awayAtCollege) : false;
         
         return {
-          age_years: age,
-          age_range: ageRange, // Keep for backward compatibility
+          birthYear: Number(k.birthYear),
+          birthMonth: Number(k.birthMonth),
           gender: k.gender === "" ? null : (k.gender as "male" | "female" | "prefer_not_to_say"),
-          available_for_babysitting: k.canBabysit || false,
+          awayAtCollege: normalizedAwayAtCollege,
+          canBabysit: Boolean(k.canBabysit),
         };
       });
 
-      // Check if household already exists
-      // During initial onboarding, skip API call to avoid 404 noise
-      const existingHousehold = state.householdCreated ? await getMyHousehold() : null;
-      
-      if (existingHousehold) {
-        // Update existing household with kids (ONLY if household exists)
-        await updateMyHousehold({
-          household_type: state.intendedHouseholdType as HouseholdType || existingHousehold.household_type,
-          kids: apiKids,
-        });
-      }
-      // If no household exists, defer creation to OnboardingPrivacy
-      // (which has the household name generation logic)
+      // Save intent kids to person record (works even if no household yet)
+      await updateMyIntent({
+        household_type: state.intendedHouseholdType as HouseholdType || null,
+        kids: intentKids,
+      });
 
       // Save kids to onboarding state for OnboardingPrivacy to use
       setOnboardingState({

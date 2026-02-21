@@ -446,6 +446,31 @@ export async function updateMyProfile(payload: UserProfileUpdate): Promise<UserP
 }
 
 /**
+ * Update current user's intent (Section 30: person-owned intent).
+ * Accepts household_type and/or kids array.
+ * Allows saving kids metadata even if user has no household yet.
+ */
+export async function updateMyIntent(payload: {
+  household_type?: "family_with_kids" | "empty_nesters" | "singles_couples" | null;
+  kids?: Array<{
+    birthYear: number;
+    birthMonth: number | null;
+    gender?: "male" | "female" | "prefer_not_to_say" | null;
+    awayAtCollege?: boolean;
+    canBabysit?: boolean;
+  }> | null;
+}): Promise<UserProfile> {
+  try {
+    const res = await api.patch("/users/me/intent", payload, {
+      headers: { "Content-Type": "application/json" },
+    });
+    return res.data as UserProfile;
+  } catch (e) {
+    throw unwrapAxiosError(e);
+  }
+}
+
+/**
  * Delete current user's profile.
  */
 export async function deleteMyProfile(): Promise<{ message: string }> {
