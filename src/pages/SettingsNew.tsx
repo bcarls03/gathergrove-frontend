@@ -297,8 +297,8 @@ export default function SettingsNew() {
             birthYear: k.birthYear.toString(),
             birthMonth: k.birthMonth ? k.birthMonth.toString() : "",
             gender: (k.gender || "") as "male" | "female" | "prefer_not_to_say" | "",
-            awayAtCollege: k.awayAtCollege || false,
-            canBabysit: k.canBabysit || false,
+            awayAtCollege: Boolean(k.awayAtCollege),
+            canBabysit: Boolean(k.canBabysit),
           }));
           setKids(loadedKids);
         }
@@ -903,8 +903,8 @@ export default function SettingsNew() {
                     birthYear: Number(k.birthYear),
                     birthMonth: k.birthMonth ? Number(k.birthMonth) : null,
                     gender: k.gender || null,
-                    awayAtCollege: k.awayAtCollege || false,
-                    canBabysit: k.canBabysit || false,
+                    awayAtCollege: Boolean(k.awayAtCollege),
+                    canBabysit: Boolean(k.canBabysit),
                   }));
 
                 // Save intent (kids + householdType)
