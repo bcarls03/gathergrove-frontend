@@ -5,7 +5,6 @@ import { motion } from "framer-motion";
 import {
   getMyProfile,
   updateMyProfile,
-  updateMyIntent,
   getMyHousehold,
   createHousehold,
   updateMyHousehold,
@@ -37,23 +36,34 @@ type UserIntent = {
 
 // Helper to save person-level intent
 async function saveUserIntent(intent: UserIntent): Promise<void> {
-  // Use the new updateMyIntent API function
-  await updateMyIntent(intent);
+  const { getAuthHeaders } = await import("../lib/api");
+  const headers = await getAuthHeaders();
+  
+  const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || "http://localhost:8000"}/users/me`, {
+    method: "PATCH",
+    headers: {
+      ...headers,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(intent),
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to save intent: ${response.status} ${errorText}`);
+  }
 }
 
 // Helper to get person-level intent (embedded in profile response)
 async function getUserIntent(): Promise<UserIntent | null> {
   try {
+    const { getMyProfile } = await import("../lib/api");
     const profile = await getMyProfile();
-    // Backend returns intent nested under profile.intent
-    const intentData = (profile as any).intent;
-    if (intentData) {
-      return {
-        household_type: intentData.household_type || null,
-        kids: intentData.kids || null,
-      };
-    }
-    return null;
+    // Backend may return intent fields on profile
+    return {
+      household_type: (profile as any).household_type || null,
+      kids: (profile as any).kids || null,
+    };
   } catch {
     return null;
   }
