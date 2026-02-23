@@ -136,19 +136,16 @@ export type UserProfile = {
 };
 
 export type UserProfileUpdate = {
-  email?: string;
+  // IMPORTANT: Backend has FIRST @router.patch("/me") with extra='forbid'
+  // Only these fields are allowed (from UserPatchModel):
   first_name?: string;
   last_name?: string;
-  profile_photo_url?: string | null;
   bio?: string | null;
-  address?: string | null;
-  lat?: number | null;
-  lng?: number | null;
-  location_precision?: "street" | "zipcode" | null;
   discovery_opt_in?: boolean;
   visibility?: UserVisibility;
-  interests?: string[] | null;
+  // Note: address, lat, lng, household_id, interests are NOT supported by active endpoint
 };
+
 
 export type UserSignupRequest = {
   uid: string;
@@ -173,6 +170,8 @@ export type HouseholdType = "family_with_kids" | "empty_nesters" | "singles_coup
 export type Kid = {
   age_range: "0-2" | "3-5" | "6-8" | "9-12" | "13-17" | "18+";
   age_years?: number; // Exact age in years (preferred over age_range for new data)
+  birth_year?: number; // Birth year for precise age reconstruction
+  birth_month?: number; // Birth month 1-12 for precise age reconstruction
   gender?: "male" | "female" | "prefer_not_to_say" | null;
   interests?: string[] | null;
   available_for_babysitting?: boolean;

@@ -138,21 +138,10 @@ export default function OnboardingAddressSimple() {
 
     const { lat, lng } = geocodeResult;
 
+    // Note: Address fields are NOT supported by PATCH /users/me endpoint
+    // Address is passed via router state and saved later during household creation
     try {
-      await updateMyProfile({
-        address,
-        lat,
-        lng,
-        location_precision: address.trim() ? 'street' : 'zipcode',
-      });
-
       // Navigate to Step 3: Household
-      navigate('/onboarding/household', {
-        state: { address, city, state, zip, lat, lng },
-      });
-    } catch (err) {
-      console.warn('Address save failed, continuing anyway:', err);
-      // Still navigate even if save fails
       navigate('/onboarding/household', {
         state: { address, city, state, zip, lat, lng },
       });

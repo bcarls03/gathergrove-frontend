@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { getOnboardingState, setOnboardingState } from "../lib/onboarding";
 import { Eye, Lock, MapPin, Search, Users, Heart, Home } from "lucide-react";
 import { OnboardingLayout } from "../components/OnboardingLayout";
-import { createHousehold, updateMyProfile, getMyHousehold, type Kid as APIKid, type GGHousehold } from "../lib/api";
+import { createHousehold, updateMyProfile, type Kid as APIKid, type GGHousehold } from "../lib/api";
 import HouseholdCard from "../components/HouseholdCard";
 
 // Helper: Calculate current age from birth year/month
@@ -64,68 +64,63 @@ function OnboardingPrivacyInner() {
         // Don't block - profile updates are nice-to-have
       }
 
-      // Create household if user provided household type and doesn't already have one
-      // (Note: OnboardingKids may have already updated the household if one existed)
-      if (state.intendedHouseholdType) {
-        // Check if household already exists
-        // During initial onboarding, skip API call to avoid 404 noise
-        const existingHousehold = state.householdCreated ? await getMyHousehold() : null;
-        
-        if (!existingHousehold) {
-          // Generate household name with proper fallbacks
-          // Priority: lastName > firstName > email prefix > "Household"
-          let baseName = state.lastName;
-          if (!baseName && state.firstName) {
-            baseName = state.firstName;
-          }
-          if (!baseName && state.email) {
-            baseName = state.email.split("@")[0];
-          }
-          if (!baseName) {
-            baseName = "Household";
-          }
+      // ✅ GUARANTEE: Every user must have a household after onboarding (pilot requirement)
+      // During onboarding, we know user doesn't have a household yet, so create directly
+      // (avoids unnecessary 404 noise in Network tab)
+      
+      // Fallback to singles_couples if household type not selected
+      const householdType = state.intendedHouseholdType || "singles_couples";
+      
+      // Generate household name with proper fallbacks
+      // Priority: lastName > firstName > email prefix > "Household"
+      let baseName = state.lastName;
+      if (!baseName && state.firstName) {
+        baseName = state.firstName;
+      }
+      if (!baseName && state.email) {
+        baseName = state.email.split("@")[0];
+      }
+      if (!baseName) {
+        baseName = "Household";
+      }
+      
+      const householdName = `The ${baseName} Family`;
+      
+      // Map onboarding kids to API format with exact age in years
+      let apiKids: APIKid[] | null = null;
+      if (state.kids && state.kids.length > 0) {
+        apiKids = state.kids.map((k) => {
+          const age = k.age_years ?? (k.birthYear && k.birthMonth 
+            ? calculateAge(k.birthYear, k.birthMonth)
+            : 0);
+          const ageRange = k.age_range ?? getAgeRange(age);
           
-          const householdName = `The ${baseName} Family`;
-          
-          // Map onboarding kids to API format with exact age in years
-          let apiKids: APIKid[] | null = null;
-          if (state.kids && state.kids.length > 0) {
-            apiKids = state.kids.map((k) => {
-              const age = k.age_years ?? (k.birthYear && k.birthMonth 
-                ? calculateAge(k.birthYear, k.birthMonth)
-                : 0);
-              const ageRange = k.age_range ?? getAgeRange(age);
-              
-              return {
-                age_years: age,
-                age_range: ageRange,
-                gender: k.gender || null,
-                available_for_babysitting: k.canBabysit || false,
-              };
-            });
-          }
-          
-          try {
-            await createHousehold({
-              name: householdName,
-              household_type: state.intendedHouseholdType,
-              kids: apiKids,
-            });
-            // Mark household as created to avoid 404s in future onboarding steps
-            setOnboardingState({ householdCreated: true });
-          } catch (householdErr: any) {
-            // If already linked to a household, that's okay - just continue
-            if (householdErr?.message?.includes("already linked to household")) {
-              console.log("User already has a household, continuing to magic moment");
-              setOnboardingState({ householdCreated: true });
-            } else {
-              // For other errors, throw to outer catch block
-              throw householdErr;
-            }
-          }
+          return {
+            age_years: age,
+            age_range: ageRange,
+            birth_year: k.birthYear || undefined, // Preserve birth year for precise reconstruction
+            birth_month: k.birthMonth || undefined, // Preserve birth month for precise reconstruction
+            gender: k.gender || null,
+            available_for_babysitting: k.canBabysit || false,
+          };
+        });
+      }
+      
+      try {
+        await createHousehold({
+          name: householdName,
+          household_type: householdType,
+          kids: apiKids,
+        });
+        console.log("✅ Household created successfully during onboarding");
+      } catch (createErr: any) {
+        // If household already exists (rare edge case), that's fine
+        if (createErr?.message?.includes("already linked to household") || 
+            createErr?.response?.status === 409) {
+          console.log("✅ Household already exists, continuing");
         } else {
-          console.log("Household already exists, skipping creation");
-          setOnboardingState({ householdCreated: true });
+          // Real error - propagate to outer catch
+          throw createErr;
         }
       }
 
