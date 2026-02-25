@@ -292,14 +292,49 @@ export default function SettingsNew() {
         
         // Initialize kids from intent if available
         if (intent.kids && Array.isArray(intent.kids)) {
-          const loadedKids = intent.kids.map((k, idx) => ({
-            id: `${idx + 1}`,
-            birthYear: k.birthYear.toString(),
-            birthMonth: k.birthMonth ? k.birthMonth.toString() : "",
-            gender: (k.gender || "") as "male" | "female" | "prefer_not_to_say" | "",
-            awayAtCollege: Boolean(k.awayAtCollege),
-            canBabysit: Boolean(k.canBabysit),
-          }));
+          const loadedKids = intent.kids.map((k: any, idx) => {
+            const currentYear = new Date().getFullYear();
+            const currentMonth = new Date().getMonth() + 1; // 1-12
+            let derivedBirthYear = "";
+            let derivedBirthMonth = "";
+
+            // Priority 1: Use stored birth_year/birthYear if available
+            if (k.birth_year || k.birthYear) {
+              derivedBirthYear = String(k.birth_year || k.birthYear);
+              derivedBirthMonth = String(k.birth_month || k.birthMonth || "");
+            }
+            // Priority 2: Derive from age_years with month adjustment
+            else if (typeof k.age_years === "number") {
+              derivedBirthYear = String(currentYear - k.age_years);
+              if (k.birthMonth && currentMonth < k.birthMonth) {
+                derivedBirthYear = String(currentYear - k.age_years - 1);
+              }
+            }
+            // Priority 3: Fallback to age_range midpoint
+            else if (k.age_range) {
+              const ageRangeMap: Record<string, number> = {
+                "0-2": 1,
+                "3-5": 4,
+                "6-8": 7,
+                "9-12": 10,
+                "13-17": 15,
+                "18+": 18,
+              };
+              const midpoint = ageRangeMap[k.age_range];
+              if (typeof midpoint === "number") {
+                derivedBirthYear = String(currentYear - midpoint);
+              }
+            }
+
+            return {
+              id: `${idx + 1}`,
+              birthYear: derivedBirthYear || k.birthYear?.toString() || "",
+              birthMonth: derivedBirthMonth || k.birthMonth?.toString() || "",
+              gender: (k.gender || "") as "male" | "female" | "prefer_not_to_say" | "",
+              awayAtCollege: Boolean(k.awayAtCollege),
+              canBabysit: Boolean(k.canBabysit),
+            };
+          });
           setKids(loadedKids);
         }
       }
@@ -315,12 +350,56 @@ export default function SettingsNew() {
     try {
       const data = await getMyHousehold();
       if (data) {
-        console.log("📦 Loaded household:", data);
-        console.log("📦 Household type:", data.household_type);
         setHousehold(data);
         setHouseholdName(data.name);
         setHouseholdType(data.household_type || "");
-        console.log("📦 Set householdType state to:", data.household_type || "");
+        
+        if (Array.isArray(data.kids) && data.kids.length > 0) {
+          const mappedKids = data.kids.map((k: any, idx: number) => {
+            const currentYear = new Date().getFullYear();
+            const currentMonth = new Date().getMonth() + 1; // 1-12
+            let derivedBirthYear = "";
+            let derivedBirthMonth = "";
+
+            // Priority 1: Use stored birth_year/birthYear if available
+            if (k.birth_year || k.birthYear) {
+              derivedBirthYear = String(k.birth_year || k.birthYear);
+              derivedBirthMonth = String(k.birth_month || k.birthMonth || "");
+            }
+            // Priority 2: Derive from age_years with month adjustment
+            else if (typeof k.age_years === "number") {
+              derivedBirthYear = String(currentYear - k.age_years);
+              if (k.birthMonth && currentMonth < k.birthMonth) {
+                derivedBirthYear = String(currentYear - k.age_years - 1);
+              }
+            }
+            // Priority 3: Fallback to age_range midpoint
+            else if (k.age_range) {
+              const ageRangeMap: Record<string, number> = {
+                "0-2": 1,
+                "3-5": 4,
+                "6-8": 7,
+                "9-12": 10,
+                "13-17": 15,
+                "18+": 18,
+              };
+              const midpoint = ageRangeMap[k.age_range];
+              if (typeof midpoint === "number") {
+                derivedBirthYear = String(currentYear - midpoint);
+              }
+            }
+
+            return {
+              id: `${idx + 1}`,
+              birthYear: derivedBirthYear,
+              birthMonth: derivedBirthMonth,
+              gender: (k.gender || "") as "male" | "female" | "prefer_not_to_say" | "",
+              awayAtCollege: false,
+              canBabysit: Boolean(k.available_for_babysitting),
+            };
+          });
+          setKids(mappedKids);
+        }
       }
     } catch (err: any) {
       console.error("Failed to load household:", err);
@@ -339,7 +418,7 @@ export default function SettingsNew() {
       const updated = await updateMyProfile({
         first_name: firstName.trim(),
         last_name: lastName.trim(),
-        email: email.trim(),
+        // Note: email is read-only (set by OAuth), don't send in PATCH
         visibility,
       });
       setProfile(updated);
