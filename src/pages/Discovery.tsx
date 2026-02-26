@@ -19,6 +19,7 @@ import {
   fetchPeople,
   fetchEvents,
   getMyProfile,
+  getMyHousehold,
   type GGHousehold,
   type GGEvent,
   API_BASE_URL,
@@ -333,7 +334,25 @@ export default function Discovery() {
     try {
       const authHeaders = await getAuthHeaders();
 
-      // Step 1: Ensure user exists
+      // Step 1: Check if household already exists (idempotent)
+      let existingHousehold = null;
+      try {
+        existingHousehold = await getMyHousehold();
+      } catch {
+        existingHousehold = null;
+      }
+      if (existingHousehold) {
+        console.info('ℹ️  Dev household already exists, skipping creation');
+        setHouseholdCreationMessage({
+          type: 'success',
+          text: `✅ Dev household ready (household_id: ${existingHousehold.id.slice(0, 12)}...)`,
+        });
+        await loadHouseholds();
+        await loadConnections();
+        return;
+      }
+
+      // Step 2: Ensure user profile exists (handle 409 gracefully)
       const signupResponse = await fetch(`${API_BASE_URL}/users/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders },
@@ -344,14 +363,13 @@ export default function Discovery() {
         }),
       });
 
-      if (!signupResponse.ok) {
+      // 409 means profile already exists - that's fine, continue
+      if (!signupResponse.ok && signupResponse.status !== 409) {
         const signupError = await signupResponse.json().catch(() => ({ detail: 'Unknown error' }));
-        if (signupResponse.status !== 409) {
-          console.log(`⚠️ Signup failed (${signupResponse.status}): ${signupError.detail}`);
-        }
+        throw new Error(`Signup failed: ${signupError.detail}`);
       }
 
-      // Step 2: Create household
+      // Step 3: Create household
       const createResponse = await fetch(`${API_BASE_URL}/users/me/household/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders },
@@ -362,19 +380,33 @@ export default function Discovery() {
         }),
       });
 
+      // Handle 409 (already linked) by fetching existing household
       if (!createResponse.ok) {
-        const errorData = await createResponse.json().catch(() => ({ detail: `Status ${createResponse.status}` }));
-        if (createResponse.status !== 409) {
-          const errorMsg = typeof errorData.detail === 'string' ? errorData.detail : `Status ${createResponse.status}`;
-          throw new Error(errorMsg);
+        if (createResponse.status === 409) {
+          console.info('ℹ️  User already linked to household, fetching existing');
+          let household = null;
+          try {
+            household = await getMyHousehold();
+          } catch {
+            household = null;
+          }
+          if (household) {
+            setHouseholdCreationMessage({
+              type: 'success',
+              text: `✅ Dev household ready (household_id: ${household.id.slice(0, 12)}...)`,
+            });
+            await loadHouseholds();
+            await loadConnections();
+            return;
+          }
         }
+        const errorData = await createResponse.json().catch(() => ({ detail: `Status ${createResponse.status}` }));
+        const errorMsg = typeof errorData.detail === 'string' ? errorData.detail : `Status ${createResponse.status}`;
+        throw new Error(errorMsg);
       }
 
-      // Step 3: Verify
-      const meResponse = await fetch(`${API_BASE_URL}/users/me`, { method: 'GET', headers: authHeaders });
-      if (!meResponse.ok) throw new Error(`Failed to verify: Status ${meResponse.status}`);
-
-      const userData = await meResponse.json();
+      // Step 4: Verify household creation
+      const userData = await getMyProfile();
       if (userData.household_id) {
         setHouseholdCreationMessage({
           type: 'success',
