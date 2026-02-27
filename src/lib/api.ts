@@ -426,6 +426,11 @@ export async function getUserProfiles(uids: string[]): Promise<UserProfile[]> {
     });
     return res.data as UserProfile[];
   } catch (e) {
+    // 404 is expected when no profiles exist yet - treat as empty state
+    const ax = e as AxiosError;
+    if (ax?.response?.status === 404) {
+      return [];
+    }
     throw unwrapAxiosError(e);
   }
 }
@@ -768,6 +773,11 @@ export async function fetchEventRsvps(eventId: string): Promise<EventRsvpBuckets
       cant: Array.isArray(cant) ? cant : [],
     };
   } catch (e) {
+    // 404 is expected when no RSVPs exist yet - treat as empty state
+    const ax = e as AxiosError;
+    if (ax?.response?.status === 404) {
+      return { going: [], maybe: [], cant: [] };
+    }
     throw unwrapAxiosError(e);
   }
 }
