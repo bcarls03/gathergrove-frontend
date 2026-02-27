@@ -343,6 +343,13 @@ export default function EventDaySheet({ open, onClose, date, events }: Props) {
                     const currentStatus = rsvp?.status;
                     const isLoading = rsvp?.loading;
 
+                    // Check if current user is the host
+                    const meId = currentUserProfile?.uid || (currentUserProfile as any)?.id;
+                    const isHost = !!meId && (
+                      (event as any).host_user_id === meId ||
+                      (event as any).hostUid === meId
+                    );
+
                     // Event Memory: Check if event is past and user attended
                     const eventDate = new Date(event.startAt || event.when || '');
                     const isPastEvent = eventDate < new Date();
@@ -434,92 +441,116 @@ export default function EventDaySheet({ open, onClose, date, events }: Props) {
                           )}
                         </div>
 
-                        {/* RSVP buttons */}
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: 8,
-                            marginTop: 12,
-                          }}
-                        >
-                          <button
-                            onClick={() => {
-                              if (currentStatus === "going") {
-                                handleRemoveRsvp(event.id);
-                              } else {
-                                handleRsvp(event.id, "going");
-                              }
-                            }}
-                            disabled={isLoading}
+                        {/* RSVP buttons or host indicator */}
+                        {isHost ? (
+                          <div
                             style={{
-                              flex: 1,
-                              padding: "10px 16px",
-                              fontSize: 14,
-                              fontWeight: 600,
-                              color: currentStatus === "going" ? "white" : "#10b981",
-                              backgroundColor:
-                                currentStatus === "going" ? "#10b981" : "white",
-                              border: `2px solid #10b981`,
-                              borderRadius: 8,
-                              cursor: isLoading ? "not-allowed" : "pointer",
-                              opacity: isLoading ? 0.6 : 1,
+                              display: "flex",
+                              alignItems: "center",
+                              marginTop: 12,
                             }}
                           >
-                            {currentStatus === "going" ? "✓ Going" : "Going"}
-                          </button>
+                            <div
+                              style={{
+                                fontSize: 12,
+                                padding: "8px 14px",
+                                borderRadius: 999,
+                                border: "1px solid rgba(148,163,184,0.55)",
+                                background: "rgba(255,255,255,0.92)",
+                                color: "#64748b",
+                                fontWeight: 700,
+                              }}
+                            >
+                              🌿 You're hosting
+                            </div>
+                          </div>
+                        ) : (
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: 8,
+                              marginTop: 12,
+                            }}
+                          >
+                            <button
+                              onClick={() => {
+                                if (currentStatus === "going") {
+                                  handleRemoveRsvp(event.id);
+                                } else {
+                                  handleRsvp(event.id, "going");
+                                }
+                              }}
+                              disabled={isLoading}
+                              style={{
+                                flex: 1,
+                                padding: "10px 16px",
+                                fontSize: 14,
+                                fontWeight: 600,
+                                color: currentStatus === "going" ? "white" : "#10b981",
+                                backgroundColor:
+                                  currentStatus === "going" ? "#10b981" : "white",
+                                border: `2px solid #10b981`,
+                                borderRadius: 8,
+                                cursor: isLoading ? "not-allowed" : "pointer",
+                                opacity: isLoading ? 0.6 : 1,
+                              }}
+                            >
+                              {currentStatus === "going" ? "✓ Going" : "Going"}
+                            </button>
 
-                          <button
-                            onClick={() => {
-                              if (currentStatus === "maybe") {
-                                handleRemoveRsvp(event.id);
-                              } else {
-                                handleRsvp(event.id, "maybe");
-                              }
-                            }}
-                            disabled={isLoading}
-                            style={{
-                              flex: 1,
-                              padding: "10px 16px",
-                              fontSize: 14,
-                              fontWeight: 600,
-                              color: currentStatus === "maybe" ? "white" : "#f59e0b",
-                              backgroundColor:
-                                currentStatus === "maybe" ? "#f59e0b" : "white",
-                              border: `2px solid #f59e0b`,
-                              borderRadius: 8,
-                              cursor: isLoading ? "not-allowed" : "pointer",
-                              opacity: isLoading ? 0.6 : 1,
-                            }}
-                          >
-                            {currentStatus === "maybe" ? "✓ Maybe" : "Maybe"}
-                          </button>
+                            <button
+                              onClick={() => {
+                                if (currentStatus === "maybe") {
+                                  handleRemoveRsvp(event.id);
+                                } else {
+                                  handleRsvp(event.id, "maybe");
+                                }
+                              }}
+                              disabled={isLoading}
+                              style={{
+                                flex: 1,
+                                padding: "10px 16px",
+                                fontSize: 14,
+                                fontWeight: 600,
+                                color: currentStatus === "maybe" ? "white" : "#f59e0b",
+                                backgroundColor:
+                                  currentStatus === "maybe" ? "#f59e0b" : "white",
+                                border: `2px solid #f59e0b`,
+                                borderRadius: 8,
+                                cursor: isLoading ? "not-allowed" : "pointer",
+                                opacity: isLoading ? 0.6 : 1,
+                              }}
+                            >
+                              {currentStatus === "maybe" ? "✓ Maybe" : "Maybe"}
+                            </button>
 
-                          <button
-                            onClick={() => {
-                              if (currentStatus === "declined") {
-                                handleRemoveRsvp(event.id);
-                              } else {
-                                handleRsvp(event.id, "declined");
-                              }
-                            }}
-                            disabled={isLoading}
-                            style={{
-                              flex: 1,
-                              padding: "10px 16px",
-                              fontSize: 14,
-                              fontWeight: 600,
-                              color: currentStatus === "declined" ? "white" : "#ef4444",
-                              backgroundColor:
-                                currentStatus === "declined" ? "#ef4444" : "white",
-                              border: `2px solid #ef4444`,
-                              borderRadius: 8,
-                              cursor: isLoading ? "not-allowed" : "pointer",
-                              opacity: isLoading ? 0.6 : 1,
-                            }}
-                          >
-                            {currentStatus === "declined" ? "✓ Can't go" : "Can't go"}
-                          </button>
-                        </div>
+                            <button
+                              onClick={() => {
+                                if (currentStatus === "declined") {
+                                  handleRemoveRsvp(event.id);
+                                } else {
+                                  handleRsvp(event.id, "declined");
+                                }
+                              }}
+                              disabled={isLoading}
+                              style={{
+                                flex: 1,
+                                padding: "10px 16px",
+                                fontSize: 14,
+                                fontWeight: 600,
+                                color: currentStatus === "declined" ? "white" : "#ef4444",
+                                backgroundColor:
+                                  currentStatus === "declined" ? "#ef4444" : "white",
+                                border: `2px solid #ef4444`,
+                                borderRadius: 8,
+                                cursor: isLoading ? "not-allowed" : "pointer",
+                                opacity: isLoading ? 0.6 : 1,
+                              }}
+                            >
+                              {currentStatus === "declined" ? "✓ Can't go" : "Can't go"}
+                            </button>
+                          </div>
+                        )}
 
                         {/* Add to Calendar button */}
                         <button
