@@ -1583,6 +1583,8 @@ export default function Home() {
                 const subtitle = getHappeningSubtitle(p);
                 const body = getHappeningBody(p);
 
+                const isHost = isHostPost(p);
+
                 return (
                   <motion.div key={p.id} className="home-card" {...cardMotionProps}>
                     <div className="home-card-main">
@@ -1594,27 +1596,45 @@ export default function Home() {
                       {body ? <div className="home-card-body">{body}</div> : null}
 
                       <div className="rsvp-row">
-                        <div className="rsvp-buttons">
-                          <motion.button
-                            type="button"
-                            className={"rsvp-btn" + (rsvpState.choice === "going" ? " is-on" : "")}
-                            onClick={() => handleRsvp(p, "going")}
-                            {...rsvpMotionProps}
-                          >
-                            <span>👍</span>
-                            <span>Going</span>
-                          </motion.button>
+                        {isHost ? (
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <div
+                              style={{
+                                fontSize: 11,
+                                padding: "6px 12px",
+                                borderRadius: 999,
+                                border: "1px solid rgba(148,163,184,0.55)",
+                                background: "rgba(255,255,255,0.92)",
+                                color: "#64748b",
+                                fontWeight: 800,
+                              }}
+                            >
+                              🌿 You're hosting
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="rsvp-buttons">
+                            <motion.button
+                              type="button"
+                              className={"rsvp-btn" + (rsvpState.choice === "going" ? " is-on" : "")}
+                              onClick={() => handleRsvp(p, "going")}
+                              {...rsvpMotionProps}
+                            >
+                              <span>👍</span>
+                              <span>Going</span>
+                            </motion.button>
 
-                          <motion.button
-                            type="button"
-                            className={"rsvp-btn" + (rsvpState.choice === "cant" ? " is-on" : "")}
-                            onClick={() => handleRsvp(p, "cant")}
-                            {...rsvpMotionProps}
-                          >
-                            <span>❌</span>
-                            <span>Can't go</span>
-                          </motion.button>
-                        </div>
+                            <motion.button
+                              type="button"
+                              className={"rsvp-btn" + (rsvpState.choice === "cant" ? " is-on" : "")}
+                              onClick={() => handleRsvp(p, "cant")}
+                              {...rsvpMotionProps}
+                            >
+                              <span>❌</span>
+                              <span>Can't go</span>
+                            </motion.button>
+                          </div>
+                        )}
 
                         <div className="rsvp-meta-right">
                           {summary && <div className="rsvp-summary">{summary}</div>}
@@ -1664,6 +1684,8 @@ export default function Home() {
                 const summary = formatRsvpSummary(rsvpState.counts);
                 const categoryMeta = p.category && CATEGORY_META[p.category] ? CATEGORY_META[p.category] : null;
 
+                const isHost = isHostPost(p);
+
                 return (
                   <motion.div key={p.id} className="home-card" {...cardMotionProps}>
                     <div className="home-card-main">
@@ -1686,37 +1708,55 @@ export default function Home() {
                       <div className="home-card-body">{p.details}</div>
 
                       <div className="rsvp-row">
-                        <div className="rsvp-buttons">
-                          <motion.button
-                            type="button"
-                            className={"rsvp-btn" + (rsvpState.choice === "going" ? " is-on" : "")}
-                            onClick={() => handleRsvp(p, "going")}
-                            {...rsvpMotionProps}
-                          >
-                            <span>👍</span>
-                            <span>Going</span>
-                          </motion.button>
+                        {isHost ? (
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <div
+                              style={{
+                                fontSize: 11,
+                                padding: "6px 12px",
+                                borderRadius: 999,
+                                border: "1px solid rgba(148,163,184,0.55)",
+                                background: "rgba(255,255,255,0.92)",
+                                color: "#64748b",
+                                fontWeight: 800,
+                              }}
+                            >
+                              🌿 You're hosting
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="rsvp-buttons">
+                            <motion.button
+                              type="button"
+                              className={"rsvp-btn" + (rsvpState.choice === "going" ? " is-on" : "")}
+                              onClick={() => handleRsvp(p, "going")}
+                              {...rsvpMotionProps}
+                            >
+                              <span>👍</span>
+                              <span>Going</span>
+                            </motion.button>
 
-                          <motion.button
-                            type="button"
-                            className={"rsvp-btn" + (rsvpState.choice === "maybe" ? " is-on" : "")}
-                            onClick={() => handleRsvp(p, "maybe")}
-                            {...rsvpMotionProps}
-                          >
-                            <span>❓</span>
-                            <span>Maybe</span>
-                          </motion.button>
+                            <motion.button
+                              type="button"
+                              className={"rsvp-btn" + (rsvpState.choice === "maybe" ? " is-on" : "")}
+                              onClick={() => handleRsvp(p, "maybe")}
+                              {...rsvpMotionProps}
+                            >
+                              <span>❓</span>
+                              <span>Maybe</span>
+                            </motion.button>
 
-                          <motion.button
-                            type="button"
-                            className={"rsvp-btn" + (rsvpState.choice === "cant" ? " is-on" : "")}
-                            onClick={() => handleRsvp(p, "cant")}
-                            {...rsvpMotionProps}
-                          >
-                            <span>❌</span>
-                            <span>Can't go</span>
-                          </motion.button>
-                        </div>
+                            <motion.button
+                              type="button"
+                              className={"rsvp-btn" + (rsvpState.choice === "cant" ? " is-on" : "")}
+                              onClick={() => handleRsvp(p, "cant")}
+                              {...rsvpMotionProps}
+                            >
+                              <span>❌</span>
+                              <span>Can't go</span>
+                            </motion.button>
+                          </div>
+                        )}
 
                         <div className="rsvp-meta-right">
                           {summary && <div className="rsvp-summary">{summary}</div>}
