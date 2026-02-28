@@ -794,8 +794,8 @@ export default function ComposePost() {
                     {/* ✅ Friendly cold start callout */}
                     <div style={{ 
                       padding: "14px 16px",
-                      background: "linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)",
-                      border: "1.5px solid rgba(251,191,36,.4)",
+                      backgroundColor: "#fef9c3",
+                      border: "1px solid rgba(234,179,8,.25)",
                       borderRadius: "12px",
                       marginBottom: "12px",
                       display: "flex",
@@ -805,11 +805,11 @@ export default function ComposePost() {
                       <span style={{ fontSize: "20px", lineHeight: 1, flexShrink: 0 }}>🌱</span>
                       <div style={{ 
                         fontSize: 14, 
-                        color: "#78350f", 
+                        color: "#854d0e", 
                         lineHeight: 1.5,
                         fontWeight: 500
                       }}>
-                        <strong style={{ fontWeight: 700 }}>You're starting your neighborhood!</strong> Invite a few friends to get this going.
+                        <strong style={{ fontWeight: 700 }}>You're starting your neighborhood!</strong> Invite a few neighbors to get this going.
                       </div>
                     </div>
                     

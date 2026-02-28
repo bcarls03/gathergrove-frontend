@@ -684,9 +684,9 @@ export function HouseholdSelector({
         </div>
       ) : availableHouseholds.length === 0 ? (
         <div style={{ padding: "20px", textAlign: "center" }}>
-          <div style={{ color: "#94a3b8", marginBottom: 8 }}>No households available</div>
+          <div style={{ color: "#94a3b8", marginBottom: 8 }}>No neighbors available yet</div>
           <div style={{ fontSize: 12, color: "#cbd5e1" }}>
-            Check browser console (F12) for error details
+            Invite someone to get started.
           </div>
         </div>
       ) : (
