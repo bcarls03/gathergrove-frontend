@@ -218,6 +218,8 @@ export default function ComposePost() {
   const [shareableLink, setShareableLink] = useState<string | null>(null);
   const [createdEventTitle, setCreatedEventTitle] = useState<string>("");
   const [createdEventType, setCreatedEventType] = useState<"happening" | "event">("happening");
+  const [createdEventDetails, setCreatedEventDetails] = useState<string>("");
+  const [createdEventLocation, setCreatedEventLocation] = useState<string>("");
   const [copyFeedback, setCopyFeedback] = useState(false);
 
   const resolvedNeighborLabel = (n: Neighbor) => (n.label ?? n.lastName ?? "").toString();
@@ -345,6 +347,8 @@ export default function ComposePost() {
             
             setCreatedEventTitle(title.trim() || "Happening Now");
             setCreatedEventType("happening");
+            setCreatedEventDetails(details.trim());
+            setCreatedEventLocation(eventLocation.trim());
             setShareableLink(finalShareLink);
             setShowSuccessModal(true);
             return;  // Don't navigate - stay on modal
@@ -417,6 +421,8 @@ export default function ComposePost() {
           
           setCreatedEventTitle(localPayload.title || "Future Event");
           setCreatedEventType("event");
+          setCreatedEventDetails(details.trim());
+          setCreatedEventLocation(eventLocation.trim());
           setShareableLink(finalShareLink);
           setShowSuccessModal(true);
           setIsSubmitting(false);
@@ -1198,6 +1204,36 @@ export default function ComposePost() {
               }}>
                 {createdEventTitle}
               </p>
+              
+              {/* Location if provided */}
+              {createdEventLocation && (
+                <div style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  marginTop: "12px",
+                  fontSize: "13px",
+                  color: "#64748b",
+                  fontWeight: "500",
+                }}>
+                  <span>📍</span>
+                  <span>{createdEventLocation}</span>
+                </div>
+              )}
+              
+              {/* Details/body text */}
+              {createdEventDetails && (
+                <p style={{
+                  fontSize: "14px",
+                  color: "#64748b",
+                  marginTop: "12px",
+                  lineHeight: "1.5",
+                  whiteSpace: "pre-wrap",
+                  textAlign: "left",
+                }}>
+                  {createdEventDetails}
+                </p>
+              )}
               
               {/* Subtle timing indicator */}
               {createdEventType === "happening" && (
