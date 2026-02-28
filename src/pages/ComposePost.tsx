@@ -1213,7 +1213,7 @@ export default function ComposePost() {
                 }}
               >
                 <span style={{ fontSize: "18px" }}>📱</span>
-                Invite someone not on GatherGrove
+                Text Invite
               </button>
 
               <div style={{ height: "1px", backgroundColor: "#e5e7eb", margin: "20px 0" }} />
