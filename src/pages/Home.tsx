@@ -1087,11 +1087,12 @@ export default function Home() {
   const isTruthy = (v: any) => !!v && String(v).trim().length > 0;
 
   const getHappeningPrimaryTitle = (p: Post) => {
-    // Prefer a real title if present, else fall back to the detail (truncated)
-    // Treat "Happening Now" as missing title (it's a state label, not a title)
-    if (isTruthy(p.title) && String(p.title).trim() !== "Happening Now") {
-      return String(p.title).trim();
+    // Show the optional title prominently when it exists
+    const displayTitle = (p.title ?? "").toString().trim();
+    if (displayTitle && displayTitle !== "Happening Now") {
+      return displayTitle;
     }
+    // Fall back to truncated details if title is missing or is just "Happening Now"
     return truncate(p.details || "Untitled event", 72);
   };
 
