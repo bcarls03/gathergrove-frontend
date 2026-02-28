@@ -1090,6 +1090,12 @@ export default function ComposePost() {
               )}
             </div>
 
+            <div style={{ height: "1px", backgroundColor: "#e5e7eb", margin: "20px 0" }} />
+
+            <div style={{ fontSize: "13px", fontWeight: 600, color: "#334155", marginBottom: "10px", textAlign: "left" }}>
+              Invite others not on GatherGrove
+            </div>
+
             <div style={{
               backgroundColor: "#f8fafc",
               borderRadius: "16px",
@@ -1209,6 +1215,9 @@ export default function ComposePost() {
                 <span style={{ fontSize: "18px" }}>📱</span>
                 Invite someone not on GatherGrove
               </button>
+
+              <div style={{ height: "1px", backgroundColor: "#e5e7eb", margin: "20px 0" }} />
+
               <button
                 type="button"
                 onClick={() => {
