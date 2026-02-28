@@ -1093,7 +1093,7 @@ export default function ComposePost() {
             <div style={{ height: "1px", backgroundColor: "#e5e7eb", margin: "20px 0" }} />
 
             <div style={{ fontSize: "13px", fontWeight: 600, color: "#334155", marginBottom: "10px", textAlign: "left" }}>
-              Invite others not on GatherGrove
+              Invite friends and family not on GatherGrove yet
             </div>
 
             <div style={{
