@@ -1113,7 +1113,7 @@ export default function ComposePost() {
                 marginBottom: "12px",
                 fontWeight: "500"
               }}>
-                Share this with anyone to invite them
+                Copy to share anywhere (text, email, group chat).
               </div>
               <div style={{
                 display: "flex",
@@ -1171,37 +1171,6 @@ export default function ComposePost() {
               <button
                 type="button"
                 onClick={() => {
-                  setShowSuccessModal(false);
-                  navigate("/");
-                }}
-                style={{
-                  padding: "16px 24px",
-                  backgroundColor: "#3b82f6",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "14px",
-                  fontSize: "16px",
-                  fontWeight: "700",
-                  cursor: "pointer",
-                  boxShadow: "0 4px 12px rgba(59, 130, 246, 0.3)",
-                  transition: "all 0.2s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "translateY(-2px)";
-                  e.currentTarget.style.boxShadow = "0 6px 16px rgba(59, 130, 246, 0.4)";
-                  e.currentTarget.style.backgroundColor = "#2563eb";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(59, 130, 246, 0.3)";
-                  e.currentTarget.style.backgroundColor = "#3b82f6";
-                }}
-              >
-                Done
-              </button>
-              <button
-                type="button"
-                onClick={() => {
                   if (navigator.share) {
                     navigator.share({
                       title: createdEventTitle,
@@ -1216,9 +1185,9 @@ export default function ComposePost() {
                 }}
                 style={{
                   padding: "14px 24px",
-                  backgroundColor: "#fff",
-                  color: "#10b981",
-                  border: "2px solid #10b981",
+                  backgroundColor: "#3b82f6",
+                  color: "#ffffff",
+                  border: "none",
                   borderRadius: "14px",
                   fontSize: "15px",
                   fontWeight: "600",
@@ -1228,16 +1197,43 @@ export default function ComposePost() {
                   alignItems: "center",
                   justifyContent: "center",
                   gap: "10px",
+                  boxShadow: "0 4px 12px rgba(59, 130, 246, 0.3)",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "#f0fdf4";
+                  e.currentTarget.style.backgroundColor = "#2563eb";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "#fff";
+                  e.currentTarget.style.backgroundColor = "#3b82f6";
                 }}
               >
                 <span style={{ fontSize: "18px" }}>📱</span>
-                Share via Text/SMS
+                Invite someone not on GatherGrove
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSuccessModal(false);
+                  navigate("/");
+                }}
+                style={{
+                  padding: "16px 24px",
+                  backgroundColor: "#ffffff",
+                  color: "#64748b",
+                  border: "2px solid #e2e8f0",
+                  borderRadius: "14px",
+                  fontSize: "16px",
+                  fontWeight: "700",
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "#f8fafc";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "#ffffff";
+                }}
+              >
+                Done
               </button>
             </div>
           </div>
