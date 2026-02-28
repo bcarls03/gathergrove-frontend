@@ -33,6 +33,7 @@ interface HouseholdSelectorProps {
   eventInviteLink?: string; // ✅ Pass from parent after event is created
   eventTitle?: string;
   hideSectionHeaders?: boolean; // ✅ When true, parent controls section headers
+  onAvailableCountChange?: (count: number) => void; // ✅ Callback to notify parent of available households count
 }
 
 // ✅ Canonical type labels matching actual enum values
@@ -53,6 +54,7 @@ export function HouseholdSelector({
   eventInviteLink,
   eventTitle = "GatherGrove Event",
   hideSectionHeaders = false,
+  onAvailableCountChange,
 }: HouseholdSelectorProps) {
   const [availableHouseholds, setAvailableHouseholds] = useState<GGHousehold[]>([]);
   const [loading, setLoading] = useState(false);
@@ -64,6 +66,7 @@ export function HouseholdSelector({
   // ✅ Stable refs for callbacks to avoid dependency issues
   const onSelectedNamesChangeRef = useRef(onSelectedNamesChange);
   const onSelectionChangeRef = useRef(onSelectionChange);
+  const onAvailableCountChangeRef = useRef(onAvailableCountChange);
 
   // Keep refs updated
   useEffect(() => {
@@ -73,6 +76,10 @@ export function HouseholdSelector({
   useEffect(() => {
     onSelectionChangeRef.current = onSelectionChange;
   }, [onSelectionChange]);
+
+  useEffect(() => {
+    onAvailableCountChangeRef.current = onAvailableCountChange;
+  }, [onAvailableCountChange]);
 
   // ✅ Normalize visibleHouseholdIds to Set once
   const visibleSet = useMemo(
@@ -101,6 +108,13 @@ export function HouseholdSelector({
       onSelectedNamesChangeRef.current(names);
     }
   }, [selection.selectedIds, availableHouseholds]);
+
+  // ✅ Notify parent of available households count (only after loading completes)
+  useEffect(() => {
+    if (onAvailableCountChangeRef.current && !loading) {
+      onAvailableCountChangeRef.current(availableHouseholds.length);
+    }
+  }, [availableHouseholds.length, loading]);
 
   // Load households
   useEffect(() => {

@@ -208,6 +208,10 @@ export default function ComposePost() {
   const [selectedHouseholdIds, setSelectedHouseholdIds] = useState<Set<string>>(new Set());
   const [selectedPhoneNumbers, setSelectedPhoneNumbers] = useState<Set<string>>(new Set());
   const [selectedHouseholdNames, setSelectedHouseholdNames] = useState<HouseholdNameMap>(new Map());
+  const [availableHouseholdsCount, setAvailableHouseholdsCount] = useState<number | null>(null);
+
+  // ✅ Cold start detection: true when 0 households available for in-app invite (only after count is known)
+  const isColdStart = availableHouseholdsCount !== null && availableHouseholdsCount === 0;
 
   // ✅ NEW: Success modal state
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -754,92 +758,211 @@ export default function ComposePost() {
                 marginBottom: 24
               }} />
 
-              {/* Invite on GatherGrove */}
-              <div className="gg-card-section">
-                <div style={{ 
-                  display: "flex", 
-                  alignItems: "center", 
-                  justifyContent: "space-between",
-                  marginBottom: 12 
-                }}>
-                  <div style={{ 
-                    fontSize: 15,
-                    fontWeight: 600,
-                    color: "#0f172a"
-                  }}>
-                    Invite on GatherGrove
+              {/* ✅ Cold start: Promote external invites first, show friendly callout */}
+              {isColdStart ? (
+                <>
+                  {/* Invite someone not on GatherGrove - PROMOTED for cold start */}
+                  <div className="gg-card-section">
+                    <div style={{ 
+                      display: "flex", 
+                      alignItems: "center", 
+                      justifyContent: "space-between",
+                      marginBottom: 8 
+                    }}>
+                      <div style={{ 
+                        fontSize: 15,
+                        fontWeight: 600,
+                        color: "#0f172a"
+                      }}>
+                        Invite someone not on GatherGrove
+                      </div>
+                      <div style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: "#10b981",
+                        backgroundColor: "#f0fdf4",
+                        padding: "4px 10px",
+                        borderRadius: 12,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                        whiteSpace: "nowrap"
+                      }}>
+                        Link after posting
+                      </div>
+                    </div>
+                    
+                    {/* ✅ Friendly cold start callout */}
+                    <div style={{ 
+                      padding: "14px 16px",
+                      background: "linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)",
+                      border: "1.5px solid rgba(251,191,36,.4)",
+                      borderRadius: "12px",
+                      marginBottom: "12px",
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: "12px"
+                    }}>
+                      <span style={{ fontSize: "20px", lineHeight: 1, flexShrink: 0 }}>🌱</span>
+                      <div style={{ 
+                        fontSize: 14, 
+                        color: "#78350f", 
+                        lineHeight: 1.5,
+                        fontWeight: 500
+                      }}>
+                        <strong style={{ fontWeight: 700 }}>You're starting your neighborhood!</strong> Invite a few friends to get this going.
+                      </div>
+                    </div>
+                    
+                    <div style={{ 
+                      fontSize: 13, 
+                      color: "#64748b", 
+                      lineHeight: 1.5 
+                    }}>
+                      After you post, you'll get a shareable RSVP link to send to friends or family who aren't on GatherGrove.
+                    </div>
                   </div>
+
+                  {/* Section divider */}
                   <div style={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: "#3b82f6",
-                    backgroundColor: "#eff6ff",
-                    padding: "4px 10px",
-                    borderRadius: 12,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em"
-                  }}>
-                    In-app
+                    height: 1,
+                    backgroundColor: "#e5e7eb",
+                    marginTop: 24,
+                    marginBottom: 24
+                  }} />
+
+                  {/* In-app invite section - de-emphasized when empty */}
+                  <div className="gg-card-section" style={{ opacity: 0.5 }}>
+                    <div style={{ 
+                      display: "flex", 
+                      alignItems: "center", 
+                      justifyContent: "space-between",
+                      marginBottom: 12 
+                    }}>
+                      <div style={{ 
+                        fontSize: 14,
+                        fontWeight: 600,
+                        color: "#64748b"
+                      }}>
+                        Invite on GatherGrove
+                      </div>
+                      <div style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: "#94a3b8",
+                        backgroundColor: "#f8fafc",
+                        padding: "4px 10px",
+                        borderRadius: 12,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em"
+                      }}>
+                        In-app
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
 
-              {/* Household Selector */}
-              <HouseholdSelector 
-                selectedIds={selectedHouseholdIds}
-                onSelectionChange={setSelectedHouseholdIds}
-                selectedPhoneNumbers={selectedPhoneNumbers}
-                onPhoneNumbersChange={setSelectedPhoneNumbers}
-                onSelectedNamesChange={setSelectedHouseholdNames}
-                inviteContext={inviteContext}
-                hideSectionHeaders={true}
-              />
-
-              {/* Section divider */}
-              <div style={{
-                height: 1,
-                backgroundColor: "#e5e7eb",
-                marginTop: 24,
-                marginBottom: 24
-              }} />
-
-              {/* Invite someone not on GatherGrove */}
-              <div className="gg-card-section">
-                <div style={{ 
-                  display: "flex", 
-                  alignItems: "center", 
-                  justifyContent: "space-between",
-                  marginBottom: 8 
-                }}>
-                  <div style={{ 
-                    fontSize: 15,
-                    fontWeight: 600,
-                    color: "#0f172a"
-                  }}>
-                    Invite someone not on GatherGrove
+                  {/* Household Selector - will show empty state */}
+                  <HouseholdSelector 
+                    selectedIds={selectedHouseholdIds}
+                    onSelectionChange={setSelectedHouseholdIds}
+                    selectedPhoneNumbers={selectedPhoneNumbers}
+                    onPhoneNumbersChange={setSelectedPhoneNumbers}
+                    onSelectedNamesChange={setSelectedHouseholdNames}
+                    onAvailableCountChange={setAvailableHouseholdsCount}
+                    inviteContext={inviteContext}
+                    hideSectionHeaders={true}
+                  />
+                </>
+              ) : (
+                <>
+                  {/* Normal flow: In-app invites first */}
+                  <div className="gg-card-section">
+                    <div style={{ 
+                      display: "flex", 
+                      alignItems: "center", 
+                      justifyContent: "space-between",
+                      marginBottom: 12 
+                    }}>
+                      <div style={{ 
+                        fontSize: 15,
+                        fontWeight: 600,
+                        color: "#0f172a"
+                      }}>
+                        Invite on GatherGrove
+                      </div>
+                      <div style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: "#3b82f6",
+                        backgroundColor: "#eff6ff",
+                        padding: "4px 10px",
+                        borderRadius: 12,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em"
+                      }}>
+                        In-app
+                      </div>
+                    </div>
                   </div>
+
+                  {/* Household Selector */}
+                  <HouseholdSelector 
+                    selectedIds={selectedHouseholdIds}
+                    onSelectionChange={setSelectedHouseholdIds}
+                    selectedPhoneNumbers={selectedPhoneNumbers}
+                    onPhoneNumbersChange={setSelectedPhoneNumbers}
+                    onSelectedNamesChange={setSelectedHouseholdNames}
+                    onAvailableCountChange={setAvailableHouseholdsCount}
+                    inviteContext={inviteContext}
+                    hideSectionHeaders={true}
+                  />
+
+                  {/* Section divider */}
                   <div style={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: "#10b981",
-                    backgroundColor: "#f0fdf4",
-                    padding: "4px 10px",
-                    borderRadius: 12,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                    whiteSpace: "nowrap"
-                  }}>
-                    Link after posting
+                    height: 1,
+                    backgroundColor: "#e5e7eb",
+                    marginTop: 24,
+                    marginBottom: 24
+                  }} />
+
+                  {/* Invite someone not on GatherGrove */}
+                  <div className="gg-card-section">
+                    <div style={{ 
+                      display: "flex", 
+                      alignItems: "center", 
+                      justifyContent: "space-between",
+                      marginBottom: 8 
+                    }}>
+                      <div style={{ 
+                        fontSize: 15,
+                        fontWeight: 600,
+                        color: "#0f172a"
+                      }}>
+                        Invite someone not on GatherGrove
+                      </div>
+                      <div style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: "#10b981",
+                        backgroundColor: "#f0fdf4",
+                        padding: "4px 10px",
+                        borderRadius: 12,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                        whiteSpace: "nowrap"
+                      }}>
+                        Link after posting
+                      </div>
+                    </div>
+                    <div style={{ 
+                      fontSize: 13, 
+                      color: "#64748b", 
+                      lineHeight: 1.5 
+                    }}>
+                      After you post, you'll get a shareable RSVP link to send to friends or family who aren't on GatherGrove.
+                    </div>
                   </div>
-                </div>
-                <div style={{ 
-                  fontSize: 13, 
-                  color: "#64748b", 
-                  lineHeight: 1.5 
-                }}>
-                  After you post, you'll get a shareable RSVP link to send to friends or family who aren't on GatherGrove.
-                </div>
-              </div>
+                </>
+              )}
 
               {/* Visual separator between invite sections and navigation */}
               <div style={{
