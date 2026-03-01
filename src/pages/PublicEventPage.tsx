@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { Calendar, Clock, MapPin, Users, Zap } from 'lucide-react';
 import { getCurrentUser, auth } from '../lib/firebase';
 import type { GGEvent, EventCategory } from '../lib/api';
+import EventSummaryCard from '../components/EventSummaryCard';
 
 type RSVPChoice = 'going' | 'maybe' | 'cant';
 
@@ -432,95 +433,22 @@ export default function PublicEventPage() {
         }} />
 
         <div style={{ padding: '40px 32px' }}>
-          {/* Event Type Badge */}
-          {isHappeningNow && (
-            <div style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 5,
-              padding: '4px 10px',
-              background: '#ecfdf5',
-              borderRadius: 6,
-              marginBottom: 18,
-            }}>
-              <Zap size={14} style={{ color: '#10b981' }} />
-              <span style={{
-                fontSize: 11,
-                fontWeight: 600,
-                color: '#059669',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-              }}>
-                Happening Now
-              </span>
-            </div>
-          )}
-
-          {/* Event Title */}
-          <h1 style={{
-            fontSize: 32,
-            fontWeight: 600,
-            color: '#111827',
-            marginBottom: 24,
-            lineHeight: 1.25,
-            letterSpacing: '-0.02em',
-          }}>
-            {event.title || 'Untitled Event'}
-          </h1>
-
-          {/* Event Meta Info */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 28 }}>
-            {/* Category */}
-            {event.category && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Calendar size={17} style={{ color: '#9ca3af' }} />
-                <span style={{
-                  fontSize: 14,
-                  fontWeight: 500,
-                  color: '#6b7280',
-                }}>
-                  {getEventCategoryLabel(event.category)}
-                </span>
-              </div>
-            )}
-
-            {/* Time */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#6b7280' }}>
-              <Clock size={17} />
-              <span style={{ fontSize: 14, fontWeight: 500 }}>
-                {getTimeDisplay(event)}
-              </span>
-            </div>
-
-            {/* Location */}
-            {(event.location?.trim() || (event.neighborhoods && event.neighborhoods.length > 0)) && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#6b7280' }}>
-                <MapPin size={17} />
-                <span style={{ fontSize: 14, fontWeight: 500 }}>
-                  {event.location?.trim() || event.neighborhoods?.[0]}
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Event Details */}
-          {event.details && (
-            <div style={{
-              padding: 16,
-              background: '#fafafa',
-              borderRadius: 8,
-              marginBottom: 36,
-            }}>
-              <p style={{
-                fontSize: 15,
-                color: '#6b7280',
-                lineHeight: 1.6,
-                margin: 0,
-              }}>
-                {event.details}
-              </p>
-            </div>
-          )}
+          {(() => {
+            const hostLabel = event.createdBy?.label?.trim() || "";
+            const hostedByLabelForCard = (hostLabel && hostLabel.toLowerCase() !== "a neighbor") ? hostLabel : undefined;
+            
+            return (
+              <EventSummaryCard
+                title={event.title || 'Untitled Event'}
+                hostedByLabel={hostedByLabelForCard}
+                timeLabel={getTimeDisplay(event)}
+                location={event.location || event.neighborhoods?.[0]}
+                details={event.details}
+                categoryLabel={event.category === 'neighborhood' ? undefined : getEventCategoryLabel(event.category)}
+                isHappeningNow={isHappeningNow}
+              />
+            );
+          })()}
 
           {/* RSVP Section */}
           {!rsvpSubmitted ? (
@@ -802,7 +730,7 @@ export default function PublicEventPage() {
                   letterSpacing: '0.01em',
                 }}
               >
-                Created with GatherGrove — Free to join
+                Created with GatherGrove
               </a>
             </div>
           )}
