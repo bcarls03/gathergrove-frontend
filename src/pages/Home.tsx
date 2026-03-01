@@ -912,7 +912,7 @@ export default function Home() {
   // ✅ one canonical "is host" helper
   // Hosted events never appear as invited
   const isHostPost = useCallback((p: Post) => {
-    // Use canonical viewerId (already computed from viewer at component level)
+    // Use CURRENT_UID which matches what backend receives in X-Uid header
     const viewerUid = viewerId;
     if (!viewerUid) return false;
 
@@ -926,16 +926,26 @@ export default function Home() {
       return str || null;
     };
 
-    // Compute host id from Post fields (already extracted in mapEventToPost)
-    const hostIdRaw = p._hostUid ?? p.createdBy?.id ?? null;
-
     const normalizedViewerId = normalizeId(viewerUid);
-    const normalizedHostId = normalizeId(hostIdRaw);
+    if (!normalizedViewerId) return false;
 
-    if (!normalizedViewerId || !normalizedHostId) return false;
+    // Primary: check _hostUid (from backend's host_user_id/hostUid/host_uid)
+    if (p._hostUid) {
+      const normalizedHostUid = normalizeId(p._hostUid);
+      if (normalizedHostUid && normalizedViewerId === normalizedHostUid) {
+        return true;
+      }
+    }
 
-    // Compare normalized IDs
-    return normalizedViewerId === normalizedHostId;
+    // Fallback only: check createdBy.id if _hostUid is not available
+    if (p.createdBy?.id) {
+      const normalizedCreatorId = normalizeId(p.createdBy.id);
+      if (normalizedCreatorId && normalizedViewerId === normalizedCreatorId) {
+        return true;
+      }
+    }
+
+    return false;
   }, [viewerId]);
 
   // ✅ Invited events (exclude hosted)
@@ -1423,7 +1433,7 @@ export default function Home() {
                     Your most relevant moment
                   </div>
                   <h3 style={{ fontSize: 22, fontWeight: 800, margin: '0 0 6px', color: '#0f172a', lineHeight: 1.2 }}>
-                    {event.title || truncate(event.details, 72) || 'Untitled event'}
+                    {getHappeningPrimaryTitle(event)}
                   </h3>
                   <div style={{ fontSize: 14, color: '#64748b', marginBottom: 12 }}>
                     {getEventTimeDisplay(event)}
