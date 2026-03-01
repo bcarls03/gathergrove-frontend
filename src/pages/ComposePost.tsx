@@ -7,6 +7,7 @@ import * as Api from "../lib/api";
 import type { EventCategory, EventVisibility } from "../lib/api";
 import { HouseholdSelector } from "../components/HouseholdSelector";
 import type { HouseholdNameMap } from "../components/HouseholdSelector";
+import EventSummaryCard from "../components/EventSummaryCard";
 
 /* ---------- Types ---------- */
 
@@ -89,6 +90,12 @@ const CATEGORY_OPTIONS: CategoryMeta[] = [
   { id: "celebrations", emoji: "🎉", label: "Celebrations", description: "Birthdays, holidays, milestones" },
   { id: "other", emoji: "✨", label: "Other", description: "Anything that doesn’t fit above" },
 ];
+
+function getCategoryLabel(categoryId?: EventCategory): string {
+  if (!categoryId) return "";
+  const cat = CATEGORY_OPTIONS.find(c => c.id === categoryId);
+  return cat ? `${cat.emoji} ${cat.label}` : "";
+}
 
 /* ---------- Small helpers ---------- */
 
@@ -220,6 +227,8 @@ export default function ComposePost() {
   const [createdEventType, setCreatedEventType] = useState<"happening" | "event">("happening");
   const [createdEventDetails, setCreatedEventDetails] = useState<string>("");
   const [createdEventLocation, setCreatedEventLocation] = useState<string>("");
+  const [createdEventCategory, setCreatedEventCategory] = useState<EventCategory | undefined>(undefined);
+  const [createdEventTime, setCreatedEventTime] = useState<string>("");
   const [copyFeedback, setCopyFeedback] = useState(false);
 
   const resolvedNeighborLabel = (n: Neighbor) => (n.label ?? n.lastName ?? "").toString();
@@ -349,6 +358,8 @@ export default function ComposePost() {
             setCreatedEventType("happening");
             setCreatedEventDetails(details.trim());
             setCreatedEventLocation(eventLocation.trim());
+            setCreatedEventCategory(localPayload.category);
+            setCreatedEventTime("Happening now");
             setShareableLink(finalShareLink);
             setShowSuccessModal(true);
             return;  // Don't navigate - stay on modal
@@ -419,10 +430,27 @@ export default function ComposePost() {
             });
           }
           
+          // Format time for future events
+          let timeDisplay = "Date TBD";
+          if (localPayload.when) {
+            try {
+              const start = new Date(localPayload.when);
+              timeDisplay = start.toLocaleDateString('en-US', {
+                weekday: 'long',
+                month: 'long',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+              });
+            } catch {}
+          }
+          
           setCreatedEventTitle(localPayload.title || "Future Event");
           setCreatedEventType("event");
           setCreatedEventDetails(details.trim());
           setCreatedEventLocation(eventLocation.trim());
+          setCreatedEventCategory(localPayload.category);
+          setCreatedEventTime(timeDisplay);
           setShareableLink(finalShareLink);
           setShowSuccessModal(true);
           setIsSubmitting(false);
@@ -1167,25 +1195,12 @@ export default function ComposePost() {
               }
             `}</style>
             
-            <div style={{ textAlign: "center", marginBottom: "32px" }}>
+            <div style={{ textAlign: "center", marginBottom: "24px" }}>
               <div style={{ 
                 fontSize: "56px", 
                 marginBottom: "16px",
                 animation: "checkmark 0.4s ease-out 0.1s both"
               }}>{createdEventType === "happening" ? "⚡" : "📅"}</div>
-              
-              {createdEventType === "happening" && (
-                <div style={{
-                  fontSize: "18px",
-                  fontWeight: "700",
-                  color: "#f59e0b",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                  marginBottom: "8px",
-                }}>
-                  Happening Now
-                </div>
-              )}
               
               <h2 style={{ 
                 fontSize: "28px", 
@@ -1196,58 +1211,17 @@ export default function ComposePost() {
               }}>
                 Event Posted!
               </h2>
-              <p style={{ 
-                fontSize: "18px", 
-                color: "#475569", 
-                marginBottom: "8px",
-                fontWeight: "600"
-              }}>
-                {createdEventTitle}
-              </p>
-              
-              {/* Location if provided */}
-              {createdEventLocation && (
-                <div style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  marginTop: "12px",
-                  fontSize: "13px",
-                  color: "#64748b",
-                  fontWeight: "500",
-                }}>
-                  <span>📍</span>
-                  <span>{createdEventLocation}</span>
-                </div>
-              )}
-              
-              {/* Details/body text */}
-              {createdEventDetails && (
-                <p style={{
-                  fontSize: "14px",
-                  color: "#64748b",
-                  marginTop: "12px",
-                  lineHeight: "1.5",
-                  whiteSpace: "pre-wrap",
-                  textAlign: "left",
-                }}>
-                  {createdEventDetails}
-                </p>
-              )}
-              
-              {/* Subtle timing indicator */}
-              {createdEventType === "happening" && (
-                <p style={{
-                  fontSize: "13px",
-                  color: "#94a3b8",
-                  margin: "0",
-                  fontWeight: "500",
-                  marginTop: "8px"
-                }}>
-                  Live for the next 24 hours
-                </p>
-              )}
             </div>
+
+            <EventSummaryCard
+              title={createdEventTitle}
+              hostedByLabel={createdBy.label}
+              timeLabel={createdEventTime}
+              location={createdEventLocation}
+              details={createdEventDetails}
+              categoryLabel={getCategoryLabel(createdEventCategory)}
+              isHappeningNow={createdEventType === "happening"}
+            />
 
             <div style={{ height: "1px", backgroundColor: "#e5e7eb", margin: "20px 0" }} />
 

@@ -653,6 +653,7 @@ export async function createEvent(input: {
   endAt?: string | null;
   expiresAt?: string | null;
   neighborhoods?: string[];
+  location?: string;
 }) {
   return api.post(
     "/events",
@@ -666,6 +667,7 @@ export async function createEvent(input: {
       endAt: input.endAt ?? null,
       expiresAt: input.expiresAt ?? null,
       neighborhoods: input.neighborhoods ?? [],
+      location: input.location ?? undefined,
     },
     { headers: { "Content-Type": "application/json" } }
   );

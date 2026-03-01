@@ -1428,6 +1428,11 @@ export default function Home() {
                   <div style={{ fontSize: 14, color: '#64748b', marginBottom: 12 }}>
                     {getEventTimeDisplay(event)}
                   </div>
+                  {event.location && event.location.trim() && (
+                    <div style={{ fontSize: 14, color: '#64748b', marginBottom: 12 }}>
+                      📍 {event.location}
+                    </div>
+                  )}
                   {event.details && (
                     <p style={{ fontSize: 15, color: '#334155', margin: '0 0 16px', lineHeight: 1.4 }}>
                   {truncate(event.details, 140)}
@@ -1472,6 +1477,11 @@ export default function Home() {
                   <div style={{ fontSize: 14, color: '#64748b', marginBottom: 12 }}>
                     {event.when ? formatEventWhen(event.when) : 'Soon'}
                   </div>
+                  {event.location && event.location.trim() && (
+                    <div style={{ fontSize: 14, color: '#64748b', marginBottom: 12 }}>
+                      📍 {event.location}
+                    </div>
+                  )}
                   {event.details && (
                     <p style={{ fontSize: 15, color: '#334155', margin: '0 0 16px', lineHeight: 1.4 }}>
                       {truncate(event.details, 140)}
