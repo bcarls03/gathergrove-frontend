@@ -36,6 +36,7 @@ type Post = {
   title?: string;
   when?: string;
   details: string;
+  location?: string;
   recipients?: string[];
   recipientIds?: string[];
   createdBy?: { id: string; label: string };
@@ -232,7 +233,7 @@ function getEventTimeDisplay(event: Post): string {
     const now = new Date();
     const diffMinutes = Math.floor((now.getTime() - start.getTime()) / 60000);
     
-    if (diffMinutes < 5) return 'Just started';
+    if (diffMinutes < 2) return 'Just started';
     if (diffMinutes < 60) return `Started ${diffMinutes}m ago`;
     const diffHours = Math.floor(diffMinutes / 60);
     return `Started ${diffHours}h ago`;
@@ -377,8 +378,9 @@ function mapEventToPost(ev: GGEvent): Post {
 
     kind,
     title: ev.title,
-    when: startIso || undefined,
+    when: kind === "event" ? startIso || undefined : undefined,  // Only set 'when' for future events
     details: ev.details || "",
+    location: ev.location,
     recipients: [],
     recipientIds: [],
     createdBy: anyEv.createdBy,
@@ -596,9 +598,10 @@ export default function Home() {
     const localPosts = loadLocalPosts();
 
     // ✅ merge by canonical event id (Post.id)
+    // IMPORTANT: Backend posts take priority over local posts (source of truth)
     const merged = new Map<string, Post>();
-    for (const p of backendPosts) merged.set(p.id, p);
     for (const p of localPosts) merged.set(p.id, p);
+    for (const p of backendPosts) merged.set(p.id, p);  // Backend overwrites local
 
     const mergedArr = Array.from(merged.values());
     setPosts(mergedArr);
@@ -1594,6 +1597,11 @@ export default function Home() {
                         <div className="home-card-title">{primaryTitle}</div>
                       </div>
                       <div className="home-card-meta">{subtitle}</div>
+                      {p.location && p.location.trim() && (
+                        <div className="home-card-meta" style={{ marginTop: 2 }}>
+                          📍 {p.location}
+                        </div>
+                      )}
                       {body ? <div className="home-card-body">{body}</div> : null}
 
                       <div className="rsvp-row">
@@ -1699,6 +1707,12 @@ export default function Home() {
                         {p.when ? formatEventWhen(p.when) : "Time TBA"}
                         {p.createdBy?.label ? ` · from ${p.createdBy.label}` : ""}
                       </div>
+
+                      {p.location && p.location.trim() && (
+                        <div className="home-card-meta">
+                          📍 {p.location}
+                        </div>
+                      )}
 
                       {categoryMeta && (
                         <div className="home-card-meta">
@@ -1842,6 +1856,11 @@ export default function Home() {
                         </div>
 
                         <div className="home-card-meta">{subtitle}</div>
+                        {p.location && p.location.trim() && (
+                          <div className="home-card-meta">
+                            📍 {p.location}
+                          </div>
+                        )}
                         {body ? <div className="home-card-body">{body}</div> : null}
 
                         {/* Host actions only - no RSVP buttons */}
@@ -1938,6 +1957,12 @@ export default function Home() {
                           {p.when ? formatEventWhen(p.when) : "Time TBA"}
                           {p.createdBy?.label ? ` · from ${p.createdBy.label}` : ""}
                         </div>
+
+                        {p.location && p.location.trim() && (
+                          <div className="home-card-meta">
+                            📍 {p.location}
+                          </div>
+                        )}
 
                         {categoryMeta && (
                           <div className="home-card-meta">

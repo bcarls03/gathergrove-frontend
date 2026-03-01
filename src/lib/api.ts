@@ -376,6 +376,7 @@ export type PublicEventView = {
   end_at?: string | null;
   host_name: string;
   visibility: EventVisibility;
+  location?: string;
 };
 
 /* ------------------------------ Users endpoints ----------------------------- */

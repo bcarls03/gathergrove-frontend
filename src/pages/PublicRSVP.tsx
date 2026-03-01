@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Calendar, User, CheckCircle, XCircle } from "lucide-react";
+import { Calendar, User, CheckCircle, XCircle, MapPin } from "lucide-react";
 import {
   getPublicEvent,
   submitPublicRSVP,
@@ -382,6 +382,18 @@ export default function PublicRSVP() {
                   <div style={{ fontSize: 16, fontWeight: 500, color: "#374151" }}>
                     {startDate}
                     {startTime && ` at ${startTime}`}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {event.location && event.location.trim() && (
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <MapPin size={20} color="#6b7280" />
+                <div>
+                  <div style={{ fontSize: 12, color: "#9ca3af" }}>Where</div>
+                  <div style={{ fontSize: 16, fontWeight: 500, color: "#374151" }}>
+                    {event.location}
                   </div>
                 </div>
               </div>

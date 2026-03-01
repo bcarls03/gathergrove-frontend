@@ -67,6 +67,7 @@ function publicEventToGGEvent(data: any): GGEvent {
     id: data.id,
     title: data.title,
     details: data.details,
+    location: data.location,
     startAt: data.start_at || undefined,
     endAt: data.end_at || undefined,
     category: data.category as EventCategory,
@@ -492,11 +493,11 @@ export default function PublicEventPage() {
             </div>
 
             {/* Location */}
-            {event.neighborhoods && event.neighborhoods.length > 0 && (
+            {(event.location?.trim() || (event.neighborhoods && event.neighborhoods.length > 0)) && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#6b7280' }}>
                 <MapPin size={17} />
                 <span style={{ fontSize: 14, fontWeight: 500 }}>
-                  {event.neighborhoods[0]}
+                  {event.location?.trim() || event.neighborhoods?.[0]}
                 </span>
               </div>
             )}
