@@ -1,5 +1,5 @@
 // src/pages/Home.tsx
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Clock, Zap } from "lucide-react";
@@ -7,6 +7,7 @@ import { getViewer } from "../lib/viewer";
 import { neighborhoodDisplayLabel } from "../lib/neighborhood";
 import { loadNeighbors } from "../lib/profile";
 import {
+  CURRENT_UID,
   fetchEvents,
   type GGEvent,
   type EventCategory,
@@ -383,9 +384,11 @@ function mapEventToPost(ev: GGEvent): Post {
     location: ev.location,
     recipients: [],
     recipientIds: [],
-    createdBy: anyEv.createdBy,
+    // Handle both camelCase and snake_case from backend
+    createdBy: anyEv.createdBy ?? anyEv.created_by ?? null,
     ts,
-    _hostUid: anyEv.hostUid ?? anyEv.host_uid ?? null,
+    // Prioritize canonical host_user_id from backend
+    _hostUid: anyEv.host_user_id ?? anyEv.hostUid ?? anyEv.host_uid ?? null,
     category: (anyEv.category ?? anyEv.eventCategory ?? anyEv.event_category) as EventCategory | undefined,
   };
 }
@@ -523,7 +526,10 @@ async function runWithLimit<T>(limit: number, tasks: (() => Promise<T>)[]): Prom
 export default function Home() {
   const navigate = useNavigate();
   const viewer = getViewer() as any | null;
-  const viewerId = viewer?.id ?? viewer?.uid ?? viewer?.email ?? null;
+  
+  // ✅ Use the SAME canonical UID that api.ts sends to backend (X-Uid header)
+  // This ensures viewerId matches the host_user_id returned from /events
+  const viewerId = CURRENT_UID;
 
   const DEBUG_LAYOUT = true;
 
@@ -904,25 +910,40 @@ export default function Home() {
   }, [upcomingEvents, eventCategoryFilter]);
 
   // ✅ one canonical "is host" helper
-  const isHostPost = (p: Post) => {
-    const viewerLabel = viewer?.label ?? viewer?.name ?? viewer?.lastName ?? viewer?.email ?? null;
+  // Hosted events never appear as invited
+  const isHostPost = useCallback((p: Post) => {
+    // Use canonical viewerId (already computed from viewer at component level)
+    const viewerUid = viewerId;
+    if (!viewerUid) return false;
 
-    const hostUid = p._hostUid;
-    if (hostUid && viewerId && hostUid === viewerId) return true;
+    // Helper to normalize IDs: convert to string, trim, strip "users/" prefix
+    const normalizeId = (id: any): string | null => {
+      if (!id) return null;
+      let str = String(id).trim();
+      if (str.startsWith("users/")) {
+        str = str.substring(6); // strip "users/" prefix
+      }
+      return str || null;
+    };
 
-    if (!p.createdBy) return false;
-    if (p.createdBy.id && viewerId && p.createdBy.id === viewerId) return true;
-    if (viewerLabel && p.createdBy.label === viewerLabel) return true;
+    // Compute host id from Post fields (already extracted in mapEventToPost)
+    const hostIdRaw = p._hostUid ?? p.createdBy?.id ?? null;
 
-    return false;
-  };
+    const normalizedViewerId = normalizeId(viewerUid);
+    const normalizedHostId = normalizeId(hostIdRaw);
+
+    if (!normalizedViewerId || !normalizedHostId) return false;
+
+    // Compare normalized IDs
+    return normalizedViewerId === normalizedHostId;
+  }, [viewerId]);
 
   // ✅ Invited events (exclude hosted)
-  const invitedHappeningNow = useMemo(() => happeningNow.filter((p) => !isHostPost(p)), [happeningNow, viewerId, viewer]);
+  const invitedHappeningNow = useMemo(() => happeningNow.filter((p) => !isHostPost(p)), [happeningNow, isHostPost]);
 
   const invitedFutureEvents = useMemo(
     () => filteredUpcomingEvents.filter((p) => !isHostPost(p)),
-    [filteredUpcomingEvents, viewerId, viewer],
+    [filteredUpcomingEvents, isHostPost],
   );
 
   // ✅ Hosted events (only host)
@@ -934,7 +955,7 @@ export default function Home() {
       myHappeningNow: happeningNow.filter(isHostPost),
       myFutureEvents: upcomingEvents.filter(isHostPost),
     };
-  }, [happeningNow, upcomingEvents, viewer, viewerId]);
+  }, [happeningNow, upcomingEvents, viewer, viewerId, isHostPost]);
 
   const sortedThreads = useMemo(() => {
     if (!viewerId) return [];
