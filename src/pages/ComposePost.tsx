@@ -1219,7 +1219,7 @@ export default function ComposePost() {
               timeLabel={createdEventTime}
               location={createdEventLocation}
               details={createdEventDetails}
-              categoryLabel={getCategoryLabel(createdEventCategory)}
+              categoryLabel={createdEventType === "happening" ? undefined : getCategoryLabel(createdEventCategory)}
               isHappeningNow={createdEventType === "happening"}
             />
 
