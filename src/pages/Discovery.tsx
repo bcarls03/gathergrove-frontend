@@ -126,6 +126,10 @@ export default function Discovery() {
   // Connection error message state (per household)
   const [connectionErrors, setConnectionErrors] = useState<Map<string, string>>(new Map());
 
+  // Invite card state
+  const [showInviteCard, setShowInviteCard] = useState(false);
+  const [inviteCopyFeedback, setInviteCopyFeedback] = useState(false);
+
   // Current user's household_id (to filter out from lists)
   const [myHouseholdId, setMyHouseholdId] = useState<string | null>(null);
 
@@ -1509,7 +1513,10 @@ export default function Discovery() {
                         Clear Filters
                       </button>
                       <button
-                        onClick={() => alert('Invite feature coming soon! Share GatherGrove with your neighbors.')}
+                        onClick={() => {
+                          setShowInviteCard(v => !v);
+                          setInviteCopyFeedback(false);
+                        }}
                         style={{
                           padding: '10px 20px',
                           borderRadius: 10,
@@ -1528,6 +1535,93 @@ export default function Discovery() {
                         Invite Neighbors
                       </button>
                     </div>
+
+                    {showInviteCard && (
+                      <div style={{
+                        backgroundColor: "#f8fafc",
+                        borderRadius: "16px",
+                        padding: "20px",
+                        marginTop: "24px",
+                        border: "1px solid #e2e8f0",
+                      }}>
+                        <div style={{ 
+                          fontSize: "12px", 
+                          fontWeight: "700", 
+                          color: "#64748b", 
+                          marginBottom: "4px", 
+                          textTransform: "uppercase", 
+                          letterSpacing: "0.08em" 
+                        }}>
+                          NEIGHBORHOOD LINK
+                        </div>
+                        <div style={{
+                          fontSize: "15px",
+                          color: "#334155",
+                          marginBottom: "4px",
+                          fontWeight: "600"
+                        }}>
+                          Invite neighbors to join GatherGrove
+                        </div>
+                        <div style={{
+                          fontSize: "13px",
+                          color: "#94a3b8",
+                          marginBottom: "12px",
+                          fontWeight: "500"
+                        }}>
+                          Share this link with neighbors to help grow your neighborhood.
+                        </div>
+                        <div style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          backgroundColor: "#eff6ff",
+                          padding: "14px 16px",
+                          borderRadius: "12px",
+                          border: "1px solid #bfdbfe",
+                        }}>
+                          <div style={{
+                            flex: 1,
+                            fontSize: "14px",
+                            color: "#1e40af",
+                            fontWeight: "600",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap"
+                          }}>
+                            {window.location.origin}/onboarding/access
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              try {
+                                navigator.clipboard.writeText(`${window.location.origin}/onboarding/access`);
+                                setInviteCopyFeedback(true);
+                                setTimeout(() => setInviteCopyFeedback(false), 2000);
+                              } catch {
+                                window.prompt("Copy this link:", `${window.location.origin}/onboarding/access`);
+                              }
+                            }}
+                            style={{
+                              padding: "8px 16px",
+                              backgroundColor: inviteCopyFeedback ? "#10b981" : "#3b82f6",
+                              color: "#fff",
+                              border: "none",
+                              borderRadius: "8px",
+                              fontSize: "13px",
+                              fontWeight: "700",
+                              cursor: "pointer",
+                              flexShrink: 0,
+                              transition: "all 0.2s",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "6px",
+                            }}
+                          >
+                            {inviteCopyFeedback ? "✓ Copied" : "Copy"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               }
@@ -1542,7 +1636,10 @@ export default function Discovery() {
                     Be the first! Invite neighbors to join GatherGrove and start building your community.
                   </p>
                   <button
-                    onClick={() => alert('Invite feature coming soon! Share GatherGrove with your neighbors.')}
+                    onClick={() => {
+                      setShowInviteCard(v => !v);
+                      setInviteCopyFeedback(false);
+                    }}
                     style={{
                       padding: '10px 20px',
                       borderRadius: 10,
@@ -1560,6 +1657,96 @@ export default function Discovery() {
                     <UserPlus size={16} />
                     Invite Neighbors
                   </button>
+
+                  {showInviteCard && (
+                    <div style={{
+                      backgroundColor: "#f8fafc",
+                      borderRadius: "16px",
+                      padding: "20px",
+                      marginTop: "24px",
+                      border: "1px solid #e2e8f0",
+                      maxWidth: "500px",
+                      marginLeft: "auto",
+                      marginRight: "auto",
+                    }}>
+                      <div style={{ 
+                        fontSize: "12px", 
+                        fontWeight: "700", 
+                        color: "#64748b", 
+                        marginBottom: "4px", 
+                        textTransform: "uppercase", 
+                        letterSpacing: "0.08em" 
+                      }}>
+                        NEIGHBORHOOD LINK
+                      </div>
+                      <div style={{
+                        fontSize: "15px",
+                        color: "#334155",
+                        marginBottom: "4px",
+                        fontWeight: "600"
+                      }}>
+                        Invite neighbors to join GatherGrove
+                      </div>
+                      <div style={{
+                        fontSize: "13px",
+                        color: "#94a3b8",
+                        marginBottom: "12px",
+                        fontWeight: "500"
+                      }}>
+                        Share this link with neighbors to help grow your neighborhood.
+                      </div>
+                      <div style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        backgroundColor: "#eff6ff",
+                        padding: "14px 16px",
+                        borderRadius: "12px",
+                        border: "1px solid #bfdbfe",
+                      }}>
+                        <div style={{
+                          flex: 1,
+                          fontSize: "14px",
+                          color: "#1e40af",
+                          fontWeight: "600",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap"
+                        }}>
+                          {window.location.origin}/onboarding/access
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            try {
+                              navigator.clipboard.writeText(`${window.location.origin}/onboarding/access`);
+                              setInviteCopyFeedback(true);
+                              setTimeout(() => setInviteCopyFeedback(false), 2000);
+                            } catch {
+                              window.prompt("Copy this link:", `${window.location.origin}/onboarding/access`);
+                            }
+                          }}
+                          style={{
+                            padding: "8px 16px",
+                            backgroundColor: inviteCopyFeedback ? "#10b981" : "#3b82f6",
+                            color: "#fff",
+                            border: "none",
+                            borderRadius: "8px",
+                            fontSize: "13px",
+                            fontWeight: "700",
+                            cursor: "pointer",
+                            flexShrink: 0,
+                            transition: "all 0.2s",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
+                          }}
+                        >
+                          {inviteCopyFeedback ? "✓ Copied" : "Copy"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {import.meta.env.DEV && (
                     <div style={{ marginTop: 24 }}>
