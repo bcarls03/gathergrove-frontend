@@ -369,25 +369,6 @@ export default function EventDaySheet({ open, onClose, date, events }: Props) {
                           backgroundColor: "white",
                         }}
                       >
-                        {/* Category badge */}
-                        <div
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 4,
-                            padding: "4px 10px",
-                            backgroundColor: `${color}15`,
-                            borderRadius: 6,
-                            fontSize: 12,
-                            fontWeight: 600,
-                            color,
-                            marginBottom: 8,
-                          }}
-                        >
-                          <span>{emoji}</span>
-                          {event.category}
-                        </div>
-
                         {/* Title */}
                         <h3
                           style={{
@@ -430,15 +411,6 @@ export default function EventDaySheet({ open, onClose, date, events }: Props) {
                               {event.endAt && ` - ${formatTime(event.endAt)}`}
                             </span>
                           </div>
-
-                          {event.neighborhoods && event.neighborhoods.length > 0 && (
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <MapPin size={16} color="#6b7280" />
-                              <span style={{ fontSize: 14, color: "#374151" }}>
-                                {event.neighborhoods[0]}
-                              </span>
-                            </div>
-                          )}
                         </div>
 
                         {/* RSVP buttons or host indicator */}
