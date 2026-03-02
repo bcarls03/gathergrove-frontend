@@ -1587,34 +1587,7 @@ export default function Home() {
               <div className="empty">No invited events yet.</div>
             )}
 
-            {/* ✨ Unified event list */}
-            {(invitedHappeningNow.length > 0 || invitedFutureEvents.length > 0) && (
-              <div className="event-filter-row">
-                <motion.button
-                  type="button"
-                  className={"event-filter-chip" + (eventCategoryFilter === "all" ? " is-active" : "")}
-                  onClick={() => setEventCategoryFilter("all")}
-                  {...chipMotionProps}
-                >
-                  <span>All</span>
-                </motion.button>
-
-                {(Object.entries(CATEGORY_META) as [EventCategory, CategoryMeta][]).map(([id, meta]) => (
-                  <motion.button
-                    key={id}
-                    type="button"
-                    className={"event-filter-chip" + (eventCategoryFilter === id ? " is-active" : "")}
-                    onClick={() => setEventCategoryFilter(id)}
-                    {...chipMotionProps}
-                  >
-                    <span>{meta.emoji}</span>
-                    <span>{meta.label}</span>
-                  </motion.button>
-                ))}
-              </div>
-            )}
-
-              {invitedHappeningNow.map((p) => {
+            {invitedHappeningNow.map((p) => {
                 const keyId = getRsvpStateKey(p);
                 const rsvpState: EventRsvpState = eventRsvps[keyId] ?? {
                   choice: null,
