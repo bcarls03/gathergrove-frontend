@@ -18,6 +18,7 @@ type Post = {
   when?: string; // ISO for event time (built from date + start time)
   end?: string; // ISO for optional end time
   details: string;
+  location?: string;
 
   // local-only targeting (labels)
   recipients?: string[];
@@ -208,7 +209,7 @@ export default function ComposePost() {
 
   const [categoryId, setCategoryId] = useState<EventCategory>(existingPost?.category ?? DEFAULT_CATEGORY_ID);
   const [visibility, setVisibility] = useState<EventVisibility>("link_only");  // Default to link_only for privacy
-  const [eventLocation, setEventLocation] = useState<string>("");  // ✅ NEW: Event location field
+  const [eventLocation, setEventLocation] = useState<string>(existingPost?.location ?? "");  // ✅ NEW: Event location field
 
   const categoryMeta = CATEGORY_OPTIONS.find((c) => c.id === categoryId) ?? CATEGORY_OPTIONS[0];
 
@@ -307,7 +308,8 @@ export default function ComposePost() {
         const localPayload: Post = {
           id: tempId,
           kind: "happening",
-          title: "Happening Now",
+          title: title.trim() || "Happening Now",
+          location: eventLocation.trim() || undefined,
           details: details.trim(),
           recipients: effectiveRecipients,
           recipientIds,
