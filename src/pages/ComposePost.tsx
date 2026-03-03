@@ -198,7 +198,10 @@ export default function ComposePost() {
 
   const [details, setDetails] = useState(existingPost?.details ?? "");
 
-  const [title, setTitle] = useState(existingPost?.title ?? "");
+  const [title, setTitle] = useState(() => {
+    const t = (existingPost?.title ?? "").trim();
+    return t === "Happening Now" ? "" : t;
+  });
   const [date, setDate] = useState<string>(() => isoToDateInput(existingPost?.when));
   const [startTime, setStartTime] = useState<string>(() => isoToTimeInputLocal(existingPost?.when));
   const [endTime, setEndTime] = useState<string>(() => isoToTimeInputLocal(existingPost?.end));
