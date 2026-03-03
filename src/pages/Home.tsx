@@ -7,7 +7,6 @@ import { getViewer } from "../lib/viewer";
 import { neighborhoodDisplayLabel } from "../lib/neighborhood";
 import { loadNeighbors } from "../lib/profile";
 import {
-  CURRENT_UID,
   fetchEvents,
   type GGEvent,
   type EventCategory,
@@ -15,6 +14,7 @@ import {
   leaveEventRsvp,
   getEventRsvps,
   type EventRsvpBuckets,
+  CURRENT_UID,
 } from "../lib/api";
 import Logo from "../assets/gathergrove-logo.png";
 
@@ -234,7 +234,7 @@ function getEventTimeDisplay(event: Post): string {
     const now = new Date();
     const diffMinutes = Math.floor((now.getTime() - start.getTime()) / 60000);
     
-    if (diffMinutes < 2) return 'Just started';
+    if (diffMinutes < 5) return 'Just started';
     if (diffMinutes < 60) return `Started ${diffMinutes}m ago`;
     const diffHours = Math.floor(diffMinutes / 60);
     return `Started ${diffHours}h ago`;
@@ -371,6 +371,27 @@ function mapEventToPost(ev: GGEvent): Post {
 
   const ts = primaryIso && !Number.isNaN(Date.parse(primaryIso)) ? Date.parse(primaryIso) : Date.now();
 
+  // ✅ Robust location extraction from various field names
+  const extractLocation = () => {
+    const candidates = [
+      anyEv.location,
+      ev.location,
+      anyEv.where,
+      anyEv.place,
+      anyEv.address_label,
+      anyEv.addressLabel,
+    ];
+    for (const c of candidates) {
+      if (typeof c === 'string' && c.trim()) {
+        const trimmed = c.trim();
+        // Guard: don't return ISO timestamps as location
+        if (/^\d{4}-\d{2}-\d{2}T/.test(trimmed)) continue;
+        return trimmed;
+      }
+    }
+    return undefined;
+  };
+
   return {
     // ✅ IMPORTANT: id is the canonicalEventId so RSVP calls are stable
     id: canonicalEventId,
@@ -379,15 +400,13 @@ function mapEventToPost(ev: GGEvent): Post {
 
     kind,
     title: ev.title,
-    when: kind === "event" ? startIso || undefined : undefined,  // Only set 'when' for future events
+    when: kind === "event" ? startIso || undefined : undefined,
     details: ev.details || "",
-    location: ev.location,
+    location: extractLocation(),
     recipients: [],
     recipientIds: [],
-    // Handle both camelCase and snake_case from backend
     createdBy: anyEv.createdBy ?? anyEv.created_by ?? null,
     ts,
-    // Prioritize canonical host_user_id from backend
     _hostUid: anyEv.host_user_id ?? anyEv.hostUid ?? anyEv.host_uid ?? null,
     category: (anyEv.category ?? anyEv.eventCategory ?? anyEv.event_category) as EventCategory | undefined,
   };
@@ -526,9 +545,6 @@ async function runWithLimit<T>(limit: number, tasks: (() => Promise<T>)[]): Prom
 export default function Home() {
   const navigate = useNavigate();
   const viewer = getViewer() as any | null;
-  
-  // ✅ Use the SAME canonical UID that api.ts sends to backend (X-Uid header)
-  // This ensures viewerId matches the host_user_id returned from /events
   const viewerId = CURRENT_UID;
 
   const DEBUG_LAYOUT = true;
@@ -603,11 +619,10 @@ export default function Home() {
     const backendPosts = activeOnly.map(mapEventToPost);
     const localPosts = loadLocalPosts();
 
-    // ✅ merge by canonical event id (Post.id)
-    // IMPORTANT: Backend posts take priority over local posts (source of truth)
+    // ✅ merge by canonical event id (Post.id) - backend takes precedence
     const merged = new Map<string, Post>();
     for (const p of localPosts) merged.set(p.id, p);
-    for (const p of backendPosts) merged.set(p.id, p);  // Backend overwrites local
+    for (const p of backendPosts) merged.set(p.id, p);
 
     const mergedArr = Array.from(merged.values());
     setPosts(mergedArr);
@@ -910,40 +925,24 @@ export default function Home() {
   }, [upcomingEvents, eventCategoryFilter]);
 
   // ✅ one canonical "is host" helper
-  // Hosted events never appear as invited
   const isHostPost = useCallback((p: Post) => {
-    // Use CURRENT_UID which matches what backend receives in X-Uid header
-    const viewerUid = viewerId;
-    if (!viewerUid) return false;
+    if (!viewerId) return false;
 
-    // Helper to normalize IDs: convert to string, trim, strip "users/" prefix
-    const normalizeId = (id: any): string | null => {
-      if (!id) return null;
-      let str = String(id).trim();
-      if (str.startsWith("users/")) {
-        str = str.substring(6); // strip "users/" prefix
-      }
-      return str || null;
+    // Normalize ID by stripping "users/" prefix and trimming
+    const normalizeId = (id: string | null | undefined): string => {
+      if (!id) return '';
+      return String(id).trim().replace(/^users\//, '');
     };
 
-    const normalizedViewerId = normalizeId(viewerUid);
+    const normalizedViewerId = normalizeId(viewerId);
     if (!normalizedViewerId) return false;
 
-    // Primary: check _hostUid (from backend's host_user_id/hostUid/host_uid)
-    if (p._hostUid) {
-      const normalizedHostUid = normalizeId(p._hostUid);
-      if (normalizedHostUid && normalizedViewerId === normalizedHostUid) {
-        return true;
-      }
-    }
+    // Primary: check _hostUid (backend canonical host)
+    const hostUid = p._hostUid;
+    if (hostUid && normalizeId(hostUid) === normalizedViewerId) return true;
 
-    // Fallback only: check createdBy.id if _hostUid is not available
-    if (p.createdBy?.id) {
-      const normalizedCreatorId = normalizeId(p.createdBy.id);
-      if (normalizedCreatorId && normalizedViewerId === normalizedCreatorId) {
-        return true;
-      }
-    }
+    // Fallback: check createdBy.id
+    if (p.createdBy?.id && normalizeId(p.createdBy.id) === normalizedViewerId) return true;
 
     return false;
   }, [viewerId]);
@@ -1121,25 +1120,28 @@ export default function Home() {
   const isTruthy = (v: any) => !!v && String(v).trim().length > 0;
 
   const getHappeningPrimaryTitle = (p: Post) => {
-    // Show the optional title prominently when it exists
-    const displayTitle = (p.title ?? "").toString().trim();
-    if (displayTitle && displayTitle !== "Happening Now") {
-      return displayTitle;
+    // Prefer a real title if present, else fall back to the detail (truncated)
+    // Treat "Happening Now" as missing title (it's a state label, not a title)
+    if (isTruthy(p.title) && String(p.title).trim() !== "Happening Now") {
+      return String(p.title).trim();
     }
-    // Fall back to truncated details if title is missing or is just "Happening Now"
     return truncate(p.details || "Untitled event", 72);
   };
 
   const getHappeningSubtitle = (p: Post) => {
-    // Show a short timestamp line, optionally “from X”
+    // Show a short timestamp line, optionally "from X"
+    // Guard: don't show location if it looks like an ISO timestamp
+    const loc = p.location && !/^\d{4}-\d{2}-\d{2}T/.test(p.location) ? ` · 📍 ${p.location}` : "";
     const from = p.createdBy?.label ? ` · from ${p.createdBy.label}` : "";
-    return `${formatTimeShort(p.ts)}${from}`;
+    return `${formatTimeShort(p.ts)}${loc}${from}`;
   };
 
   const getHappeningBody = (p: Post) => {
-    // If title is missing or is "Happening Now" (state label), don't duplicate body with same content
-    if (!isTruthy(p.title) || String(p.title).trim() === "Happening Now") return "";
-    return p.details || "";
+    // Don't show body if it's identical to the title (case-insensitive)
+    const title = getHappeningPrimaryTitle(p);
+    const details = p.details || "";
+    if (details.trim().toLowerCase() === title.trim().toLowerCase()) return "";
+    return details;
   };
 
   return (
@@ -1424,6 +1426,8 @@ export default function Home() {
           }}>
             {rightNow.type === 'happening' && rightNow.data && (() => {
               const event = rightNow.data as Post;
+              const heroTitle = getHappeningPrimaryTitle(event);
+              const heroBody = event.details && event.details.trim().toLowerCase() !== heroTitle.trim().toLowerCase() ? event.details : "";
               return (
                 <>
                   <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#f59e0b', fontWeight: 800, marginBottom: 4 }}>
@@ -1433,19 +1437,32 @@ export default function Home() {
                     Your most relevant moment
                   </div>
                   <h3 style={{ fontSize: 22, fontWeight: 800, margin: '0 0 6px', color: '#0f172a', lineHeight: 1.2 }}>
-                    {getHappeningPrimaryTitle(event)}
+                    {heroTitle}
                   </h3>
                   <div style={{ fontSize: 14, color: '#64748b', marginBottom: 12 }}>
-                    {getEventTimeDisplay(event)}
+                    {(() => {
+                      const start = new Date(event.ts);
+                      const now = new Date();
+                      const diffMinutes = Math.floor((now.getTime() - start.getTime()) / 60000);
+                      let timeText = 'Happening now';
+                      if (diffMinutes < 5) timeText = 'Just started';
+                      else if (diffMinutes < 60) timeText = `Started ${diffMinutes}m ago`;
+                      else {
+                        const diffHours = Math.floor(diffMinutes / 60);
+                        timeText = `Started ${diffHours}h ago`;
+                      }
+                      return timeText;
+                    })()}
+                    {(() => {
+                      const loc = event.location;
+                      // Guard: don't show if it looks like an ISO timestamp
+                      if (!loc || /^\d{4}-\d{2}-\d{2}T/.test(loc)) return '';
+                      return ` · 📍 ${loc}`;
+                    })()}
                   </div>
-                  {event.location && event.location.trim() && (
-                    <div style={{ fontSize: 14, color: '#64748b', marginBottom: 12 }}>
-                      📍 {event.location}
-                    </div>
-                  )}
-                  {event.details && (
+                  {heroBody && (
                     <p style={{ fontSize: 15, color: '#334155', margin: '0 0 16px', lineHeight: 1.4 }}>
-                  {truncate(event.details, 140)}
+                  {truncate(heroBody, 140)}
                 </p>
               )}
               {(() => {
@@ -1487,11 +1504,6 @@ export default function Home() {
                   <div style={{ fontSize: 14, color: '#64748b', marginBottom: 12 }}>
                     {event.when ? formatEventWhen(event.when) : 'Soon'}
                   </div>
-                  {event.location && event.location.trim() && (
-                    <div style={{ fontSize: 14, color: '#64748b', marginBottom: 12 }}>
-                      📍 {event.location}
-                    </div>
-                  )}
                   {event.details && (
                     <p style={{ fontSize: 15, color: '#334155', margin: '0 0 16px', lineHeight: 1.4 }}>
                       {truncate(event.details, 140)}
@@ -1587,7 +1599,7 @@ export default function Home() {
               <div className="empty">No invited events yet.</div>
             )}
 
-            {invitedHappeningNow.map((p) => {
+              {invitedHappeningNow.map((p) => {
                 const keyId = getRsvpStateKey(p);
                 const rsvpState: EventRsvpState = eventRsvps[keyId] ?? {
                   choice: null,
@@ -1611,11 +1623,6 @@ export default function Home() {
                         <div className="home-card-title">{primaryTitle}</div>
                       </div>
                       <div className="home-card-meta">{subtitle}</div>
-                      {p.location && p.location.trim() && (
-                        <div className="home-card-meta" style={{ marginTop: 2 }}>
-                          📍 {p.location}
-                        </div>
-                      )}
                       {body ? <div className="home-card-body">{body}</div> : null}
 
                       <div className="rsvp-row">
@@ -1719,14 +1726,9 @@ export default function Home() {
 
                       <div className="home-card-meta">
                         {p.when ? formatEventWhen(p.when) : "Time TBA"}
+                        {p.location ? ` · 📍 ${p.location}` : ""}
                         {p.createdBy?.label ? ` · from ${p.createdBy.label}` : ""}
                       </div>
-
-                      {p.location && p.location.trim() && (
-                        <div className="home-card-meta">
-                          📍 {p.location}
-                        </div>
-                      )}
 
                       {categoryMeta && (
                         <div className="home-card-meta">
@@ -1870,11 +1872,6 @@ export default function Home() {
                         </div>
 
                         <div className="home-card-meta">{subtitle}</div>
-                        {p.location && p.location.trim() && (
-                          <div className="home-card-meta">
-                            📍 {p.location}
-                          </div>
-                        )}
                         {body ? <div className="home-card-body">{body}</div> : null}
 
                         {/* Host actions only - no RSVP buttons */}
@@ -1969,14 +1966,9 @@ export default function Home() {
 
                         <div className="home-card-meta">
                           {p.when ? formatEventWhen(p.when) : "Time TBA"}
+                          {p.location ? ` · 📍 ${p.location}` : ""}
                           {p.createdBy?.label ? ` · from ${p.createdBy.label}` : ""}
                         </div>
-
-                        {p.location && p.location.trim() && (
-                          <div className="home-card-meta">
-                            📍 {p.location}
-                          </div>
-                        )}
 
                         {categoryMeta && (
                           <div className="home-card-meta">
