@@ -62,6 +62,8 @@ export function HouseholdSelector({
   
   // ✅ Track initialization to prevent repeated preselect
   const initRef = useRef<string | null>(null);
+  // ✅ Track if we've already loaded households to prevent duplicate fetches
+  const loadedRef = useRef(false);
 
   // ✅ Stable refs for callbacks to avoid dependency issues
   const onSelectedNamesChangeRef = useRef(onSelectedNamesChange);
@@ -90,14 +92,17 @@ export function HouseholdSelector({
   // ✅ Check if user came from Discovery (by checking if inviteContext exists)
   const cameFromDiscovery = !!inviteContext?.clickedHouseholdId;
 
+  // ✅ Stable callback to prevent infinite loops
+  const handleSelectionChange = useCallback((newIds: Set<string>) => {
+    onSelectionChangeRef.current(newIds);
+  }, []);
+
   // ✅ Use shared invite selection hook
   const selection = useInviteSelection({
     households: availableHouseholds,
     matchingHouseholdIds: inviteContext?.visibleHouseholdIds || [],
     selectedIds,
-    onSelectionChange: (newIds) => {
-      onSelectionChangeRef.current(newIds);
-    },
+    onSelectionChange: handleSelectionChange,
   });
 
   // Update parent with selected household names whenever selection changes
@@ -118,6 +123,12 @@ export function HouseholdSelector({
 
   // Load households
   useEffect(() => {
+    // ✅ Guard: only load once
+    if (loadedRef.current) return;
+    loadedRef.current = true;
+
+    let cancelled = false;
+
     const loadHouseholds = async () => {
       setLoading(true);
       try {
@@ -186,19 +197,28 @@ export function HouseholdSelector({
         // setAvailableHouseholds(mockHouseholds);
         
         const households = await Api.fetchHouseholds();
+        if (cancelled) return; // ✅ Don't update state if unmounted
         if (import.meta.env.DEV) {
           console.log("✅ Fetched households:", households.length);
         }
         setAvailableHouseholds(households);
       } catch (error) {
+        if (cancelled) return; // ✅ Don't update state if unmounted
+        loadedRef.current = false; // ✅ Allow retry on failure
         console.error("❌ Failed to load households:", error);
         setAvailableHouseholds([]);
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
     loadHouseholds();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // ✅ FIX #3: Preselect clicked household (only if came from Discovery, with ref guard)
@@ -223,7 +243,7 @@ export function HouseholdSelector({
     if (!selection.selectedIds.has(clicked)) {
       selection.toggleHousehold(clicked);
     }
-  }, [inviteContext?.clickedHouseholdId, cameFromDiscovery, selection, availableHouseholds.length]);
+  }, [inviteContext?.clickedHouseholdId, cameFromDiscovery, selection.selectedIds, selection.toggleHousehold, availableHouseholds.length]);
 
   const getKidsAges = (household: GGHousehold): number[] => {
     if (!household.kids || household.kids.length === 0) return [];

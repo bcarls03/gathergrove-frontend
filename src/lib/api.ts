@@ -604,6 +604,9 @@ export async function fetchPeople(params?: {
   }
 }
 
+// ✅ Module-level flag to prevent spamming deprecation warning
+let _fetchHouseholdsWarned = false;
+
 /**
  * @deprecated Use fetchPeople() instead.
  */
@@ -611,7 +614,10 @@ export async function fetchHouseholds(params?: {
   neighborhood?: string;
   household_type?: string;
 }): Promise<GGHousehold[]> {
-  console.warn("fetchHouseholds() is deprecated - use fetchPeople() instead");
+  if (!_fetchHouseholdsWarned) {
+    console.warn("fetchHouseholds() is deprecated - use fetchPeople() instead");
+    _fetchHouseholdsWarned = true;
+  }
   return fetchPeople({ neighborhood: params?.neighborhood, type: params?.household_type });
 }
 
