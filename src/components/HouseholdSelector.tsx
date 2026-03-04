@@ -132,75 +132,16 @@ export function HouseholdSelector({
     const loadHouseholds = async () => {
       setLoading(true);
       try {
-        // ✅ Use same mock data as Discovery for consistency
-        const mockHouseholds: GGHousehold[] = [
-          {
-            id: 'test-1',
-            lastName: 'Anderson',
-            householdType: 'family_with_kids',
-            neighborhood: 'Oak Ridge',
-            location_precision: 'street',
-            kids: [
-              { birthYear: 2014, birthMonth: 5 },
-              { birthYear: 2018, birthMonth: 3 }
-            ],
-            uid: 'test-uid-1',
-          },
-          {
-            id: 'test-2',
-            lastName: 'Brown',
-            householdType: 'family_with_kids',
-            neighborhood: 'Oak Ridge',
-            location_precision: 'street',
-            kids: [{ birthYear: 2019, birthMonth: 8 }],
-            uid: 'test-uid-2',
-          },
-          {
-            id: 'test-3',
-            lastName: 'Chen',
-            householdType: 'family_with_kids',
-            neighborhood: 'Hillside',
-            location_precision: 'street',
-            kids: [
-              { birthYear: 2019, birthMonth: 11 },
-              { birthYear: 2022, birthMonth: 6 }
-            ],
-            uid: 'test-uid-3',
-          },
-          {
-            id: 'test-4',
-            lastName: 'Garcia',
-            householdType: 'family_with_kids',
-            neighborhood: 'Riverside',
-            location_precision: 'street',
-            kids: [
-              { birthYear: 2016, birthMonth: 2 },
-              { birthYear: 2020, birthMonth: 9 }
-            ],
-            uid: 'test-uid-4',
-          },
-          {
-            id: 'test-5',
-            lastName: 'Johnson',
-            householdType: 'family_with_kids',
-            neighborhood: 'Oak Ridge',
-            location_precision: 'street',
-            kids: [
-              { birthYear: 2015, birthMonth: 7 },
-              { birthYear: 2017, birthMonth: 12 },
-              { birthYear: 2021, birthMonth: 4 }
-            ],
-            uid: 'test-uid-5',
-          },
-        ];
-        
-        // setAvailableHouseholds(mockHouseholds);
-        
         const households = await Api.fetchHouseholds();
         if (cancelled) return; // ✅ Don't update state if unmounted
+        
         if (import.meta.env.DEV) {
           console.log("✅ Fetched households:", households.length);
+          if (households.length > 0) {
+            console.log("Sample household:", households[0]);
+          }
         }
+        
         setAvailableHouseholds(households);
       } catch (error) {
         if (cancelled) return; // ✅ Don't update state if unmounted
@@ -219,7 +160,7 @@ export function HouseholdSelector({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, []); // ✅ Empty deps - only run on mount
 
   // ✅ FIX #3: Preselect clicked household (only if came from Discovery, with ref guard)
   useEffect(() => {
