@@ -844,7 +844,7 @@ export default function ComposePost() {
                       <span style={{ fontSize: "20px", lineHeight: 1, flexShrink: 0 }}>🌱</span>
                       <div style={{ 
                         fontSize: 14, 
-                        color: "#854d0e", 
+                        color: "#854d0e",
                         lineHeight: 1.5,
                         fontWeight: 500
                       }}>
@@ -898,18 +898,6 @@ export default function ComposePost() {
                       </div>
                     </div>
                   </div>
-
-                  {/* Household Selector - will show empty state */}
-                  <HouseholdSelector 
-                    selectedIds={selectedHouseholdIds}
-                    onSelectionChange={setSelectedHouseholdIds}
-                    selectedPhoneNumbers={selectedPhoneNumbers}
-                    onPhoneNumbersChange={setSelectedPhoneNumbers}
-                    onSelectedNamesChange={setSelectedHouseholdNames}
-                    onAvailableCountChange={setAvailableHouseholdsCount}
-                    inviteContext={inviteContext}
-                    hideSectionHeaders={true}
-                  />
                 </>
               ) : (
                 <>
@@ -942,19 +930,24 @@ export default function ComposePost() {
                       </div>
                     </div>
                   </div>
+                </>
+              )}
 
-                  {/* Household Selector */}
-                  <HouseholdSelector 
-                    selectedIds={selectedHouseholdIds}
-                    onSelectionChange={setSelectedHouseholdIds}
-                    selectedPhoneNumbers={selectedPhoneNumbers}
-                    onPhoneNumbersChange={setSelectedPhoneNumbers}
-                    onSelectedNamesChange={setSelectedHouseholdNames}
-                    onAvailableCountChange={setAvailableHouseholdsCount}
-                    inviteContext={inviteContext}
-                    hideSectionHeaders={true}
-                  />
+              {/* Household Selector - rendered once outside conditional */}
+              <HouseholdSelector 
+                selectedIds={selectedHouseholdIds}
+                onSelectionChange={setSelectedHouseholdIds}
+                selectedPhoneNumbers={selectedPhoneNumbers}
+                onPhoneNumbersChange={setSelectedPhoneNumbers}
+                onSelectedNamesChange={setSelectedHouseholdNames}
+                onAvailableCountChange={setAvailableHouseholdsCount}
+                inviteContext={inviteContext}
+                hideSectionHeaders={true}
+              />
 
+              {/* Normal flow only: External invite section */}
+              {!isColdStart && (
+                <>
                   {/* Section divider */}
                   <div style={{
                     height: 1,
@@ -1002,7 +995,6 @@ export default function ComposePost() {
                   </div>
                 </>
               )}
-
               {/* Visual separator between invite sections and navigation */}
               <div style={{
                 height: 1,
