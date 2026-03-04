@@ -471,7 +471,7 @@ export async function deleteMyProfile(): Promise<{ message: string }> {
  */
 export async function createHousehold(payload: HouseholdCreate): Promise<Household> {
   try {
-    const res = await api.post("/api/users/me/household/create", payload, {
+    const res = await api.post("/users/me/household/create", payload, {
       headers: { "Content-Type": "application/json" },
     });
     return res.data as Household;
@@ -493,7 +493,7 @@ export async function createHousehold(payload: HouseholdCreate): Promise<Househo
  */
 export async function getMyHousehold(): Promise<Household | null> {
   try {
-    const res = await api.get("/api/users/me/household");
+    const res = await api.get("/users/me/household");
     return res.data as Household;
   } catch (e) {
     const ax = e as AxiosError;
@@ -523,7 +523,7 @@ export async function updateMyHousehold(payload: HouseholdUpdate): Promise<House
  */
 export async function linkToHousehold(householdId: string): Promise<UserProfile> {
   try {
-    const res = await api.post("/api/users/me/household/link", 
+    const res = await api.post("/users/me/household/link", 
       { household_id: householdId },
       { headers: { "Content-Type": "application/json" } }
     );
@@ -538,7 +538,7 @@ export async function linkToHousehold(householdId: string): Promise<UserProfile>
  */
 export async function unlinkFromHousehold(): Promise<UserProfile> {
   try {
-    const res = await api.delete("/api/users/me/household");
+    const res = await api.delete("/users/me/household");
     return res.data as UserProfile;
   } catch (e) {
     throw unwrapAxiosError(e);
