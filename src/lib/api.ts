@@ -639,13 +639,19 @@ export async function fetchHouseholds(params?: {
     }
     
     // Normalize snake_case fields to camelCase for fields used by HouseholdSelector
-    return rawHouseholds.map((h: any) => ({
+    const normalized = rawHouseholds.map((h: any) => ({
       ...h,
       householdType: h.householdType ?? h.household_type,
       memberUids: h.memberUids ?? h.member_uids,
       adultNames: h.adultNames ?? h.adult_names ?? [],
       lastName: h.lastName ?? h.last_name ?? h.name ?? "",
     })) as GGHousehold[];
+    
+    if (import.meta.env.DEV) {
+      console.log("[fetchHouseholds] returning", normalized.length, "households, sample:", normalized[0]);
+    }
+    
+    return normalized;
   } catch (e) {
     throw unwrapAxiosError(e);
   }

@@ -64,6 +64,8 @@ export function HouseholdSelector({
   const initRef = useRef<string | null>(null);
   // ✅ Track if we've already loaded households to prevent duplicate fetches
   const loadedRef = useRef(false);
+  // ✅ Track in-flight requests to prevent duplicate calls
+  const inFlightRef = useRef(false);
 
   // ✅ Stable refs for callbacks to avoid dependency issues
   const onSelectedNamesChangeRef = useRef(onSelectedNamesChange);
@@ -82,6 +84,18 @@ export function HouseholdSelector({
   useEffect(() => {
     onAvailableCountChangeRef.current = onAvailableCountChange;
   }, [onAvailableCountChange]);
+
+  // ✅ DEV: Component lifecycle logging
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      console.log("[HS] mount");
+    }
+    return () => {
+      if (import.meta.env.DEV) {
+        console.log("[HS] unmount");
+      }
+    };
+  }, []);
 
   // ✅ Normalize visibleHouseholdIds to Set once
   const visibleSet = useMemo(
@@ -123,35 +137,65 @@ export function HouseholdSelector({
 
   // Load households
   useEffect(() => {
-    // ✅ Guard: only load once
-    if (loadedRef.current) return;
-    loadedRef.current = true;
+    // ✅ Guard: only load once successfully, but allow retries if in-flight was cancelled
+    if (loadedRef.current || inFlightRef.current) return;
+    inFlightRef.current = true;
 
     let cancelled = false;
 
     const loadHouseholds = async () => {
+      if (import.meta.env.DEV) {
+        console.log("[HS] loadHouseholds START");
+      }
       setLoading(true);
       try {
         const households = await Api.fetchHouseholds();
-        if (cancelled) return; // ✅ Don't update state if unmounted
         
         if (import.meta.env.DEV) {
-          console.log("✅ Fetched households:", households.length);
+          console.log("[HS] fetchHouseholds resolved: isArray=", Array.isArray(households), "length=", households.length);
+        }
+        
+        if (cancelled) {
+          if (import.meta.env.DEV) {
+            console.log("[HS] cancelled after fetch, skipping state updates");
+          }
+          return;
+        }
+        
+        if (import.meta.env.DEV) {
+          console.log("[HS] setAvailableHouseholds: setting", households.length, "households");
           if (households.length > 0) {
-            console.log("Sample household:", households[0]);
+            console.log("[HS] Sample household:", households[0]);
           }
         }
         
         setAvailableHouseholds(households);
+        loadedRef.current = true; // ✅ Only mark loaded after successful state update
       } catch (error) {
-        if (cancelled) return; // ✅ Don't update state if unmounted
-        loadedRef.current = false; // ✅ Allow retry on failure
+        if (import.meta.env.DEV) {
+          console.error("[HS] CATCH block: error=", error);
+        }
+        
+        if (cancelled) {
+          if (import.meta.env.DEV) {
+            console.log("[HS] cancelled in catch, skipping error state updates");
+          }
+          return;
+        }
+        
         console.error("❌ Failed to load households:", error);
         setAvailableHouseholds([]);
+        // Don't set loadedRef on error - allow retry
       } finally {
-        if (!cancelled) {
-          setLoading(false);
+        inFlightRef.current = false; // ✅ Clear in-flight flag regardless of outcome
+        if (import.meta.env.DEV) {
+          console.log("[HS] FINALLY block: cancelled=", cancelled);
         }
+        // ✅ ALWAYS clear loading state, even if cancelled (prevents stuck loading in StrictMode)
+        if (import.meta.env.DEV) {
+          console.log("[HS] finally: setLoading(false)");
+        }
+        setLoading(false);
       }
     };
 
@@ -305,6 +349,20 @@ export function HouseholdSelector({
     return householdId === inviteContext?.clickedHouseholdId || visibleSet.has(householdId);
   };
 
+  // ✅ DEV: Log render-time state to diagnose loading issue
+  if (import.meta.env.DEV) {
+    console.log("[HS RENDER]", {
+      loading,
+      availableHouseholds_length: availableHouseholds.length,
+      displayedHouseholds_length: displayedHouseholds.length,
+      sortedHouseholds_length: sortedHouseholds.length,
+      suggestedHouseholds_length: suggestedHouseholds.length,
+      otherHouseholds_length: otherHouseholds.length,
+      shouldShowSections,
+      hasSuggestions,
+    });
+  }
+
   const renderHouseholdCard = (household: GGHousehold, isRecommended: boolean = false) => {
     const householdId = household.id;
     if (!householdId) return null;
@@ -447,6 +505,13 @@ export function HouseholdSelector({
 
   return (
     <div className="gg-card-section">
+      {/* ✅ DEV: Debug state display */}
+      {import.meta.env.DEV && (
+        <div style={{ fontSize: 11, color: "#64748b", marginBottom: 8, fontFamily: "monospace" }}>
+          [DEBUG] loading={String(loading)} households={availableHouseholds?.length ?? 0}
+        </div>
+      )}
+      
       {/* Section header: In-app delivery */}
       {!hideSectionHeaders && (
         <div className="gg-label" style={{ marginBottom: 12 }}>
