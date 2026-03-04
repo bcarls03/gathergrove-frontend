@@ -106,6 +106,16 @@ export function HouseholdSelector({
   // ✅ Check if user came from Discovery (by checking if inviteContext exists)
   const cameFromDiscovery = !!inviteContext?.clickedHouseholdId;
 
+  // ✅ DEV: Log inviteContext values
+  if (import.meta.env.DEV) {
+    console.log('[HS] inviteContext:', {
+      cameFromDiscovery,
+      clickedHouseholdId: inviteContext?.clickedHouseholdId,
+      visibleHouseholdIds_length: inviteContext?.visibleHouseholdIds?.length ?? 0,
+      filterContext: inviteContext?.filterContext,
+    });
+  }
+
   // ✅ Stable callback to prevent infinite loops
   const handleSelectionChange = useCallback((newIds: Set<string>) => {
     onSelectionChangeRef.current(newIds);
@@ -142,6 +152,7 @@ export function HouseholdSelector({
     inFlightRef.current = true;
 
     let cancelled = false;
+    const abortController = new AbortController();
 
     const loadHouseholds = async () => {
       if (import.meta.env.DEV) {
@@ -153,6 +164,7 @@ export function HouseholdSelector({
         
         if (import.meta.env.DEV) {
           console.log("[HS] fetchHouseholds resolved: isArray=", Array.isArray(households), "length=", households.length);
+          console.log("[HS] After fetch: total households =", households.length);
         }
         
         if (cancelled) {
@@ -170,10 +182,18 @@ export function HouseholdSelector({
         }
         
         setAvailableHouseholds(households);
-        loadedRef.current = true; // ✅ Only mark loaded after successful state update
+        loadedRef.current = true; // ✅ Only set after successful state update, inside !cancelled block
       } catch (error) {
         if (import.meta.env.DEV) {
           console.error("[HS] CATCH block: error=", error);
+        }
+        
+        // ✅ Ignore AbortError (expected on cleanup)
+        if ((error as Error).name === 'AbortError') {
+          if (import.meta.env.DEV) {
+            console.log("[HS] Request aborted (cleanup)");
+          }
+          return;
         }
         
         if (cancelled) {
@@ -203,6 +223,13 @@ export function HouseholdSelector({
 
     return () => {
       cancelled = true;
+      abortController.abort();
+      // ✅ CRITICAL: Reset guards so second StrictMode mount can run
+      inFlightRef.current = false;
+      loadedRef.current = false;
+      if (import.meta.env.DEV) {
+        console.log("[HS] cleanup: reset inFlightRef and loadedRef for next mount");
+      }
     };
   }, []); // ✅ Empty deps - only run on mount
 
@@ -338,6 +365,14 @@ export function HouseholdSelector({
   const otherHouseholds = sortedHouseholds.filter(
     h => h.id !== inviteContext?.clickedHouseholdId && !visibleSet.has(h.id || '')
   );
+  
+  if (import.meta.env.DEV) {
+    console.log('[HS] After filtering:', {
+      suggestedHouseholds_length: suggestedHouseholds.length,
+      otherHouseholds_length: otherHouseholds.length,
+      visibleSet_size: visibleSet.size,
+    });
+  }
   
   const hasSuggestions = cameFromDiscovery && 
                         inviteContext?.filterContext?.hasFilters && 
@@ -718,8 +753,9 @@ export function HouseholdSelector({
       ) : (
         <div style={{ marginTop: "12px" }}>
           {/* ✅ Single list if <30 households, sectioned if >=30 */}
-          {shouldShowSections ? (
-            // Large list (30+): show sections
+          {/* ✅ FIX: Only use sections if we have actual suggestions (visibleSet not empty) */}
+          {shouldShowSections && visibleSet.size > 0 ? (
+            // Large list (30+) WITH suggestions: show sections
             <>
               {hasSuggestions && (
                 <div style={{ marginBottom: 16 }}>
