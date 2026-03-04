@@ -249,7 +249,7 @@ export default function ComposePost() {
 
   const canSubmitDetails =
     kind === "happening"
-      ? details.trim().length > 0
+      ? title.trim().length > 0
       : details.trim().length > 0 && title.trim().length > 0 && !!date && !!startTime;
 
   /* ---------- Send Invitations ---------- */
@@ -558,7 +558,7 @@ export default function ComposePost() {
           .recipient-pill-locked { background:rgba(15,23,42,.03); border-style:solid; border-color:rgba(148,163,184,.7); }
           .recipient-pill-added { background:#eef2ff; border-color:#4f46e5; }
           .recipient-pill-label-muted { font-size:11px; color:#6b7280; margin-top:4px; }
-          .composer-textarea { width:100%; min-height:96px; resize:vertical; padding:12px 14px; border-radius:14px; border:1px solid #e5e7eb; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.04) inset; font-size:14px; line-height:1.45; box-sizing: border-box; }
+          .composer-textarea { width:100%; min-height:96px; resize:vertical; padding:12px 14px; border-radius:14px; border:1px solid #e5e7eb; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.04) inset; font:inherit; font-size:14px; line-height:1.5; box-sizing: border-box; }
           .composer-textarea:focus { outline:none; border-color:#93c5fd; box-shadow:0 0 0 3px rgba(147,197,253,.35); }
           .gg-input { width:100%; padding:9px 11px; border-radius:10px; border:1px solid #e5e7eb; font-size:14px; box-sizing: border-box; }
           .gg-input:focus { outline:none; border-color:#93c5fd; box-shadow:0 0 0 3px rgba(147,197,253,.25); }
@@ -755,7 +755,7 @@ export default function ComposePost() {
 
               {kind === "happening" && (
                 <div className="gg-card-section">
-                  <div className="gg-label">Title (optional)</div>
+                  <div className="gg-label">Title <span style={{ color: "#dc2626" }}>*</span></div>
                   <input
                     className="gg-input"
                     placeholder="e.g., Sledding at our house!"
@@ -765,11 +765,11 @@ export default function ComposePost() {
                   
                   <div style={{ marginTop: 10 }}>
                     <div className="gg-label">
-                      Details <span style={{ color: '#dc2626' }}>*</span>
+                      Details (optional)
                     </div>
                     <textarea
                       className="composer-textarea"
-                      placeholder="What’s happening right now? (Posts disappear after 24 hours.)"
+                      placeholder="Optional details (Posts disappear after 24 hours.)"
                       value={details}
                       onChange={(e) => setDetails(e.target.value)}
                     />
