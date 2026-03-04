@@ -374,7 +374,7 @@ export default function Discovery() {
       }
 
       // Step 3: Create household
-      const createResponse = await fetch(`${API_BASE_URL}/users/me/household/create`, {
+      const createResponse = await fetch(`${API_BASE_URL}/api/users/me/household/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({
