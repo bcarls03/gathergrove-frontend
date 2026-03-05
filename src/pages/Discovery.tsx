@@ -338,25 +338,7 @@ export default function Discovery() {
     try {
       const authHeaders = await getAuthHeaders();
 
-      // Step 1: Check if household already exists (idempotent)
-      let existingHousehold = null;
-      try {
-        existingHousehold = await getMyHousehold();
-      } catch {
-        existingHousehold = null;
-      }
-      if (existingHousehold) {
-        console.info('ℹ️  Dev household already exists, skipping creation');
-        setHouseholdCreationMessage({
-          type: 'success',
-          text: `✅ Dev household ready (household_id: ${existingHousehold.id.slice(0, 12)}...)`,
-        });
-        await loadHouseholds();
-        await loadConnections();
-        return;
-      }
-
-      // Step 2: Ensure user profile exists (handle 409 gracefully)
+      // Step 1: Ensure user profile exists (409 = already exists, continue)
       const signupResponse = await fetch(`${API_BASE_URL}/users/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders },
@@ -367,62 +349,110 @@ export default function Discovery() {
         }),
       });
 
-      // 409 means profile already exists - that's fine, continue
+      if (import.meta.env.DEV) {
+        console.log('[Dev Tool] Step 1: Signup ->', signupResponse.status);
+      }
+
+      // 409 means profile already exists - treat as success and continue
       if (!signupResponse.ok && signupResponse.status !== 409) {
         const signupError = await signupResponse.json().catch(() => ({ detail: 'Unknown error' }));
+        if (import.meta.env.DEV) {
+          console.log('[Dev Tool] Step 1: Signup error ->', signupResponse.status, signupError);
+        }
         throw new Error(`Signup failed: ${signupError.detail}`);
       }
 
-      // Step 3: Create household
-      const createResponse = await fetch(`${API_BASE_URL}/users/me/household/create`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders },
-        body: JSON.stringify({
-          name: 'Dev Household',
-          household_type: 'family_with_kids',
-          kids: [{ age_range: '0-2' }],
-        }),
+      // Step 2: Check if user is already linked to a household
+      const checkResponse = await fetch(`${API_BASE_URL}/users/me/household`, {
+        method: 'GET',
+        headers: authHeaders,
       });
 
-      // Handle 409 (already linked) by fetching existing household
-      if (!createResponse.ok) {
-        if (createResponse.status === 409) {
-          console.info('ℹ️  User already linked to household, fetching existing');
-          let household = null;
-          try {
-            household = await getMyHousehold();
-          } catch {
-            household = null;
-          }
-          if (household) {
-            setHouseholdCreationMessage({
-              type: 'success',
-              text: `✅ Dev household ready (household_id: ${household.id.slice(0, 12)}...)`,
-            });
-            await loadHouseholds();
-            await loadConnections();
-            return;
-          }
-        }
-        const errorData = await createResponse.json().catch(() => ({ detail: `Status ${createResponse.status}` }));
-        const errorMsg = typeof errorData.detail === 'string' ? errorData.detail : `Status ${createResponse.status}`;
-        throw new Error(errorMsg);
+      if (import.meta.env.DEV) {
+        console.log('[Dev Tool] Step 2: Check existing household ->', checkResponse.status);
       }
 
-      // Step 4: Verify household creation
-      const userData = await getMyProfile();
-      if (userData.household_id) {
+      if (checkResponse.ok) {
+        // User already has a household
+        const household = await checkResponse.json();
+        if (import.meta.env.DEV) {
+          console.log('[Dev Tool] Step 2: Found existing household ->', household.id.slice(0, 12));
+        }
         setHouseholdCreationMessage({
           type: 'success',
-          text: `✅ Dev household ready (household_id: ${userData.household_id.slice(0, 12)}...)`,
+          text: `✅ Dev household ready (household_id: ${household.id.slice(0, 12)}...)`,
         });
-      } else {
-        setHouseholdCreationMessage({ type: 'error', text: '❌ /users/me has no household_id after create' });
+        await loadHouseholds();
+        await loadConnections();
         return;
       }
 
-      await loadHouseholds();
-      await loadConnections();
+      // Step 3: User not linked (404) - create household
+      if (checkResponse.status === 404) {
+        const createResponse = await fetch(`${API_BASE_URL}/users/me/household/create`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
+          body: JSON.stringify({
+            name: 'Dev Household',
+            household_type: 'family_with_kids',
+            kids: [{ age_range: '0-2' }],
+          }),
+        });
+
+        if (import.meta.env.DEV) {
+          console.log('[Dev Tool] Step 3: Create household ->', createResponse.status);
+        }
+
+        if (!createResponse.ok) {
+          const errorData = await createResponse.json().catch(() => ({ detail: `Status ${createResponse.status}` }));
+          if (import.meta.env.DEV) {
+            console.log('[Dev Tool] Step 3: Create error ->', createResponse.status, errorData);
+          }
+          const errorMsg = typeof errorData.detail === 'string' ? errorData.detail : `Status ${createResponse.status}`;
+          throw new Error(errorMsg);
+        }
+
+        // Step 4: Verify household link by fetching it
+        const verifyResponse = await fetch(`${API_BASE_URL}/users/me/household`, {
+          method: 'GET',
+          headers: authHeaders,
+        });
+
+        if (import.meta.env.DEV) {
+          console.log('[Dev Tool] Step 4: Verify household ->', verifyResponse.status);
+        }
+
+        if (verifyResponse.ok) {
+          const household = await verifyResponse.json();
+          if (import.meta.env.DEV) {
+            console.log('[Dev Tool] Step 4: Verified household ->', household.id.slice(0, 12));
+          }
+          setHouseholdCreationMessage({
+            type: 'success',
+            text: `✅ Dev household ready (household_id: ${household.id.slice(0, 12)}...)`,
+          });
+          await loadHouseholds();
+          await loadConnections();
+          return;
+        } else {
+          const errorData = await verifyResponse.json().catch(() => ({ detail: `Status ${verifyResponse.status}` }));
+          if (import.meta.env.DEV) {
+            console.log('[Dev Tool] Step 4: Verify error ->', verifyResponse.status, errorData);
+          }
+          setHouseholdCreationMessage({ 
+            type: 'error', 
+            text: '❌ Created household but verification failed' 
+          });
+          return;
+        }
+      }
+
+      // Unexpected status from check (not 200, not 404)
+      const errorData = await checkResponse.json().catch(() => ({ detail: `Status ${checkResponse.status}` }));
+      if (import.meta.env.DEV) {
+        console.log('[Dev Tool] Step 2: Unexpected status ->', checkResponse.status, errorData);
+      }
+      throw new Error(`Unexpected status ${checkResponse.status} when checking household`);
     } catch (err: any) {
       console.error('❌ Create household failed:', err);
       const errorMsg = typeof err.message === 'string' ? err.message : 'Failed to create household';

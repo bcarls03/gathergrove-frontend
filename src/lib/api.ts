@@ -618,7 +618,43 @@ export async function fetchHouseholds(params?: {
     console.warn("fetchHouseholds() is deprecated - use fetchPeople() instead");
     _fetchHouseholdsWarned = true;
   }
-  return fetchPeople({ neighborhood: params?.neighborhood, type: params?.household_type });
+  
+  try {
+    // Map frontend param names to backend param names
+    const backendParams: any = {};
+    if (params?.neighborhood) backendParams.neighborhood = params.neighborhood;
+    if (params?.household_type) backendParams.household_type = params.household_type;
+    
+    const res = await api.get("/households", { params: backendParams });
+    const data = res.data;
+    
+    // Handle both array and { households: array } response shapes
+    let rawHouseholds: any[] = [];
+    if (Array.isArray(data)) {
+      rawHouseholds = data;
+    } else if (Array.isArray(data?.items)) {
+      rawHouseholds = data.items;
+    } else if (Array.isArray(data?.households)) {
+      rawHouseholds = data.households;
+    }
+    
+    // Normalize snake_case fields to camelCase for fields used by HouseholdSelector
+    const normalized = rawHouseholds.map((h: any) => ({
+      ...h,
+      householdType: h.householdType ?? h.household_type,
+      memberUids: h.memberUids ?? h.member_uids,
+      adultNames: h.adultNames ?? h.adult_names ?? [],
+      lastName: h.lastName ?? h.last_name ?? h.name ?? "",
+    })) as GGHousehold[];
+    
+    if (import.meta.env.DEV) {
+      console.log("[fetchHouseholds] returning", normalized.length, "households, sample:", normalized[0]);
+    }
+    
+    return normalized;
+  } catch (e) {
+    throw unwrapAxiosError(e);
+  }
 }
 
 export async function upsertMyHousehold(payload: Partial<GGHousehold>): Promise<GGHousehold> {
