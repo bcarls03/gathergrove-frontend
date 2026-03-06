@@ -580,13 +580,21 @@ export default function Discovery() {
           const birthDate = new Date(kid.birthYear, (kid.birthMonth || 1) - 1);
           const ageInMonths = (today.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
           const ageInYears = Math.floor(ageInMonths / 12);
-          return ageInYears >= ageMin && ageInYears <= ageMax;
+          
+          // Age filter
+          const matchesAge = ageInYears >= ageMin && ageInYears <= ageMax;
+          if (!matchesAge) return false;
+          
+          // Gender filter (must be on same kid that matched age)
+          if (kidsGenderFilter !== 'all') {
+            const normalized = normalizeKidGender(kid.sex ?? (kid as any).gender ?? null);
+            if (kidsGenderFilter === 'girls' && normalized !== 'girl') return false;
+            if (kidsGenderFilter === 'boys' && normalized !== 'boy') return false;
+          }
+          
+          return true;
         });
         if (!hasMatchingKid) return false;
-
-        // Kids' Gender filter (only when Family with Kids is active)
-        if (kidsGenderFilter === 'girls' && !hasKidSex(h, 'girls')) return false;
-        if (kidsGenderFilter === 'boys' && !hasKidSex(h, 'boys')) return false;
       }
 
       if (searchQuery) {
