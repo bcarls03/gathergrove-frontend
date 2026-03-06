@@ -715,6 +715,38 @@ export async function createEvent(input: {
   );
 }
 
+/**
+ * Update an existing event (host-only).
+ * Returns AxiosResponse for backward compatibility.
+ */
+export async function updateEvent(eventId: string, input: {
+  title?: string;
+  details?: string;
+  category?: EventCategory;
+  visibility?: EventVisibility;
+  startAt?: string | null;
+  endAt?: string | null;
+  expiresAt?: string | null;
+  neighborhoods?: string[];
+  location?: string;
+}) {
+  return api.patch(
+    `/events/${eventId}`,
+    {
+      title: input.title,
+      details: input.details,
+      category: input.category,
+      visibility: input.visibility,
+      startAt: input.startAt,
+      endAt: input.endAt,
+      expiresAt: input.expiresAt,
+      neighborhoods: input.neighborhoods,
+      location: input.location,
+    },
+    { headers: { "Content-Type": "application/json" } }
+  );
+}
+
 /* ------------------------ Cancel / Delete event endpoints -------------------- */
 /**
  * Soft cancel (host-only): PATCH /api/events/{event_id}/cancel

@@ -324,31 +324,51 @@ export default function ComposePost() {
 
         // Backend source of truth
         try {
-          const res = await (Api as any).createEvent?.({
-            type: "now",
-            title: title.trim() || "Happening Now",  // ✅ Use custom title if provided
-            details: localPayload.details,
-            category: localPayload.category ?? "neighborhood",
-            visibility: visibility,
-            location: eventLocation.trim() || undefined,  // ✅ NEW: Send location
-            startAt: new Date().toISOString(),
-            endAt: null,
-          });
+          const backendId = existingPost?.backendId ?? existingPost?.id;
+          const isUpdate = !!existingPost && typeof backendId === "string" && backendId.length > 0;
+          
+          const res = isUpdate
+            ? await Api.updateEvent(backendId, {
+                title: title.trim() || "Happening Now",
+                details: localPayload.details,
+                category: localPayload.category ?? "neighborhood",
+                visibility: visibility,
+                location: eventLocation.trim() || undefined,
+              })
+            : await Api.createEvent({
+                type: "now",
+                title: title.trim() || "Happening Now",
+                details: localPayload.details,
+                category: localPayload.category ?? "neighborhood",
+                visibility: visibility,
+                location: eventLocation.trim() || undefined,
+                startAt: new Date().toISOString(),
+                endAt: null,
+              });
+
+          if (import.meta.env.DEV) {
+            console.log('[DEV] Event save:', {
+              backendId,
+            isUpdate,
+            method: isUpdate ? 'PATCH' : 'POST',
+              url: isUpdate ? `/events/${backendId}` : '/events'
+            });
+          }
 
           const backend = res?.data ?? res;
-          const backendId = backend?.id;
+          const finalBackendId = backend?.id ?? backendId;
           const shareLink = backend?.shareable_link || backend?.shareableLink;  // ✅ Capture shareable link
 
-          if (backendId) {
-            const updated = loadPosts().map((p) => (p.id !== tempId ? p : { ...p, id: backendId, backendId }));
+          if (finalBackendId) {
+            const updated = loadPosts().map((p) => (p.id !== tempId ? p : { ...p, id: finalBackendId, backendId: finalBackendId }));
             savePosts(updated);
 
-            // Send invitations if households or phone numbers are selected
-            const rsvpToken = await sendInvitations(backendId);
+            // Send invitations if households or phone numbers are selected (only on create)
+            const rsvpToken = isUpdate ? null : await sendInvitations(finalBackendId);
             
             // ✅ ALWAYS show success modal (generate fallback link if backend doesn't provide one)
             // For dev, use window.location.origin; for production, backend provides full URL
-            const finalShareLink = shareLink || `/e/${rsvpToken || backendId}`;
+            const finalShareLink = shareLink || `/e/${rsvpToken || finalBackendId}`;
             
             if (import.meta.env.DEV) {
               console.log('[✅ Event Created]', {
@@ -401,30 +421,52 @@ export default function ComposePost() {
       savePosts(nextLocal);
 
       try {
-        const res = await (Api as any).createEvent?.({
-          type: "future",
-          title: localPayload.title || "Future Event",
-          details: localPayload.details,
-          category: localPayload.category ?? DEFAULT_CATEGORY_ID,
-          visibility: visibility,
-          location: eventLocation.trim() || undefined,  // ✅ NEW: Send location
-          startAt: localPayload.when ?? null,
-          endAt: localPayload.end ?? null,
-        });
+        const backendId = existingPost?.backendId ?? existingPost?.id;
+        const isUpdate = !!existingPost && typeof backendId === "string" && backendId.length > 0;
+        
+        const res = isUpdate
+          ? await Api.updateEvent(backendId, {
+              title: localPayload.title || "Future Event",
+              details: localPayload.details,
+              category: localPayload.category ?? DEFAULT_CATEGORY_ID,
+              visibility: visibility,
+              location: eventLocation.trim() || undefined,
+              startAt: localPayload.when ?? null,
+              endAt: localPayload.end ?? null,
+            })
+          : await Api.createEvent({
+              type: "future",
+              title: localPayload.title || "Future Event",
+              details: localPayload.details,
+              category: localPayload.category ?? DEFAULT_CATEGORY_ID,
+              visibility: visibility,
+              location: eventLocation.trim() || undefined,
+              startAt: localPayload.when ?? null,
+              endAt: localPayload.end ?? null,
+            });
+
+        if (import.meta.env.DEV) {
+          console.log('[DEV] Event save:', {
+            backendId,
+            isUpdate,
+            method: isUpdate ? 'PATCH' : 'POST',
+            url: isUpdate ? `/events/${backendId}` : '/events'
+          });
+        }
 
         const backend = res?.data ?? res;
-        const backendId = backend?.id;
+        const finalBackendId = backend?.id ?? backendId;
         const shareLink = backend?.shareable_link || backend?.shareableLink;  // ✅ Capture shareable link
 
-        if (backendId) {
-          const updated = loadPosts().map((p) => (p.id !== tempId ? p : { ...p, id: backendId, backendId }));
+        if (finalBackendId) {
+          const updated = loadPosts().map((p) => (p.id !== tempId ? p : { ...p, id: finalBackendId, backendId: finalBackendId }));
           savePosts(updated);
 
-          // Send invitations if households or phone numbers are selected
-          const rsvpToken = await sendInvitations(backendId);
+          // Send invitations if households or phone numbers are selected (only on create)
+          const rsvpToken = isUpdate ? null : await sendInvitations(finalBackendId);
           
           // ✅ ALWAYS show success modal (generate fallback link if backend doesn't provide one)
-          const finalShareLink = shareLink || `/e/${rsvpToken || backendId}`;
+          const finalShareLink = shareLink || `/e/${rsvpToken || finalBackendId}`;
           
           if (import.meta.env.DEV) {
             console.log('[✅ Event Created]', {
