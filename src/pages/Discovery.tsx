@@ -151,6 +151,28 @@ export default function Discovery() {
     return next;
   };
 
+  // Check if any filters are active
+  const hasAnyActiveFilters = (): boolean => {
+    return (
+      searchQuery !== '' ||
+      selectedTypes.size > 0 ||
+      locationPrecision !== 'all' ||
+      kidsGenderFilter !== 'all' ||
+      ageMin !== 0 ||
+      ageMax !== 18
+    );
+  };
+
+  // Reset all filters to defaults
+  const handleResetFilters = () => {
+    setSearchQuery('');
+    setSelectedTypes(new Set<HouseholdType>());
+    setAgeMin(0);
+    setAgeMax(18);
+    setLocationPrecision('all');
+    setKidsGenderFilter('all');
+  };
+
   useEffect(() => {
     loadHouseholds();
     loadConnections();
@@ -1037,15 +1059,44 @@ export default function Discovery() {
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #f3f4f6' }}>
             <div
               style={{
-                fontSize: 11,
-                fontWeight: 600,
-                color: '#9ca3af',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
                 marginBottom: 10,
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
               }}
             >
-              Filters
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: '#9ca3af',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                }}
+              >
+                Filters
+              </div>
+              {hasAnyActiveFilters() && (
+                <button
+                  onClick={handleResetFilters}
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: '#64748b',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: '2px 4px',
+                    transition: 'color 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = '#334155')}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = '#64748b')}
+                >
+                  Reset Filters
+                </button>
+              )}
             </div>
 
             {/* Search */}
