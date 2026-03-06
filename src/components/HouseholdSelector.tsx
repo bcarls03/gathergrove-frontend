@@ -271,6 +271,30 @@ export function HouseholdSelector({
       .sort((a, b) => b - a);
   };
 
+  // Helper to get kids with age and gender info
+  const getKidsData = (household: GGHousehold): Array<{ age: number; sex?: string | null }> => {
+    if (!household.kids || household.kids.length === 0) return [];
+    
+    const today = new Date();
+    return household.kids
+      .filter(kid => kid.birthYear && kid.birthMonth)
+      .map(kid => {
+        const birthDate = new Date(kid.birthYear!, (kid.birthMonth || 1) - 1);
+        const ageInMonths = (today.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
+        const age = Math.floor(ageInMonths / 12);
+        return { age, sex: kid.sex };
+      })
+      .sort((a, b) => b.age - a.age);
+  };
+
+  // Helper to format gender suffix matching Discovery behavior
+  const getGenderSuffix = (sex?: string | null): string => {
+    const s = (sex || "").trim().toLowerCase();
+    if (s === "female" || s === "girl" || s === "f") return "Girl";
+    if (s === "male" || s === "boy" || s === "m") return "Boy";
+    return "";
+  };
+
   // ✅ Share/invite helpers (safe - only work when eventInviteLink exists)
   const shareInvite = async () => {
     if (!eventInviteLink) return;
@@ -510,26 +534,45 @@ export function HouseholdSelector({
           {/* Kids ages */}
           {kidsAges.length > 0 && (
             <div>
-              <div style={{ fontSize: "11px", fontWeight: "600", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 3 }}>
                 Kids:
               </div>
-              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                {kidsAges.map((age, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      padding: "3px 8px",
-                      borderRadius: "6px",
-                      background: "#f0fdf4",
-                      border: "1px solid #d1fae5",
-                      fontSize: "12px",
-                      fontWeight: "600",
-                      color: "#047857",
-                    }}
-                  >
-                    {age} {age === 1 ? 'yr' : 'yrs'}
-                  </div>
-                ))}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {getKidsData(household).map((kid, idx) => {
+                  const genderSuffix = getGenderSuffix(kid.sex);
+                  return (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: '3px 8px',
+                        borderRadius: 6,
+                        background: '#f3f4f6',
+                        border: '1px solid rgba(15,23,42,0.10)',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: '#6b7280',
+                        transition: 'all 0.2s',
+                      }}
+                    >
+                      <span style={{ fontWeight: 800, letterSpacing: '-0.01em', lineHeight: 1 }}>
+                        {kid.age}y
+                      </span>
+                      {genderSuffix && (
+                        <span
+                          style={{
+                            fontSize: 11.5,
+                            opacity: 0.78,
+                            fontWeight: 600,
+                            marginLeft: 6,
+                            lineHeight: 1,
+                          }}
+                        >
+                          {genderSuffix}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
