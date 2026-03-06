@@ -849,6 +849,7 @@ export default function Discovery() {
       filterContext: {
         types: Array.from(selectedTypes),
         ageRange: selectedTypes.has('Family with Kids' as HouseholdType) ? { min: ageMin, max: ageMax } : null,
+        kidsGenderFilter,
         hasFilters: hasActiveFilters,
       },
     };
@@ -1036,9 +1037,6 @@ export default function Discovery() {
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #f3f4f6' }}>
             <div
               style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
                 fontSize: 11,
                 fontWeight: 600,
                 color: '#9ca3af',
@@ -1047,24 +1045,7 @@ export default function Discovery() {
                 letterSpacing: '0.05em',
               }}
             >
-              <span>Filters</span>
-              {filteredHouseholds.length !== currentHouseholds.length && (
-                <button
-                  type="button"
-                  style={{ all: 'unset' }}
-                  className="text-xs font-medium text-slate-400 hover:text-slate-600 cursor-pointer transition-colors normal-case"
-                  onClick={() => {
-                    setSearchQuery('');
-                    setSelectedTypes(new Set());
-                    setAgeMin(0);
-                    setAgeMax(18);
-                    setLocationPrecision('all');
-                    setKidsGenderFilter('all');
-                  }}
-                >
-                  Reset filters
-                </button>
-              )}
+              Filters
             </div>
 
             {/* Search */}
@@ -2194,6 +2175,7 @@ export default function Discovery() {
                     filterContext: {
                       types: Array.from(selectedTypes),
                       ageRange: selectedTypes.has('Family with Kids' as HouseholdType) ? { min: ageMin, max: ageMax } : null,
+                      kidsGenderFilter,
                       hasFilters: selectedTypes.size > 0 || locationPrecision !== 'all',
                     },
                   };
@@ -2245,6 +2227,7 @@ export default function Discovery() {
                     filterContext: {
                       types: Array.from(selectedTypes),
                       ageRange: selectedTypes.has('Family with Kids' as HouseholdType) ? { min: ageMin, max: ageMax } : null,
+                      kidsGenderFilter,
                       hasFilters: selectedTypes.size > 0 || locationPrecision !== 'all',
                     },
                   };

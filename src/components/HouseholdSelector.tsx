@@ -12,6 +12,7 @@ interface InviteContext {
   filterContext?: {
     types: string[];
     ageRange?: { min: number; max: number } | null;
+    kidsGenderFilter?: 'all' | 'girls' | 'boys';
     hasFilters: boolean;
   };
 }
@@ -295,6 +296,38 @@ export function HouseholdSelector({
     return "";
   };
 
+  // Helper to normalize kid gender (mirrors Discovery logic)
+  const normalizeKidGender = (sex?: string | null): 'girl' | 'boy' | null => {
+    const s = (sex || "").trim().toLowerCase();
+    if (!s) return null;
+    if (s === "girl" || s === "female" || s === "f") return "girl";
+    if (s === "boy" || s === "male" || s === "m") return "boy";
+    return null;
+  };
+
+  // Helper to check if age is in filter range
+  const isAgeInFilterRange = (age: number): boolean => {
+    const ageRange = inviteContext?.filterContext?.ageRange;
+    if (!ageRange) return true; // No filter = matches all
+    return age >= ageRange.min && age <= ageRange.max;
+  };
+
+  // Helper to check if kid matches gender filter
+  const isGenderMatch = (sex?: string | null): boolean => {
+    const genderFilter = inviteContext?.filterContext?.kidsGenderFilter || 'all';
+    if (genderFilter === 'all') return true;
+    
+    const normalizedGender = normalizeKidGender(sex);
+    if (genderFilter === 'girls') return normalizedGender === 'girl';
+    if (genderFilter === 'boys') return normalizedGender === 'boy';
+    return true;
+  };
+
+  // Helper to check if kid matches ALL active filters
+  const isKidMatch = (age: number, sex?: string | null): boolean => {
+    return isAgeInFilterRange(age) && isGenderMatch(sex);
+  };
+
   // ✅ Share/invite helpers (safe - only work when eventInviteLink exists)
   const shareInvite = async () => {
     if (!eventInviteLink) return;
@@ -408,6 +441,16 @@ export function HouseholdSelector({
     return householdId === inviteContext?.clickedHouseholdId || visibleSet.has(householdId);
   };
 
+  // ✅ Determine default visible households: matches when filters active, all otherwise
+  const defaultVisibleHouseholds = useMemo(() => {
+    if (hasSuggestions) {
+      // When filters are active, default to showing only matches
+      return suggestedHouseholds;
+    }
+    // No filters: show all households
+    return sortedHouseholds;
+  }, [hasSuggestions, suggestedHouseholds, sortedHouseholds]);
+
   // ✅ DEV: Log render-time state to diagnose loading issue
   if (import.meta.env.DEV) {
     console.log("[HS RENDER]", {
@@ -419,6 +462,31 @@ export function HouseholdSelector({
       otherHouseholds_length: otherHouseholds.length,
       shouldShowSections,
       hasSuggestions,
+      visibleSet_size: visibleSet.size,
+      defaultVisibleHouseholds_length: defaultVisibleHouseholds.length,
+      willTakeLargeBranch: shouldShowSections && visibleSet.size > 0,
+      willTakeSmallBranch: !(shouldShowSections && visibleSet.size > 0),
+    });
+    
+    // Additional debug: log IDs for verification
+    console.log("[HS ARRAYS]", {
+      suggestedHouseholdIds: suggestedHouseholds.map(h => h.id),
+      defaultVisibleHouseholdIds: defaultVisibleHouseholds.map(h => h.id),
+      matchIds: selection.matchIds,
+    });
+  }
+
+  // ✅ DEV: Log branch decision
+  if (import.meta.env.DEV) {
+    const takingLargeBranch = shouldShowSections && visibleSet.size > 0;
+    console.log("[HS BRANCH DECISION]", {
+      takingLargeBranch,
+      shouldShowSections,
+      visibleSetSize: visibleSet.size,
+      hasSuggestions,
+      cameFromDiscovery,
+      hasFiltersInContext: inviteContext?.filterContext?.hasFilters,
+      renderingArray: takingLargeBranch ? "suggestedHouseholds (large branch)" : "defaultVisibleHouseholds (small branch)"
     });
   }
 
@@ -430,6 +498,22 @@ export function HouseholdSelector({
     const isClickedHousehold = selection.clickedIds.has(householdId);
     const isSelected = selection.selectedIds.has(householdId);
     
+    // Determine border and background based on state priority: selected > recommended > default
+    let borderColor = '#e2e8f0';  // Default neutral
+    let backgroundColor = '#fff';  // Default white
+    let boxShadow = 'none';
+    
+    if (isSelected) {
+      // Selected state (strongest)
+      borderColor = '#3b82f6';     // Blue border
+      backgroundColor = '#eff6ff';  // Blue background
+    } else if (isRecommended) {
+      // Matched/recommended state (Discovery-like highlight)
+      borderColor = '#10b981';      // Green border (Discovery hover color)
+      backgroundColor = '#fff';      // White background
+      boxShadow = '0 4px 12px rgba(16, 185, 129, 0.12)';  // Subtle green shadow
+    }
+    
     return (
       <label
         key={householdId}
@@ -437,21 +521,28 @@ export function HouseholdSelector({
           display: "flex",
           alignItems: "flex-start",
           padding: "16px",
-          border: `1px solid ${isSelected ? '#3b82f6' : '#e2e8f0'}`,
+          border: `2px solid ${borderColor}`,
           borderRadius: "12px",
           cursor: "pointer",
-          backgroundColor: isSelected ? '#eff6ff' : '#fff',
+          backgroundColor: backgroundColor,
+          boxShadow: boxShadow,
           transition: "all 0.2s",
           position: "relative",
         }}
         onMouseEnter={(e) => {
           if (!isSelected) {
             e.currentTarget.style.backgroundColor = "#f8fafc";
+            if (isRecommended) {
+              e.currentTarget.style.boxShadow = '0 8px 24px rgba(16, 185, 129, 0.15)';
+            }
           }
         }}
         onMouseLeave={(e) => {
           if (!isSelected) {
-            e.currentTarget.style.backgroundColor = "#fff";
+            e.currentTarget.style.backgroundColor = backgroundColor;
+            if (isRecommended) {
+              e.currentTarget.style.boxShadow = boxShadow;
+            }
           }
         }}
       >
@@ -540,17 +631,21 @@ export function HouseholdSelector({
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {getKidsData(household).map((kid, idx) => {
                   const genderSuffix = getGenderSuffix(kid.sex);
+                  const kidMatches = isKidMatch(kid.age, kid.sex);
+                  
                   return (
                     <div
                       key={idx}
                       style={{
                         padding: '3px 8px',
                         borderRadius: 6,
-                        background: '#f3f4f6',
-                        border: '1px solid rgba(15,23,42,0.10)',
+                        background: kidMatches ? '#10b981' : '#f3f4f6',
+                        border: kidMatches ? '2px solid #059669' : '1px solid rgba(15,23,42,0.10)',
                         fontSize: 12,
-                        fontWeight: 600,
-                        color: '#6b7280',
+                        fontWeight: kidMatches ? 700 : 600,
+                        color: kidMatches ? '#ffffff' : '#6b7280',
+                        boxShadow: kidMatches ? '0 2px 8px rgba(16, 185, 129, 0.3)' : 'none',
+                        transform: kidMatches ? 'scale(1.05)' : 'scale(1)',
                         transition: 'all 0.2s',
                       }}
                     >
@@ -881,6 +976,7 @@ export function HouseholdSelector({
             </>
           ) : (
             // ✅ Small list (<30): single unified list with "Match" badges
+            // ✅ When filters active: default to showing only matches, with expandable access to others
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               {hasSuggestions && inviteContext?.filterContext && (
                 <div style={{
@@ -900,7 +996,40 @@ export function HouseholdSelector({
                     ` • Ages ${inviteContext.filterContext.ageRange.min}-${inviteContext.filterContext.ageRange.max}`}
                 </div>
               )}
-              {sortedHouseholds.map(h => renderHouseholdCard(h, isSuggested(h.id || '')))}
+              
+              {/* Show default visible households (matches when filters active, all otherwise) */}
+              {defaultVisibleHouseholds.map(h => renderHouseholdCard(h, isSuggested(h.id || '')))}
+              
+              {/* When filters active and there are other households, show expand button */}
+              {hasSuggestions && otherHouseholds.length > 0 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setShowOthers(!showOthers)}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      marginTop: 8,
+                      marginBottom: showOthers ? 8 : 0,
+                      border: '1px dashed #e5e7eb',
+                      borderRadius: 8,
+                      background: '#f9fafb',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: '#6b7280',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <span>Other nearby households ({otherHouseholds.length})</span>
+                    <span style={{ fontSize: 11 }}>{showOthers ? '▲' : '▼'}</span>
+                  </button>
+                  
+                  {showOthers && otherHouseholds.map(h => renderHouseholdCard(h, false))}
+                </>
+              )}
             </div>
           )}
         </div>
