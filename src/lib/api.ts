@@ -348,7 +348,8 @@ export type InvitationResponse = {
   id: string;
   event_id: string;
   invitee_type: InviteeType;
-  household_id?: string | null;
+  invitee_id?: string | null; // Household ID for household invites
+  household_id?: string | null; // Legacy field, may be deprecated
   phone_number?: string | null;
   rsvp_token: string;
   guest_name?: string | null;
@@ -359,6 +360,19 @@ export type InvitationResponse = {
   sms_message_sid?: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type InvitationListResponse = {
+  invitations: InvitationResponse[];
+  total_count: number;
+  platform_count: number;
+  off_platform_count: number;
+  rsvp_summary: {
+    accepted: number;
+    declined: number;
+    maybe: number;
+    pending: number;
+  };
 };
 
 export type RSVPSubmit = {
@@ -909,7 +923,11 @@ export async function createEventInvitations(
 export async function getEventInvitations(eventId: string): Promise<InvitationResponse[]> {
   try {
     const res = await api.get(`/events/${eventId}/invitations`);
-    return res.data as InvitationResponse[];
+    // Backend returns { invitations: [], total_count, platform_count, off_platform_count, rsvp_summary }
+    // Extract the invitations array from the wrapped response
+    const data = res.data as InvitationListResponse;
+    
+    return data.invitations || [];
   } catch (e) {
     throw unwrapAxiosError(e);
   }

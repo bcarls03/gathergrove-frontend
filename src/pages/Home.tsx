@@ -14,12 +14,14 @@ import {
   leaveEventRsvp,
   getEventRsvps,
   type EventRsvpBuckets,
+  getEventInvitations,
+  type InvitationResponse,
+  type GGHousehold,
+  fetchHouseholds,
   CURRENT_UID,
 } from "../lib/api";
 import Logo from "../assets/gathergrove-logo.png";
-
-// ✅ IMPORTANT: this path/case must match the actual file name on disk
-import MiniHouseholdCard from "../components/MiniHouseholdCard";
+import { HOUSEHOLD_TYPE_META, type HouseholdType } from "../components/filters";
 
 /* ---------- Posts (Happening / Event) ---------- */
 
@@ -600,6 +602,8 @@ export default function Home() {
   // RSVP detail drawer state
   const [rsvpDetailEvent, setRsvpDetailEvent] = useState<Post | null>(null);
   const [rsvpDetailBuckets, setRsvpDetailBuckets] = useState<EventRsvpBuckets | null>(null);
+  const [rsvpDetailInvitations, setRsvpDetailInvitations] = useState<InvitationResponse[] | null>(null);
+  const [rsvpDetailHouseholds, setRsvpDetailHouseholds] = useState<GGHousehold[]>([]);
   const [rsvpDetailLoading, setRsvpDetailLoading] = useState(false);
   const [rsvpDetailError, setRsvpDetailError] = useState<string | null>(null);
 
@@ -743,6 +747,8 @@ export default function Home() {
   const openRsvpDetails = (post: Post) => {
     setRsvpDetailEvent(post);
     setRsvpDetailBuckets(null);
+    setRsvpDetailInvitations(null);
+    setRsvpDetailHouseholds([]);
     setRsvpDetailError(null);
     setRsvpDetailLoading(true);
 
@@ -751,14 +757,27 @@ export default function Home() {
     // local-only events: just show local counts and empty buckets
     if (!isBackendRsvpEligible(post)) {
       setRsvpDetailBuckets({ going: [], maybe: [], cant: [] } as any);
+      setRsvpDetailInvitations([]);
+      setRsvpDetailHouseholds([]);
       setRsvpDetailLoading(false);
       return;
     }
 
     void (async () => {
       try {
-        const buckets = await getEventRsvps(key);
+        // Fetch RSVPs, invitations, and households in parallel
+        const [buckets, invitations, households] = await Promise.all([
+          getEventRsvps(key),
+          getEventInvitations(key).catch(() => []), // Gracefully handle failures (non-host, etc)
+          fetchHouseholds().catch(() => []), // Gracefully handle failures
+        ]);
+        
+        const normalizedInvitations = Array.isArray(invitations) ? invitations : [];
+        const normalizedHouseholds = Array.isArray(households) ? households : [];
+        
         setRsvpDetailBuckets(buckets as any);
+        setRsvpDetailInvitations(normalizedInvitations);
+        setRsvpDetailHouseholds(normalizedHouseholds);
 
         // also update counts locally from backend truth
         const counts = bucketsToCounts(buckets as any);
@@ -775,6 +794,8 @@ export default function Home() {
             goingList: (buckets as any).going?.length || 0,
             maybeList: (buckets as any).maybe?.length || 0,
             cantList: (buckets as any).cant?.length || 0,
+            invitedCount: invitations?.length || 0,
+            householdsCount: households?.length || 0,
           });
         }
         
@@ -797,6 +818,8 @@ export default function Home() {
   const closeRsvpDetails = () => {
     setRsvpDetailEvent(null);
     setRsvpDetailBuckets(null);
+    setRsvpDetailInvitations(null);
+    setRsvpDetailHouseholds([]);
     setRsvpDetailError(null);
     setRsvpDetailLoading(false);
   };
@@ -2259,6 +2282,8 @@ export default function Home() {
         open={!!rsvpDetailEvent}
         post={rsvpDetailEvent}
         buckets={rsvpDetailBuckets}
+        invitations={rsvpDetailInvitations}
+        households={rsvpDetailHouseholds}
         loading={rsvpDetailLoading}
         error={rsvpDetailError}
         onClose={closeRsvpDetails}
@@ -2286,12 +2311,14 @@ type RsvpDetailsSheetProps = {
   open: boolean;
   post: Post | null;
   buckets: EventRsvpBuckets | null;
+  invitations: InvitationResponse[] | null;
+  households: GGHousehold[];
   loading: boolean;
   error: string | null;
   onClose: () => void;
 };
 
-function RsvpDetailsSheet({ open, post, buckets, loading, error, onClose }: RsvpDetailsSheetProps) {
+function RsvpDetailsSheet({ open, post, buckets, invitations, households, loading, error, onClose }: RsvpDetailsSheetProps) {
   if (!open || !post) return null;
 
   // ✅ tolerate different backend naming: cant vs declined
@@ -2301,7 +2328,65 @@ function RsvpDetailsSheet({ open, post, buckets, loading, error, onClose }: Rsvp
   const cant = (anyBuckets?.cant ?? anyBuckets?.declined ?? anyBuckets?.["can't"] ?? []) as any[];
 
   // ✅ total from backend buckets only (no fake local "selfRow" injection)
-  const total = going.length + maybe.length + cant.length;
+  const totalResponded = going.length + maybe.length + cant.length;
+  
+  // ✅ Calculate invited count and awaiting response households
+  const totalInvited = invitations?.length ?? 0;
+  
+  // 🔧 Helper: Normalize household ID from invitation object
+  // Backend may use invitee_id, household_id, or householdId depending on version
+  const getInvitedHouseholdId = (inv: any): string | null => {
+    return inv.invitee_id ?? inv.household_id ?? inv.householdId ?? null;
+  };
+  
+  // Get all household IDs that have responded
+  const respondedHouseholdIds = new Set([
+    ...going.map((h: any) => h.householdId ?? h.household_id).filter(Boolean),
+    ...maybe.map((h: any) => h.householdId ?? h.household_id).filter(Boolean),
+    ...cant.map((h: any) => h.householdId ?? h.household_id).filter(Boolean),
+  ]);
+  
+  // Filter invitations to households that haven't responded yet
+  const awaitingInvitations = invitations?.filter(inv => {
+    // Must be a household invitation (not phone number)
+    if (inv.invitee_type !== "household") {
+      return false;
+    }
+    
+    // Get the normalized household ID
+    const householdId = getInvitedHouseholdId(inv);
+    
+    // If household has already responded, exclude it
+    if (householdId && respondedHouseholdIds.has(householdId)) {
+      return false;
+    }
+    
+    // Otherwise, this is awaiting response
+    return true;
+  }) ?? [];
+  
+  // Join awaiting invitations with household data
+  const awaitingHouseholds = awaitingInvitations
+    .map(inv => {
+      const householdId = getInvitedHouseholdId(inv);
+      
+      // If no household ID, show a pending invitation placeholder
+      if (!householdId) {
+        return { 
+          id: `pending-${inv.id}`, 
+          lastName: "Pending Invitation", 
+          isFallback: true 
+        };
+      }
+      
+      const household = households.find(h => h.id === householdId);
+      if (!household) {
+        // Fallback: return minimal household-like object with ID
+        return { id: householdId, lastName: householdId || "Unknown Household", isFallback: true };
+      }
+      return household;
+    })
+    .filter(Boolean) as any[];
 
   const subtitle =
     post.kind === "event" ? (post.when ? new Date(post.when).toLocaleString() : "Time TBA") : "Happening now";
@@ -2356,9 +2441,16 @@ function RsvpDetailsSheet({ open, post, buckets, loading, error, onClose }: Rsvp
           {post.title && <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#0f172a" }}>{post.title}</h3>}
           <div style={{ fontSize: 13, color: "#4b5563", marginTop: 4 }}>{subtitle}</div>
 
-          <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
-            {total > 0 ? `${total} household${total === 1 ? "" : "s"} responded` : "No RSVPs yet."}
-          </div>
+          {/* Summary line with invited/responded counts */}
+          {totalInvited > 0 ? (
+            <div style={{ fontSize: 12, color: "#6b7280", marginTop: 6, fontWeight: 600 }}>
+              Invited: {totalInvited} · Responded: {totalResponded}
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
+              {totalResponded > 0 ? `${totalResponded} household${totalResponded === 1 ? "" : "s"} responded` : "No RSVPs yet."}
+            </div>
+          )}
         </div>
 
         <div
@@ -2380,6 +2472,182 @@ function RsvpDetailsSheet({ open, post, buckets, loading, error, onClose }: Rsvp
               <RsvpBucketSection label="Going" emoji="✅" items={going} />
               <RsvpBucketSection label="Maybe" emoji="🤔" items={maybe} />
               <RsvpBucketSection label="Can't go" emoji="🚫" items={cant} />
+              
+              {/* Awaiting response section */}
+              {awaitingHouseholds.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "#334155", marginBottom: 8 }}>
+                    ⏳ Awaiting response ({awaitingHouseholds.length})
+                  </div>
+                  
+                  <div style={{ display: "grid", gap: 10 }}>
+                    {awaitingHouseholds.map((h: any) => {
+                      // Fallback rendering if household data missing
+                      if (h.isFallback) {
+                        return (
+                          <div
+                            key={`awaiting-fallback-${h.id}`}
+                            style={{
+                              display: "flex",
+                              alignItems: "flex-start",
+                              padding: "16px",
+                              border: "2px solid #e2e8f0",
+                              borderRadius: "12px",
+                              backgroundColor: "#fff",
+                            }}
+                          >
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: "15px", fontWeight: "600", color: "#6b7280" }}>
+                                {h.lastName}
+                              </div>
+                            </div>
+                            <div
+                              style={{
+                                fontSize: 11,
+                                padding: "4px 10px",
+                                borderRadius: 999,
+                                border: "1px solid #e5e7eb",
+                                background: "#ffffff",
+                                color: "#111827",
+                                whiteSpace: "nowrap",
+                                marginLeft: 12,
+                                fontWeight: 600,
+                              }}
+                            >
+                              ⏳ Awaiting response
+                            </div>
+                          </div>
+                        );
+                      }
+                      
+                      const lastName = h.lastName ?? "Household";
+                      const householdType = h.householdType ?? null;
+                      const rawNeighborhood = h.neighborhood ?? null;
+                      const neighborhood = neighborhoodDisplayLabel(rawNeighborhood);
+                      const hid = h.id ?? "hid";
+                      const kidsData = getKidsData(h);
+                      const mappedType = mapToHouseholdType(householdType);
+                      
+                      return (
+                        <div
+                          key={`awaiting-${hid}`}
+                          style={{
+                            display: "flex",
+                            alignItems: "flex-start",
+                            padding: "16px",
+                            border: "2px solid #e2e8f0",
+                            borderRadius: "12px",
+                            backgroundColor: "#fff",
+                            position: "relative",
+                          }}
+                        >
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            {/* Household name */}
+                            <div style={{ fontWeight: "600", color: "#1e293b", fontSize: "15px", marginBottom: "4px" }}>
+                              {lastName}
+                            </div>
+
+                            {/* Household type pill */}
+                            {mappedType && HOUSEHOLD_TYPE_META[mappedType] && (() => {
+                              const { Icon, iconColor, iconBg } = HOUSEHOLD_TYPE_META[mappedType];
+                              return (
+                                <div style={{ marginBottom: 6 }}>
+                                  <div
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: 4,
+                                      padding: '3px 8px',
+                                      borderRadius: 6,
+                                      background: iconBg,
+                                      color: iconColor,
+                                      fontSize: 12,
+                                      fontWeight: 600,
+                                    }}
+                                  >
+                                    <Icon size={12} />
+                                    {mappedType}
+                                  </div>
+                                </div>
+                              );
+                            })()}
+
+                            {/* Neighborhood */}
+                            {neighborhood && (
+                              <div style={{ fontSize: "12px", color: "#64748b", marginBottom: kidsData.length > 0 ? 8 : 0 }}>
+                                {neighborhood}
+                              </div>
+                            )}
+
+                            {/* Kids ages (ComposePost style) */}
+                            {kidsData.length > 0 && (
+                              <div>
+                                <div style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 3 }}>
+                                  Kids:
+                                </div>
+                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                  {kidsData.map((kid, idx) => {
+                                    const genderSuffix = getGenderSuffix(kid.sex);
+                                    
+                                    return (
+                                      <div
+                                        key={idx}
+                                        style={{
+                                          padding: '3px 8px',
+                                          borderRadius: 6,
+                                          background: '#f3f4f6',
+                                          border: '1px solid rgba(15,23,42,0.10)',
+                                          fontSize: 12,
+                                          fontWeight: 600,
+                                          color: '#6b7280',
+                                        }}
+                                      >
+                                        <span style={{ fontWeight: 800, letterSpacing: '-0.01em', lineHeight: 1 }}>
+                                          {kid.age}y
+                                        </span>
+                                        {genderSuffix && (
+                                          <span
+                                            style={{
+                                              fontSize: 11.5,
+                                              opacity: 0.78,
+                                              fontWeight: 600,
+                                              marginLeft: 6,
+                                              lineHeight: 1,
+                                            }}
+                                          >
+                                            {genderSuffix}
+                                          </span>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Status pill (right side) */}
+                          <div
+                            style={{
+                              fontSize: 11,
+                              padding: "4px 10px",
+                              borderRadius: 999,
+                              border: "1px solid #e5e7eb",
+                              background: "#ffffff",
+                              color: "#111827",
+                              whiteSpace: "nowrap",
+                              marginLeft: 12,
+                              fontWeight: 600,
+                            }}
+                          >
+                            ⏳ Awaiting response
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -2415,7 +2683,58 @@ function RsvpDetailsSheet({ open, post, buckets, loading, error, onClose }: Rsvp
   );
 }
 
-/* ---------- RSVP Bucket Section (MiniHouseholdCard) ---------- */
+/* ---------- RSVP Bucket Section (ComposePost-style household cards) ---------- */
+
+// Map household type string to HouseholdType for display (matching ComposePost)
+const mapToHouseholdType = (type?: string): HouseholdType | null => {
+  switch (type) {
+    case 'family_with_kids':
+    case 'single_parent':
+    case 'family':
+    case 'Family w/ Kids':
+    case 'Family with Kids':
+      return 'Family with Kids';
+    case 'empty_nesters':
+    case 'Empty Nesters':
+      return 'Empty Nesters';
+    case 'couple':
+    case 'single':
+    case 'Singles/Couples':
+      return 'Singles/Couples';
+    default:
+      return null;
+  }
+};
+
+// Extract kids data from household (matching Discovery/HouseholdCardBody)
+const getKidsData = (household: any): Array<{ age: number; sex: string | null }> => {
+  const kids: Array<{ age: number; sex: string | null }> = [];
+  
+  if (household.kids && Array.isArray(household.kids)) {
+    const today = new Date();
+    household.kids.forEach((kid: any) => {
+      if (kid.birthYear && kid.birthMonth) {
+        const birthDate = new Date(kid.birthYear, (kid.birthMonth || 1) - 1);
+        const ageInMonths = (today.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
+        const age = Math.floor(ageInMonths / 12);
+        kids.push({ age, sex: kid.sex ?? (kid as any).gender ?? null });
+      }
+    });
+  }
+  
+  // Sort by age descending (oldest to youngest) to match Discovery
+  kids.sort((a, b) => b.age - a.age);
+  
+  return kids;
+};
+
+// Gender suffix helper (matching Discovery exactly)
+const getGenderSuffix = (sex?: string | null): string => {
+  const s = (sex || "").trim().toLowerCase();
+  if (s === "female" || s === "girl" || s === "f") return "Girl";
+  if (s === "male" || s === "boy" || s === "m") return "Boy";
+  return "";
+};
 
 type RsvpBucketSectionProps = {
   label: string;
@@ -2445,29 +2764,148 @@ function RsvpBucketSection({ label, emoji, items }: RsvpBucketSectionProps) {
         {items.map((h) => {
           const lastName = (h as any).lastName ?? (h as any).last_name ?? "Household";
           const householdType = (h as any).householdType ?? (h as any).household_type ?? null;
-
           const rawNeighborhood =
             (h as any).neighborhood ?? (h as any).neighborhood_name ?? (h as any).neighborhoodLabel ?? null;
-
           const neighborhood = neighborhoodDisplayLabel(rawNeighborhood);
+          const hid = (h as any).householdId ?? (h as any).household_id ?? (h as any).id ?? "hid";
+          const kidsData = getKidsData(h);
+          const mappedType = mapToHouseholdType(householdType);
 
-          const childAges = (h as any).childAges ?? (h as any).child_ages ?? [];
-          const childSexes = (h as any).childSexes ?? (h as any).child_sexes ?? [];
-
-          const hid = (h as any).householdId ?? (h as any).household_id ?? "hid";
-          const uid = (h as any).uid ?? (h as any).id ?? "uid";
+          // Determine status pill colors
+          let statusBg = "#ffffff";
+          let statusBorder = "#e5e7eb";
+          let statusColor = "#111827";
+          
+          if (label === "Going") {
+            statusBg = "#d1fae5";
+            statusBorder = "#6ee7b7";
+            statusColor = "#065f46";
+          } else if (label === "Maybe") {
+            statusBg = "#fef3c7";
+            statusBorder = "#fde047";
+            statusColor = "#854d0e";
+          } else if (label === "Can't go") {
+            statusBg = "#fee2e2";
+            statusBorder = "#fca5a5";
+            statusColor = "#991b1b";
+          }
 
           return (
-            <MiniHouseholdCard
-              key={`${hid}-${uid}-${label}`}
-              lastName={lastName}
-              householdType={householdType}
-              neighborhood={neighborhood}
-              childAges={childAges}
-              childSexes={childSexes}
-              statusLabel={label}
-              statusEmoji={emoji}
-            />
+            <div
+              key={`${hid}-${label}`}
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                padding: "16px",
+                border: "2px solid #e2e8f0",
+                borderRadius: "12px",
+                backgroundColor: "#fff",
+                position: "relative",
+              }}
+            >
+              <div style={{ flex: 1, minWidth: 0 }}>
+                {/* Household name */}
+                <div style={{ fontWeight: "600", color: "#1e293b", fontSize: "15px", marginBottom: "4px" }}>
+                  {lastName}
+                </div>
+
+                {/* Household type pill */}
+                {mappedType && HOUSEHOLD_TYPE_META[mappedType] && (() => {
+                  const { Icon, iconColor, iconBg } = HOUSEHOLD_TYPE_META[mappedType];
+                  return (
+                    <div style={{ marginBottom: 6 }}>
+                      <div
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '3px 8px',
+                          borderRadius: 6,
+                          background: iconBg,
+                          color: iconColor,
+                          fontSize: 12,
+                          fontWeight: 600,
+                        }}
+                      >
+                        <Icon size={12} />
+                        {mappedType}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Neighborhood */}
+                {neighborhood && (
+                  <div style={{ fontSize: "12px", color: "#64748b", marginBottom: kidsData.length > 0 ? 8 : 0 }}>
+                    {neighborhood}
+                  </div>
+                )}
+
+                {/* Kids ages (ComposePost style) */}
+                {kidsData.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 3 }}>
+                      Kids:
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {kidsData.map((kid, idx) => {
+                        const genderSuffix = getGenderSuffix(kid.sex);
+                        
+                        return (
+                          <div
+                            key={idx}
+                            style={{
+                              padding: '3px 8px',
+                              borderRadius: 6,
+                              background: '#f3f4f6',
+                              border: '1px solid rgba(15,23,42,0.10)',
+                              fontSize: 12,
+                              fontWeight: 600,
+                              color: '#6b7280',
+                            }}
+                          >
+                            <span style={{ fontWeight: 800, letterSpacing: '-0.01em', lineHeight: 1 }}>
+                              {kid.age}y
+                            </span>
+                            {genderSuffix && (
+                              <span
+                                style={{
+                                  fontSize: 11.5,
+                                  opacity: 0.78,
+                                  fontWeight: 600,
+                                  marginLeft: 6,
+                                  lineHeight: 1,
+                                }}
+                              >
+                                {genderSuffix}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Status pill (right side) */}
+              <div
+                style={{
+                  fontSize: 11,
+                  padding: "4px 10px",
+                  borderRadius: 999,
+                  border: `1px solid ${statusBorder}`,
+                  background: statusBg,
+                  color: statusColor,
+                  whiteSpace: "nowrap",
+                  marginLeft: 12,
+                  fontWeight: 600,
+                }}
+              >
+                {emoji ? `${emoji} ` : ""}
+                {label}
+              </div>
+            </div>
           );
         })}
       </div>
