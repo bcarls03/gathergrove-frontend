@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import * as Api from "../lib/api";
 import type { GGHousehold } from "../lib/api";
 import { useInviteSelection } from "../hooks/useInviteSelection";
+import { HOUSEHOLD_TYPE_META, type HouseholdType } from "./filters";
 
 // ✅ Simplified InviteContext - removed suggestedHouseholds (single source of truth)
 interface InviteContext {
@@ -43,6 +44,27 @@ const TYPE_LABELS: Record<string, string> = {
   'empty_nesters': 'Empty Nesters',
   'singles_couples': 'Singles/Couples',
   'young_professionals': 'Young Professionals',
+};
+
+// Map household type string to HouseholdType for display
+const mapToHouseholdType = (type?: string): HouseholdType | null => {
+  switch (type) {
+    case 'family_with_kids':
+    case 'single_parent':
+    case 'family':
+    case 'Family w/ Kids':
+    case 'Family with Kids':
+      return 'Family with Kids';
+    case 'empty_nesters':
+    case 'Empty Nesters':
+      return 'Empty Nesters';
+    case 'couple':
+    case 'single':
+    case 'Singles/Couples':
+      return 'Singles/Couples';
+    default:
+      return null;
+  }
 };
 
 export function HouseholdSelector({ 
@@ -594,6 +616,33 @@ export function HouseholdSelector({
           <div style={{ fontWeight: "600", color: "#1e293b", fontSize: "15px", marginBottom: "4px", paddingRight: isRecommended ? "70px" : "0" }}>
             {household.lastName || 'Unknown Household'}
           </div>
+
+          {/* Household type pill */}
+          {(() => {
+            const mappedType = mapToHouseholdType(household.householdType);
+            if (!mappedType || !HOUSEHOLD_TYPE_META[mappedType]) return null;
+            const { Icon, iconColor, iconBg } = HOUSEHOLD_TYPE_META[mappedType];
+            return (
+              <div style={{ marginBottom: 6 }}>
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    padding: '3px 8px',
+                    borderRadius: 6,
+                    background: iconBg,
+                    color: iconColor,
+                    fontSize: 12,
+                    fontWeight: 600,
+                  }}
+                >
+                  <Icon size={12} />
+                  {mappedType}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Distance (from API if available) */}
           {(household as any).distance != null && (
