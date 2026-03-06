@@ -1036,6 +1036,9 @@ export default function Discovery() {
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #f3f4f6' }}>
             <div
               style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
                 fontSize: 11,
                 fontWeight: 600,
                 color: '#9ca3af',
@@ -1044,7 +1047,24 @@ export default function Discovery() {
                 letterSpacing: '0.05em',
               }}
             >
-              Filters
+              <span>Filters</span>
+              {filteredHouseholds.length !== currentHouseholds.length && (
+                <button
+                  type="button"
+                  style={{ all: 'unset' }}
+                  className="text-xs font-medium text-slate-400 hover:text-slate-600 cursor-pointer transition-colors normal-case"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSelectedTypes(new Set());
+                    setAgeMin(0);
+                    setAgeMax(18);
+                    setLocationPrecision('all');
+                    setKidsGenderFilter('all');
+                  }}
+                >
+                  Reset filters
+                </button>
+              )}
             </div>
 
             {/* Search */}
