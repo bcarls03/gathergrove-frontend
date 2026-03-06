@@ -989,7 +989,7 @@ export default function Discovery() {
       {/* Header - normalized to match Home/Calendar/Me */}
       <h1 className="page-header-title">Discover</h1>
       <p className="page-header-subtitle">
-        {filteredHouseholds.length} {activeTab === 'connected' ? 'connected' : 'nearby'}
+        Showing {filteredHouseholds.length} of {currentHouseholds.length} {activeTab === 'connected' ? 'connected' : 'nearby'} households
       </p>
 
           {/* Tabs */}
