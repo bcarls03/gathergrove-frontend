@@ -20,6 +20,7 @@ export type OnboardingState = {
   lat?: number | null;
   lng?: number | null;
   location_precision?: "street" | "zipcode" | null;
+  neighborhood_name?: string | null;
   
   // Step 2: Household (OPTIONAL)
   skipHousehold?: boolean;
@@ -76,6 +77,7 @@ function readStorage(): OnboardingState | null {
       lat: parsed.lat ?? null,
       lng: parsed.lng ?? null,
       location_precision: parsed.location_precision ?? null,
+      neighborhood_name: parsed.neighborhood_name ?? null,
       // Legacy fields
       neighborhoodCode: parsed.neighborhoodCode ?? null,
       adults: Array.isArray(parsed.adults) ? parsed.adults : [],
@@ -103,6 +105,7 @@ const DEFAULT_STATE: OnboardingState = {
   householdName: null,
   intendedHouseholdType: null, // V16: captures user's intent, not current identity
   kids: [],
+  neighborhood_name: null,
   neighborhoodCode: null,
   adults: [],
 };

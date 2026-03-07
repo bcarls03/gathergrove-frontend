@@ -131,6 +131,7 @@ export type UserProfile = {
   visibility?: UserVisibility;
   household_id?: string | null;
   interests?: string[] | null;
+  neighborhood_name?: string | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -148,6 +149,7 @@ export type UserProfileUpdate = {
   lat?: number | null;
   lng?: number | null;
   location_precision?: "street" | "zipcode" | null;
+  neighborhood_name?: string | null;
 };
 
 
