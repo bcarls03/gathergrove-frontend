@@ -220,6 +220,7 @@ export default function ComposePost() {
   const [selectedPhoneNumbers, setSelectedPhoneNumbers] = useState<Set<string>>(new Set());
   const [selectedHouseholdNames, setSelectedHouseholdNames] = useState<HouseholdNameMap>(new Map());
   const [availableHouseholdsCount, setAvailableHouseholdsCount] = useState<number | null>(null);
+  const [existingInvitedHouseholdIds, setExistingInvitedHouseholdIds] = useState<Set<string>>(new Set());
 
   // ✅ Cold start detection: true when 0 households available for in-app invite (only after count is known)
   const isColdStart = availableHouseholdsCount !== null && availableHouseholdsCount === 0;
@@ -234,6 +235,30 @@ export default function ComposePost() {
   const [createdEventCategory, setCreatedEventCategory] = useState<EventCategory | undefined>(undefined);
   const [createdEventTime, setCreatedEventTime] = useState<string>("");
   const [copyFeedback, setCopyFeedback] = useState(false);
+
+  useEffect(() => {
+    if (!editId) return;
+
+    const localPost = loadPosts().find((p) => p.id === editId);
+    const eventId = localPost?.backendId ?? localPost?.id;
+    if (!eventId) return;
+
+    const loadExistingInvitations = async () => {
+      try {
+        const invitations = await Api.getEventInvitations(eventId);
+        const householdIds = invitations
+          .filter(inv => inv.invitee_type === "household" && (inv.invitee_id || inv.household_id))
+          .map(inv => inv.invitee_id ?? inv.household_id!)
+          .filter(Boolean);
+
+        setExistingInvitedHouseholdIds(new Set(householdIds));
+      } catch (err) {
+        console.error("Failed to load existing invitations:", err);
+      }
+    };
+
+    void loadExistingInvitations();
+  }, [editId]);
 
   const resolvedNeighborLabel = (n: Neighbor) => (n.label ?? n.lastName ?? "").toString();
 
@@ -985,6 +1010,7 @@ export default function ComposePost() {
                 onAvailableCountChange={setAvailableHouseholdsCount}
                 inviteContext={inviteContext}
                 hideSectionHeaders={true}
+                existingInvitedIds={existingInvitedHouseholdIds}
               />
 
               {/* Normal flow only: External invite section */}

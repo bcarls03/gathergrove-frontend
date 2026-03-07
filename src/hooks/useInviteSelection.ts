@@ -1,5 +1,5 @@
 // src/hooks/useInviteSelection.ts
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type { GGHousehold } from '../lib/api';
 
 /**
@@ -46,6 +46,19 @@ export function useInviteSelection({
   
   // Track which layers are active
   const [activeBulkActions, setActiveBulkActions] = useState<Set<BulkAction>>(new Set());
+
+  // ✅ Sync incoming selectedIds to manualSelectedIds on mount (for edit mode preselection)
+  const hasInitialized = useRef(false);
+  useEffect(() => {
+    if (!hasInitialized.current && selectedIds.size > 0) {
+      console.log('[useInviteSelection] Initializing from selectedIds:', {
+        size: selectedIds.size,
+        ids: Array.from(selectedIds)
+      });
+      setManualSelectedIds(new Set(selectedIds));
+      hasInitialized.current = true;
+    }
+  }, [selectedIds]);
 
   const matchIds = useMemo(() => {
     const visibleIds = new Set(households.map(h => h.id).filter((id): id is string => !!id));

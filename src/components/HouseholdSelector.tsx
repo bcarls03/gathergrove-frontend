@@ -36,6 +36,7 @@ interface HouseholdSelectorProps {
   eventTitle?: string;
   hideSectionHeaders?: boolean; // ✅ When true, parent controls section headers
   onAvailableCountChange?: (count: number) => void; // ✅ Callback to notify parent of available households count
+  existingInvitedIds?: Set<string>; // ✅ NEW: IDs of households already invited (when editing event)
 }
 
 // ✅ Canonical type labels matching actual enum values
@@ -78,10 +79,17 @@ export function HouseholdSelector({
   eventTitle = "GatherGrove Event",
   hideSectionHeaders = false,
   onAvailableCountChange,
+  existingInvitedIds = new Set(),
 }: HouseholdSelectorProps) {
   const [availableHouseholds, setAvailableHouseholds] = useState<GGHousehold[]>([]);
   const [loading, setLoading] = useState(false);
   const [showOthers, setShowOthers] = useState(false);
+  
+  console.log('[HouseholdSelector] Rendered with:', {
+    selectedIds_size: selectedIds.size,
+    existingInvitedIds_size: existingInvitedIds.size,
+    existingInvitedIds_array: Array.from(existingInvitedIds),
+  });
   
   // ✅ Track initialization to prevent repeated preselect
   const initRef = useRef<string | null>(null);
@@ -415,27 +423,33 @@ export function HouseholdSelector({
     return availableHouseholds;
   }, [availableHouseholds]);
 
-  // ✅ FIX #2: Smart 3-tier sorting using ?? for distance (handles 0, null, undefined)
+  // ✅ FIX #2: Smart 4-tier sorting using ?? for distance (handles 0, null, undefined)
   const sortedHouseholds = useMemo(() => {
     const clicked = inviteContext?.clickedHouseholdId;
 
     return [...displayedHouseholds].sort((a, b) => {
-      // 1. Clicked household always first
+      // 1. Already invited households always first
+      const aIsInvited = existingInvitedIds.has(a.id || '');
+      const bIsInvited = existingInvitedIds.has(b.id || '');
+      if (aIsInvited && !bIsInvited) return -1;
+      if (!aIsInvited && bIsInvited) return 1;
+
+      // 2. Clicked household next
       if (a.id === clicked) return -1;
       if (b.id === clicked) return 1;
 
-      // 2. Suggested (from visibleSet) next
+      // 3. Suggested (from visibleSet) next
       const aIsSuggested = visibleSet.has(a.id || '');
       const bIsSuggested = visibleSet.has(b.id || '');
       if (aIsSuggested && !bIsSuggested) return -1;
       if (!aIsSuggested && bIsSuggested) return 1;
 
-      // 3. Within same group: sort by distance (✅ using ?? to handle 0, null, undefined)
+      // 4. Within same group: sort by distance (✅ using ?? to handle 0, null, undefined)
       const aDist = (a as any).distance ?? 999;
       const bDist = (b as any).distance ?? 999;
       return aDist - bDist;
     });
-  }, [displayedHouseholds, inviteContext?.clickedHouseholdId, visibleSet]);
+  }, [displayedHouseholds, inviteContext?.clickedHouseholdId, visibleSet, existingInvitedIds]);
 
   // ✅ Group households: suggested vs others (single source of truth: visibleSet)
   const suggestedHouseholds = sortedHouseholds.filter(
@@ -585,6 +599,19 @@ export function HouseholdSelector({
         <div style={{ flex: 1, minWidth: 0 }}>
           {/* Badges in top-right */}
           <div style={{ position: "absolute", top: 10, right: 10, display: "flex", gap: 6 }}>
+            {existingInvitedIds.has(householdId) && (
+              <span style={{
+                fontSize: 11,
+                padding: "3px 8px",
+                borderRadius: 999,
+                background: "#f0fdf4",
+                border: "1px solid #86efac",
+                color: "#166534",
+                fontWeight: 600,
+              }}>
+                Already invited
+              </span>
+            )}
             {isClickedHousehold && (
               <span style={{
                 fontSize: 11,
@@ -597,7 +624,7 @@ export function HouseholdSelector({
                 👆 Clicked
               </span>
             )}
-            {isRecommended && !isClickedHousehold && (
+            {isRecommended && !isClickedHousehold && !existingInvitedIds.has(householdId) && (
               <span style={{
                 fontSize: 11,
                 padding: "3px 8px",
@@ -742,7 +769,7 @@ export function HouseholdSelector({
       )}
       
       <div className="gg-label">
-        Who to invite ({selection.selectedIds.size} selected)
+        Who to invite ({selection.selectedIds.size} selected{existingInvitedIds.size > 0 ? `, ${existingInvitedIds.size} already invited` : ''})
       </div>
       {/* ✅ NEW: Compact bulk action bar with clearer mental model */}
       {!loading && availableHouseholds.length > 0 && (
