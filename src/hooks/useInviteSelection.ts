@@ -42,23 +42,18 @@ export function useInviteSelection({
   const [clickedIds, setClickedIds] = useState<Set<string>>(new Set());
   
   // Track manual checkbox selections (independent of layers)
-  const [manualSelectedIds, setManualSelectedIds] = useState<Set<string>>(new Set());
+  // Initialize from selectedIds to preserve selections on remount
+  const [manualSelectedIds, setManualSelectedIds] = useState<Set<string>>(() => new Set(selectedIds));
   
   // Track which layers are active
   const [activeBulkActions, setActiveBulkActions] = useState<Set<BulkAction>>(new Set());
 
-  // ✅ Sync incoming selectedIds to manualSelectedIds on mount (for edit mode preselection)
-  const hasInitialized = useRef(false);
+  // Hydrate manualSelectedIds when selectedIds is populated after mount (edit mode)
   useEffect(() => {
-    if (!hasInitialized.current && selectedIds.size > 0) {
-      console.log('[useInviteSelection] Initializing from selectedIds:', {
-        size: selectedIds.size,
-        ids: Array.from(selectedIds)
-      });
+    if (selectedIds.size > 0 && manualSelectedIds.size === 0) {
       setManualSelectedIds(new Set(selectedIds));
-      hasInitialized.current = true;
     }
-  }, [selectedIds]);
+  }, [selectedIds, manualSelectedIds.size]);
 
   const matchIds = useMemo(() => {
     const visibleIds = new Set(households.map(h => h.id).filter((id): id is string => !!id));
