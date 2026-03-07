@@ -252,6 +252,7 @@ export default function ComposePost() {
           .filter(Boolean);
 
         setExistingInvitedHouseholdIds(new Set(householdIds));
+        setSelectedHouseholdIds(new Set(householdIds));
       } catch (err) {
         console.error("Failed to load existing invitations:", err);
       }
