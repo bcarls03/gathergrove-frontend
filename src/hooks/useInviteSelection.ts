@@ -42,13 +42,13 @@ export function useInviteSelection({
   const [clickedIds, setClickedIds] = useState<Set<string>>(new Set());
   
   // Track manual checkbox selections (independent of layers)
-  // Initialize from selectedIds to preserve selections on remount
-  const [manualSelectedIds, setManualSelectedIds] = useState<Set<string>>(() => new Set(selectedIds));
+  const [manualSelectedIds, setManualSelectedIds] = useState<Set<string>>(
+    () => new Set(selectedIds)
+  );
   
   // Track which layers are active
   const [activeBulkActions, setActiveBulkActions] = useState<Set<BulkAction>>(new Set());
 
-  // Hydrate manualSelectedIds when selectedIds is populated after mount (edit mode)
   useEffect(() => {
     if (selectedIds.size > 0 && manualSelectedIds.size === 0) {
       setManualSelectedIds(new Set(selectedIds));
