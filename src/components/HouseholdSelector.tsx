@@ -459,23 +459,9 @@ export function HouseholdSelector({
     h => h.id !== inviteContext?.clickedHouseholdId && !visibleSet.has(h.id || '')
   );
   
-  if (import.meta.env.DEV) {
-    console.log('[HS] After filtering:', {
-      suggestedHouseholds_length: suggestedHouseholds.length,
-      otherHouseholds_length: otherHouseholds.length,
-      visibleSet_size: visibleSet.size,
-    });
-  }
-  
   const hasSuggestions = cameFromDiscovery && 
                         inviteContext?.filterContext?.hasFilters && 
                         suggestedHouseholds.length > 0;
-
-  const shouldShowSections = availableHouseholds.length >= 30;
-
-  const isSuggested = (householdId: string) => {
-    return householdId === inviteContext?.clickedHouseholdId || visibleSet.has(householdId);
-  };
 
   // ✅ Determine default visible households: matches when filters active, all otherwise
   const defaultVisibleHouseholds = useMemo(() => {
@@ -487,44 +473,11 @@ export function HouseholdSelector({
     return sortedHouseholds;
   }, [hasSuggestions, suggestedHouseholds, sortedHouseholds]);
 
-  // ✅ DEV: Log render-time state to diagnose loading issue
-  if (import.meta.env.DEV) {
-    console.log("[HS RENDER]", {
-      loading,
-      availableHouseholds_length: availableHouseholds.length,
-      displayedHouseholds_length: displayedHouseholds.length,
-      sortedHouseholds_length: sortedHouseholds.length,
-      suggestedHouseholds_length: suggestedHouseholds.length,
-      otherHouseholds_length: otherHouseholds.length,
-      shouldShowSections,
-      hasSuggestions,
-      visibleSet_size: visibleSet.size,
-      defaultVisibleHouseholds_length: defaultVisibleHouseholds.length,
-      willTakeLargeBranch: shouldShowSections && visibleSet.size > 0,
-      willTakeSmallBranch: !(shouldShowSections && visibleSet.size > 0),
-    });
-    
-    // Additional debug: log IDs for verification
-    console.log("[HS ARRAYS]", {
-      suggestedHouseholdIds: suggestedHouseholds.map(h => h.id),
-      defaultVisibleHouseholdIds: defaultVisibleHouseholds.map(h => h.id),
-      matchIds: selection.matchIds,
-    });
-  }
+  const shouldShowSections = availableHouseholds.length >= 30;
 
-  // ✅ DEV: Log branch decision
-  if (import.meta.env.DEV) {
-    const takingLargeBranch = shouldShowSections && visibleSet.size > 0;
-    console.log("[HS BRANCH DECISION]", {
-      takingLargeBranch,
-      shouldShowSections,
-      visibleSetSize: visibleSet.size,
-      hasSuggestions,
-      cameFromDiscovery,
-      hasFiltersInContext: inviteContext?.filterContext?.hasFilters,
-      renderingArray: takingLargeBranch ? "suggestedHouseholds (large branch)" : "defaultVisibleHouseholds (small branch)"
-    });
-  }
+  const isSuggested = (householdId: string) => {
+    return householdId === inviteContext?.clickedHouseholdId || visibleSet.has(householdId);
+  };
 
   const renderHouseholdCard = (household: GGHousehold, isRecommended: boolean = false) => {
     const householdId = household.id;
