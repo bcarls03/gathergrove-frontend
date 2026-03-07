@@ -280,9 +280,15 @@ export default function ComposePost() {
 
   /* ---------- Send Invitations ---------- */
 
-  const sendInvitations = async (eventId: string): Promise<string | null> => {
+  const sendInvitations = async (eventId: string, existingIds?: Set<string>): Promise<string | null> => {
     // Build invitation payload with arrays of household IDs and phone numbers
-    const household_ids = Array.from(selectedHouseholdIds);
+    let household_ids = Array.from(selectedHouseholdIds);
+    
+    // On update, filter out already-invited households to avoid duplicates
+    if (existingIds && existingIds.size > 0) {
+      household_ids = household_ids.filter(id => !existingIds.has(id));
+    }
+    
     const phone_numbers = Array.from(selectedPhoneNumbers);
 
     // Only call API if there are invitations to send
@@ -389,8 +395,9 @@ export default function ComposePost() {
             const updated = loadPosts().map((p) => (p.id !== tempId ? p : { ...p, id: finalBackendId, backendId: finalBackendId }));
             savePosts(updated);
 
-            // Send invitations if households or phone numbers are selected (only on create)
-            const rsvpToken = isUpdate ? null : await sendInvitations(finalBackendId);
+            // Send invitations if households or phone numbers are selected
+            // On update, only send invitations to newly selected households
+            const rsvpToken = await sendInvitations(finalBackendId, isUpdate ? existingInvitedHouseholdIds : undefined);
             
             // ✅ ALWAYS show success modal (generate fallback link if backend doesn't provide one)
             // For dev, use window.location.origin; for production, backend provides full URL
@@ -488,8 +495,9 @@ export default function ComposePost() {
           const updated = loadPosts().map((p) => (p.id !== tempId ? p : { ...p, id: finalBackendId, backendId: finalBackendId }));
           savePosts(updated);
 
-          // Send invitations if households or phone numbers are selected (only on create)
-          const rsvpToken = isUpdate ? null : await sendInvitations(finalBackendId);
+          // Send invitations if households or phone numbers are selected
+          // On update, only send invitations to newly selected households
+          const rsvpToken = await sendInvitations(finalBackendId, isUpdate ? existingInvitedHouseholdIds : undefined);
           
           // ✅ ALWAYS show success modal (generate fallback link if backend doesn't provide one)
           const finalShareLink = shareLink || `/e/${rsvpToken || finalBackendId}`;
