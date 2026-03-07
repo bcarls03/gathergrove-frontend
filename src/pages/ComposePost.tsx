@@ -252,7 +252,6 @@ export default function ComposePost() {
           .filter(Boolean);
 
         setExistingInvitedHouseholdIds(new Set(householdIds));
-        setSelectedHouseholdIds(new Set(householdIds));
       } catch (err) {
         console.error("Failed to load existing invitations:", err);
       }
@@ -1158,24 +1157,19 @@ export default function ComposePost() {
                       </div>
                       <div className="full-preview-invites-list">
                         {(() => {
-                          return Array.from(selectedHouseholdIds).slice(0, 8).map((id) => (
+                          return Array.from(selectedHouseholdIds).map((id) => (
                             <div key={id} className="full-preview-invite-chip">
                               <span className="full-preview-invite-icon">👥</span>
                               <span>{selectedHouseholdNames.get(id) || 'Household'}</span>
                             </div>
                           ));
                         })()}
-                        {Array.from(selectedPhoneNumbers).slice(0, 3).map((phone) => (
+                        {Array.from(selectedPhoneNumbers).map((phone) => (
                           <div key={phone} className="full-preview-invite-chip">
                             <span className="full-preview-invite-icon">📱</span>
                             <span>{phone}</span>
                           </div>
                         ))}
-                        {(selectedHouseholdIds.size + selectedPhoneNumbers.size) > 11 && (
-                          <div className="full-preview-invite-chip">
-                            <span>+{selectedHouseholdIds.size + selectedPhoneNumbers.size - 11} more</span>
-                          </div>
-                        )}
                       </div>
                     </div>
                   )}
