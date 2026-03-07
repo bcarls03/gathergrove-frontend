@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { OnboardingLayout } from "../components/OnboardingLayout";
 import { getOnboardingState } from "../lib/onboarding";
-import { upsertUser, upsertMyHousehold } from "../lib/api";
+import { updateMyProfile, upsertMyHousehold } from "../lib/api";
 
 // ✅ Canonical neighborhood helpers (single source of truth)
 import { normalizeNeighborhoodCode, neighborhoodLabelFromCode } from "../lib/neighborhood";
@@ -186,12 +186,18 @@ function OnboardingPreviewInner() {
     setError(null);
 
     try {
-      // ---------- 1) Upsert USER (ONLY user fields) ----------
-      const adults: string[] = Array.isArray(state.adults) ? state.adults : [];
-      const userName = adults[0]?.trim() || "Neighbor";
-      await upsertUser({ name: userName });
+      // ---------- 1) Update USER profile with location data ----------
+      await updateMyProfile({
+        first_name: state.firstName ?? undefined,
+        last_name: state.lastName ?? undefined,
+        address: state.address ?? undefined,
+        lat: state.lat ?? undefined,
+        lng: state.lng ?? undefined,
+        location_precision: state.location_precision ?? undefined,
+      });
 
       // ---------- 2) Upsert HOUSEHOLD (household fields only) ----------
+      const adults: string[] = Array.isArray(state.adults) ? state.adults : [];
       const adultNames = adults.map((a) => (a || "").trim()).filter(Boolean);
 
       const normalizedKids: Kid[] = isFamily

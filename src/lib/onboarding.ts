@@ -12,6 +12,15 @@ export type OnboardingState = {
   visibility?: "private" | "neighbors" | "public" | null;
   password?: string | null;
   
+  // Location (captured in address step)
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  location_precision?: "street" | "zipcode" | null;
+  
   // Step 2: Household (OPTIONAL)
   skipHousehold?: boolean;
   householdName?: string | null;
@@ -59,6 +68,14 @@ function readStorage(): OnboardingState | null {
       intendedHouseholdType: parsed.intendedHouseholdType ?? parsed.householdType ?? null, // V16: intent vs identity
       kids: Array.isArray(parsed.kids) ? parsed.kids : [],
       householdCreated: parsed.householdCreated ?? false,
+      // Location fields
+      address: parsed.address ?? null,
+      city: parsed.city ?? null,
+      state: parsed.state ?? null,
+      zip: parsed.zip ?? null,
+      lat: parsed.lat ?? null,
+      lng: parsed.lng ?? null,
+      location_precision: parsed.location_precision ?? null,
       // Legacy fields
       neighborhoodCode: parsed.neighborhoodCode ?? null,
       adults: Array.isArray(parsed.adults) ? parsed.adults : [],

@@ -143,7 +143,11 @@ export type UserProfileUpdate = {
   bio?: string | null;
   discovery_opt_in?: boolean;
   visibility?: UserVisibility;
-  // Note: address, lat, lng, household_id, interests are NOT supported by active endpoint
+  // Location fields (now supported)
+  address?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  location_precision?: "street" | "zipcode" | null;
 };
 
 

@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Search } from 'lucide-react';
 import { OnboardingLayout } from '../components/OnboardingLayout';
 import { updateMyProfile } from '../lib/api';
+import { setOnboardingState } from '../lib/onboarding';
 
 export default function OnboardingAddressSimple() {
   const navigate = useNavigate();
@@ -138,13 +139,23 @@ export default function OnboardingAddressSimple() {
 
     const { lat, lng } = geocodeResult;
 
-    // Note: Address fields are NOT supported by PATCH /users/me endpoint
-    // Address is passed via router state and saved later during household creation
+    // Determine location precision based on whether street address was provided
+    const location_precision = address.trim() ? 'street' : 'zipcode';
+
+    // Save location data to onboarding state
+    setOnboardingState({
+      address: address.trim() || null,
+      city,
+      state,
+      zip,
+      lat,
+      lng,
+      location_precision,
+    });
+
     try {
       // Navigate to Step 3: Household
-      navigate('/onboarding/household', {
-        state: { address, city, state, zip, lat, lng },
-      });
+      navigate('/onboarding/household');
     } finally {
       setLoading(false);
     }
