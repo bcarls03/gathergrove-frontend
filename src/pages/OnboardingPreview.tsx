@@ -194,6 +194,7 @@ function OnboardingPreviewInner() {
         lat: state.lat ?? undefined,
         lng: state.lng ?? undefined,
         location_precision: state.location_precision ?? undefined,
+        neighborhood_name: state.neighborhood_name ?? undefined,
       });
 
       // ---------- 2) Upsert HOUSEHOLD (household fields only) ----------
@@ -347,6 +348,12 @@ function OnboardingPreviewInner() {
             <h3 className="gg-name">{label}</h3>
             <span className="gg-pill neighborhood">{neighborhoodLabel}</span>
           </div>
+
+          {state.neighborhood_name && (
+            <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 8 }}>
+              {state.neighborhood_name}
+            </div>
+          )}
 
           {adultsLabel && (
             <div className="adults">

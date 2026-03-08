@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { Search } from 'lucide-react';
 import { OnboardingLayout } from '../components/OnboardingLayout';
 import { updateMyProfile } from '../lib/api';
-import { setOnboardingState } from '../lib/onboarding';
+import { setOnboardingState, getOnboardingState } from '../lib/onboarding';
 
 export default function OnboardingAddressSimple() {
   const navigate = useNavigate();
@@ -12,11 +12,13 @@ export default function OnboardingAddressSimple() {
   const [error, setError] = useState('');
   const [showSkipModal, setShowSkipModal] = useState(false);
   
-  const [address, setAddress] = useState('');
-  const [city, setCity] = useState('');
-  const [state, setState] = useState('');
-  const [zip, setZip] = useState('');
-  const [neighborhoodName, setNeighborhoodName] = useState('');
+  // Initialize from saved onboarding state
+  const savedState = getOnboardingState() ?? {};
+  const [address, setAddress] = useState(savedState.address || '');
+  const [city, setCity] = useState(savedState.city || '');
+  const [state, setState] = useState(savedState.state || '');
+  const [zip, setZip] = useState(savedState.zip || '');
+  const [neighborhoodName, setNeighborhoodName] = useState(savedState.neighborhood_name || '');
   const [zipValidating, setZipValidating] = useState(false);
   const [zipError, setZipError] = useState('');
 
