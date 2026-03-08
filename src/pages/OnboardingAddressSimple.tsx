@@ -16,8 +16,22 @@ export default function OnboardingAddressSimple() {
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [zip, setZip] = useState('');
+  const [neighborhoodName, setNeighborhoodName] = useState('');
   const [zipValidating, setZipValidating] = useState(false);
   const [zipError, setZipError] = useState('');
+
+  // Shared helper text style
+  const helperTextStyle = {
+    fontSize: 13,
+    color: '#9CA3AF',
+    lineHeight: 1.4,
+    marginTop: 6,
+    marginBottom: 0,
+    marginLeft: 0,
+    marginRight: 0,
+    paddingLeft: 4,
+  };
+
 
   // Google Geocoding API - Validate ZIP and get coordinates
   const geocodeZip = async (zipCode: string) => {
@@ -151,6 +165,7 @@ export default function OnboardingAddressSimple() {
       lat,
       lng,
       location_precision,
+      neighborhood_name: neighborhoodName.trim() || null,
     });
 
     try {
@@ -189,7 +204,7 @@ export default function OnboardingAddressSimple() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        style={{ textAlign: 'center', marginBottom: 32, maxWidth: 520, margin: "0 auto 32px" }}
+        style={{ textAlign: 'center', maxWidth: 520, marginTop: 0, marginBottom: 32, marginLeft: 'auto', marginRight: 'auto' }}
       >
           <h1 style={{ fontSize: 28, fontWeight: 700, color: '#111827', marginBottom: 12, letterSpacing: '-0.025em', lineHeight: 1.3 }}>
             Where should we connect you<br />with neighbors?
@@ -450,6 +465,7 @@ export default function OnboardingAddressSimple() {
                 width: '100%',
                 padding: '14px 18px',
                 fontSize: 15,
+                color: '#111827',
                 border: city && state ? '2px solid #10b981' : '2px solid #e5e7eb',
                 borderRadius: 16,
                 outline: 'none',
@@ -482,15 +498,68 @@ export default function OnboardingAddressSimple() {
               }}
               disabled={loading}
             />
-            <p style={{ 
-              fontSize: 13, 
-              color: '#9ca3af', 
-              margin: 0,
-              paddingLeft: 4,
-            }}>
+            <p style={helperTextStyle}>
               Only used to match you with nearby neighbors. Never shown publicly.
             </p>
           </motion.div>
+
+          {/* Neighborhood Name - Optional context label */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 14 }}>
+            <label htmlFor="neighborhood_name" style={{ 
+              fontSize: 14, 
+              color: '#6b7280',
+              fontWeight: 500,
+              paddingLeft: 4,
+            }}>
+              Neighborhood name (optional)
+            </label>
+            <input
+              id="neighborhood_name"
+              type="text"
+              value={neighborhoodName}
+              onChange={(e) => setNeighborhoodName(e.target.value)}
+              placeholder="Maple Grove Estates"
+              style={{
+                width: '100%',
+                padding: '14px 18px',
+                fontSize: 15,
+                color: '#111827',
+                border: '2px solid #e5e7eb',
+                borderRadius: 16,
+                outline: 'none',
+                transition: 'all 0.2s ease',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+                backgroundColor: '#ffffff',
+                boxSizing: 'border-box',
+              }}
+              onMouseEnter={(e) => {
+                const target = e.target as HTMLInputElement;
+                if (target !== document.activeElement) {
+                  target.style.borderColor = '#d1d5db';
+                  target.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.12)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                const target = e.target as HTMLInputElement;
+                if (target !== document.activeElement) {
+                  target.style.borderColor = '#e5e7eb';
+                  target.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)';
+                }
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = '#10b981';
+                e.target.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.15)';
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = '#e5e7eb';
+                e.target.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)';
+              }}
+              disabled={loading}
+            />
+            <p style={helperTextStyle}>
+              Optional — helps neighbors recognize nearby areas.
+            </p>
+          </div>
 
           {error && (
             <motion.div
